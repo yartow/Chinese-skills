@@ -33,7 +33,7 @@ export const userSettings = pgTable("user_settings", {
   userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   currentLevel: integer("current_level").notNull().default(0),
   dailyCharCount: integer("daily_char_count").notNull().default(5),
-  preferTraditional: boolean("prefer_traditional").notNull().default(false),
+  preferTraditional: boolean("prefer_traditional").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
