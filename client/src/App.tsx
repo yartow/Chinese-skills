@@ -1,62 +1,40 @@
-import { useState } from "react";
+// Replit Auth integration - blueprint:javascript_log_in_with_replit
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AuthPage from "./pages/auth";
-import HomePage from "./pages/home";
-import CharacterDetailView from "./components/CharacterDetailView";
-import TestMode from "./components/TestMode";
+import { useAuth } from "@/hooks/useAuth";
+import Landing from "./pages/landing";
+import Home from "./pages/home-connected";
+import CharacterDetail from "./pages/character-detail";
+import TestModePage from "./pages/test-mode-page";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
-import { Home, FlaskConical, BookOpen } from "lucide-react";
+import { Home as HomeIcon, FlaskConical } from "lucide-react";
 
 function Router() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isTraditional, setIsTraditional] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
 
-  const mockCharacterData = {
-    simplified: "学",
-    traditional: "學",
-    pinyin: "xué",
-    radical: "子",
-    radicalPinyin: "zǐ",
-    definition: ["to study", "to learn", "school", "knowledge"],
-    examples: [
-      { chinese: "我在学习中文。", english: "I am studying Chinese." },
-      { chinese: "他是一个好学生。", english: "He is a good student." },
-      { chinese: "这所学校很大。", english: "This school is very large." },
-      { chinese: "学无止境。", english: "Learning is endless." },
-      { chinese: "我们要好好学习。", english: "We should study hard." },
-    ],
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
-    return <AuthPage onLogin={() => setIsAuthenticated(true)} />;
+    return <Landing />;
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Switch>
-        <Route path="/">
-          <HomePage
-            onCharacterClick={(id) => setLocation(`/character/${id}`)}
-            onLogout={() => setIsAuthenticated(false)}
-          />
-        </Route>
-        <Route path="/character/:id">
-          <CharacterDetailView
-            character={mockCharacterData}
-            onBack={() => setLocation("/")}
-            isTraditional={isTraditional}
-            onToggleScript={setIsTraditional}
-          />
-        </Route>
-        <Route path="/test">
-          <TestMode onStartTest={(type, index) => console.log(`Test: ${type} at ${index}`)} />
-        </Route>
+        <Route path="/" component={Home} />
+        <Route path="/character/:id" component={CharacterDetail} />
+        <Route path="/test" component={TestModePage} />
         <Route component={NotFound} />
       </Switch>
 
@@ -68,7 +46,7 @@ function Router() {
             className="gap-2"
             data-testid="nav-home"
           >
-            <Home className="w-4 h-4" />
+            <HomeIcon className="w-4 h-4" />
             Home
           </Button>
           <Button
