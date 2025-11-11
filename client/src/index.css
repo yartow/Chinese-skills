@@ -43,9 +43,10 @@
   --chart-3: 210 75% 40%;
   --chart-4: 160 60% 35%;
   --chart-5: 280 65% 38%;
-  --font-sans: Open Sans, sans-serif;
+  --font-sans: Inter, Roboto, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
+  --font-chinese: "Noto Serif SC", "Noto Serif TC", KaiTi, STKaiti, serif;
   --radius: .5rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
