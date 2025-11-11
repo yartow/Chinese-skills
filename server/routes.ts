@@ -34,7 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
           currentLevel: 0,
           dailyCharCount: 5,
-          preferTraditional: false,
+          preferTraditional: true,
         });
       }
       

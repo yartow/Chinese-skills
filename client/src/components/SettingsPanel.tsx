@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -15,6 +16,24 @@ export default function SettingsPanel({
   onLevelChange,
   onDailyCharCountChange,
 }: SettingsPanelProps) {
+  const [tempLevel, setTempLevel] = useState(currentLevel.toString());
+
+  const handleLevelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const val = parseInt(tempLevel) || 0;
+      onLevelChange(Math.max(0, Math.min(2500, val)));
+    }
+  };
+
+  const handleLevelBlur = () => {
+    const val = parseInt(tempLevel) || 0;
+    const clampedVal = Math.max(0, Math.min(2500, val));
+    setTempLevel(clampedVal.toString());
+    if (clampedVal !== currentLevel) {
+      onLevelChange(clampedVal);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -24,11 +43,10 @@ export default function SettingsPanel({
           type="number"
           min="0"
           max="2500"
-          value={currentLevel}
-          onChange={(e) => {
-            const val = parseInt(e.target.value) || 0;
-            onLevelChange(Math.max(0, Math.min(2500, val)));
-          }}
+          value={tempLevel}
+          onChange={(e) => setTempLevel(e.target.value)}
+          onKeyDown={handleLevelKeyDown}
+          onBlur={handleLevelBlur}
           data-testid="input-level"
         />
       </div>
