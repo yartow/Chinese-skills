@@ -34,12 +34,42 @@ export default function TestMode({ onStartTest }: TestModeProps) {
     onStartTest(testType, startIndex);
   };
 
+  // Helper function to normalize pinyin for comparison
+  // Accepts both tone marks (xué) and numbered tones (xue2)
+  const normalizePinyin = (pinyin: string): string => {
+    // Convert to lowercase
+    let normalized = pinyin.toLowerCase().trim();
+    
+    // Remove tone numbers (1-5)
+    normalized = normalized.replace(/[1-5]/g, "");
+    
+    // Remove tone marks by converting to base letters
+    const toneMap: Record<string, string> = {
+      'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a', 'a': 'a',
+      'ē': 'e', 'é': 'e', 'ě': 'e', 'è': 'e', 'e': 'e',
+      'ī': 'i', 'í': 'i', 'ǐ': 'i', 'ì': 'i', 'i': 'i',
+      'ō': 'o', 'ó': 'o', 'ǒ': 'o', 'ò': 'o', 'o': 'o',
+      'ū': 'u', 'ú': 'u', 'ǔ': 'u', 'ù': 'u', 'u': 'u',
+      'ǖ': 'ü', 'ǘ': 'ü', 'ǚ': 'ü', 'ǜ': 'ü', 'ü': 'ü',
+    };
+    
+    for (const [toned, base] of Object.entries(toneMap)) {
+      normalized = normalized.replace(new RegExp(toned, 'g'), base);
+    }
+    
+    // Remove spaces for flexible matching
+    normalized = normalized.replace(/\s+/g, "");
+    
+    return normalized;
+  };
+
   const handleSubmit = () => {
     const current = mockQuestions[currentIndex % mockQuestions.length];
     let isCorrect = false;
 
     if (testType === "pronunciation") {
-      isCorrect = answer.toLowerCase() === current.pinyin.toLowerCase();
+      // Accept both regular pinyin (xué) and numbered pinyin (xue2)
+      isCorrect = normalizePinyin(answer) === normalizePinyin(current.pinyin);
     } else if (testType === "writing") {
       isCorrect = answer === current.character;
     } else if (testType === "radical") {
@@ -137,7 +167,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={
               testType === "pronunciation"
-                ? "Enter pinyin..."
+                ? "Enter pinyin (e.g., xue2 or xué)..."
                 : testType === "writing"
                 ? "Enter character..."
                 : "Enter radical..."

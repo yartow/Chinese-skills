@@ -1,4 +1,4 @@
-import { Star } from "lucide-react";
+import { BookOpen, PenTool, Grid3x3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StarRatingProps {
@@ -21,17 +21,17 @@ export default function StarRating({
   className,
 }: StarRatingProps) {
   return (
-    <div className={cn("flex items-center gap-2", className)} data-testid="star-rating">
+    <div className={cn("flex items-center gap-3", className)} data-testid="star-rating">
       <button
         onClick={onToggleReading}
         className="hover-elevate active-elevate-2 p-1 rounded-md transition-colors"
         data-testid="button-toggle-reading"
         title="Reading (Pronunciation)"
       >
-        <Star
+        <BookOpen
           className={cn(
-            "w-5 h-5 transition-all",
-            reading ? "fill-primary text-primary" : "text-muted-foreground"
+            "w-5 h-5 transition-colors",
+            reading ? "text-green-600 dark:text-green-500" : "text-gray-400 dark:text-gray-500"
           )}
         />
       </button>
@@ -41,10 +41,10 @@ export default function StarRating({
         data-testid="button-toggle-writing"
         title="Writing"
       >
-        <Star
+        <PenTool
           className={cn(
-            "w-5 h-5 transition-all",
-            writing ? "fill-primary text-primary" : "text-muted-foreground"
+            "w-5 h-5 transition-colors",
+            writing ? "text-green-600 dark:text-green-500" : "text-gray-400 dark:text-gray-500"
           )}
         />
       </button>
@@ -54,10 +54,10 @@ export default function StarRating({
         data-testid="button-toggle-radical"
         title="Radical"
       >
-        <Star
+        <Grid3x3
           className={cn(
-            "w-5 h-5 transition-all",
-            radical ? "fill-primary text-primary" : "text-muted-foreground"
+            "w-5 h-5 transition-colors",
+            radical ? "text-green-600 dark:text-green-500" : "text-gray-400 dark:text-gray-500"
           )}
         />
       </button>

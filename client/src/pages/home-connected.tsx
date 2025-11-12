@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -7,13 +7,18 @@ import { Progress } from "@/components/ui/progress";
 import CharacterCard from "@/components/CharacterCard";
 import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
-import { Settings, LogOut } from "lucide-react";
+import ProgressFilter from "@/components/ProgressFilter";
+import { Settings, LogOut, Filter } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [showSettings, setShowSettings] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterReading, setFilterReading] = useState(false);
+  const [filterWriting, setFilterWriting] = useState(false);
+  const [filterRadical, setFilterRadical] = useState(false);
 
   // Fetch user settings
   const { data: settings, isLoading: settingsLoading } = useQuery<UserSettings>({
@@ -47,11 +52,45 @@ export default function Home() {
     },
   });
 
-  // Update character progress mutation
+  // Update character progress mutation with optimistic updates
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
-    onSuccess: () => {
+    onMutate: async (newProgress) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/progress/range", currentLevel, 5] });
+      
+      // Snapshot the previous value
+      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/range", currentLevel, 5]);
+      
+      // Optimistically update to the new value
+      queryClient.setQueryData<CharacterProgress[]>(
+        ["/api/progress/range", currentLevel, 5],
+        (old = []) => {
+          const existingIndex = old.findIndex(p => p.characterIndex === newProgress.characterIndex);
+          if (existingIndex >= 0) {
+            // Update existing progress
+            const updated = [...old];
+            updated[existingIndex] = { ...updated[existingIndex], ...newProgress };
+            return updated;
+          } else {
+            // Add new progress entry
+            return [...old, newProgress as CharacterProgress];
+          }
+        }
+      );
+      
+      // Return context with snapshot for rollback
+      return { previousProgress };
+    },
+    onError: (err, newProgress, context) => {
+      // Rollback on error
+      if (context?.previousProgress) {
+        queryClient.setQueryData(["/api/progress/range", currentLevel, 5], context.previousProgress);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after success or error
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
     },
   });
@@ -143,39 +182,87 @@ export default function Home() {
           </p>
         </Card>
 
-        {showSettings && (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Settings</h2>
-            <SettingsPanel
-              currentLevel={currentLevel}
-              dailyCharCount={dailyCharCount}
-              onLevelChange={handleLevelChange}
-              onDailyCharCountChange={handleDailyCharCountChange}
-            />
-          </Card>
-        )}
-
-        <div>
-          <h2 className="text-xl font-semibold mb-4">
-            Current Characters (Index {currentLevel} - {currentLevel + 4})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {characters.map((char) => {
-              const progress = progressList.find(p => p.characterIndex === char.index);
-              return (
-                <CharacterCard
-                  key={char.index}
-                  character={isTraditional ? char.traditional : char.simplified}
-                  reading={progress?.reading ?? false}
-                  writing={progress?.writing ?? false}
-                  radical={progress?.radical ?? false}
-                  onToggleReading={() => handleToggleStar(char.index, "reading")}
-                  onToggleWriting={() => handleToggleStar(char.index, "writing")}
-                  onToggleRadical={() => handleToggleStar(char.index, "radical")}
-                  onClick={() => setLocation(`/character/${char.index}`)}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3 space-y-6">
+            {showSettings && (
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Settings</h2>
+                <SettingsPanel
+                  currentLevel={currentLevel}
+                  dailyCharCount={dailyCharCount}
+                  onLevelChange={handleLevelChange}
+                  onDailyCharCountChange={handleDailyCharCountChange}
                 />
-              );
-            })}
+              </Card>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">
+                  Current Characters (Index {currentLevel} - {currentLevel + 4})
+                </h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  data-testid="button-toggle-filters"
+                  className="lg:hidden"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filter
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {characters
+                  .filter((char) => {
+                    // If no filters are active, show all characters
+                    if (!filterReading && !filterWriting && !filterRadical) return true;
+                    
+                    const progress = progressList.find(p => p.characterIndex === char.index);
+                    
+                    // Show only characters that are NOT mastered in ALL selected filter areas
+                    // If a filter is on and character IS mastered in that area, exclude it
+                    if (filterReading && (progress?.reading ?? false)) return false;
+                    if (filterWriting && (progress?.writing ?? false)) return false;
+                    if (filterRadical && (progress?.radical ?? false)) return false;
+                    
+                    // Character is not mastered in at least one selected area, include it
+                    return true;
+                  })
+                  .map((char) => {
+                    const progress = progressList.find(p => p.characterIndex === char.index);
+                    return (
+                      <CharacterCard
+                        key={char.index}
+                        character={isTraditional ? char.traditional : char.simplified}
+                        reading={progress?.reading ?? false}
+                        writing={progress?.writing ?? false}
+                        radical={progress?.radical ?? false}
+                        onToggleReading={() => handleToggleStar(char.index, "reading")}
+                        onToggleWriting={() => handleToggleStar(char.index, "writing")}
+                        onToggleRadical={() => handleToggleStar(char.index, "radical")}
+                        onClick={() => setLocation(`/character/${char.index}`)}
+                      />
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            {(showFilters || window.innerWidth >= 1024) && (
+              <Card className="p-6 sticky top-6">
+                <h2 className="text-lg font-semibold mb-4">Filters</h2>
+                <ProgressFilter
+                  filterReading={filterReading}
+                  filterWriting={filterWriting}
+                  filterRadical={filterRadical}
+                  onToggleFilterReading={() => setFilterReading(!filterReading)}
+                  onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
+                  onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
+                />
+              </Card>
+            )}
           </div>
         </div>
       </main>
