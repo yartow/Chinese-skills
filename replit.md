@@ -124,8 +124,27 @@ The app includes a comprehensive dataset of 3000 common Chinese characters:
   - Multiple English definitions from CC-CEDICT
   - Example sentences (basic templates, expandable in future)
 
+## Known Limitations
+### Example Sentences Traditional Display
+Currently, example sentences are stored only in simplified Chinese in the database. When the traditional toggle is enabled, character displays correctly show traditional forms, but example sentences remain in simplified Chinese. To properly support traditional example sentences would require:
+- Adding `examplesTraditional` field to the database schema
+- Re-seeding all 3000 characters with traditional sentence variants
+- Updating the client rendering logic to select the appropriate field
+
+This is documented as a future enhancement and does not impact the core learning functionality.
+
 ## Recent Changes
-### November 13, 2025 (Latest Session)
+### November 13, 2025 (Latest Session - Afternoon)
+- **Implemented server-side filtering** - New `/api/characters/filtered` endpoint accepts HSK levels and progress filters as query parameters
+- **Added batched progress endpoint** - `/api/progress/batch` efficiently fetches progress for up to 300 characters in a single request
+- **Replaced sliders with text inputs** - All settings now use Input components with onBlur for instant responsiveness
+- **Added chevron arrows to settings dropdown** - Visual indicator shows expand/collapse state
+- **Fixed traditional toggle** - Character detail view and test mode now properly toggle through settings mutation
+- **Enhanced test mode** - Added back button to start page and skip button during active testing
+- **Fixed validation** - Test mode start index now validates 0-2999 to match 3000 character database
+- All changes verified with comprehensive code review and testing
+
+### November 13, 2025 (Morning)
 - **Expanded database to 3000 characters** - Updated all routes and validations from 2500 to 3000
 - **Created Standard Mode** with smart pagination (10-100 characters per page, configurable)
   - Fetches 3x page size to maintain full pages after filtering
