@@ -49,9 +49,9 @@ export default function StandardMode() {
       queryClient.setQueryData(["/api/progress/range", startIndex, fetchSize], (old: CharacterProgress[] = []) => {
         const existing = old.find(p => p.characterIndex === newProgress.characterIndex);
         if (existing) {
-          return old.map(p => p.characterIndex === newProgress.characterIndex ? { ...p, ...newProgress } : p);
+          return old.map(p => p.characterIndex === newProgress.characterIndex ? { ...p, reading: newProgress.reading, writing: newProgress.writing, radical: newProgress.radical } : p);
         }
-        return [...old, { characterIndex: newProgress.characterIndex, ...newProgress }];
+        return [...old, newProgress];
       });
 
       return { previousProgress };
@@ -180,13 +180,10 @@ export default function StandardMode() {
                 return (
                   <CharacterCard
                     key={char.index}
-                    character={char}
-                    isTraditional={isTraditional}
-                    progress={{
-                      reading: progress?.reading ?? false,
-                      writing: progress?.writing ?? false,
-                      radical: progress?.radical ?? false,
-                    }}
+                    character={isTraditional ? char.traditional : char.simplified}
+                    reading={progress?.reading ?? false}
+                    writing={progress?.writing ?? false}
+                    radical={progress?.radical ?? false}
                     onToggleReading={() => handleToggleStar(char.index, "reading")}
                     onToggleWriting={() => handleToggleStar(char.index, "writing")}
                     onToggleRadical={() => handleToggleStar(char.index, "radical")}
@@ -212,9 +209,9 @@ export default function StandardMode() {
                 filterReading={filterReading}
                 filterWriting={filterWriting}
                 filterRadical={filterRadical}
-                onToggleReading={() => setFilterReading(!filterReading)}
-                onToggleWriting={() => setFilterWriting(!filterWriting)}
-                onToggleRadical={() => setFilterRadical(!filterRadical)}
+                onToggleFilterReading={() => setFilterReading(!filterReading)}
+                onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
+                onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
                 selectedHskLevels={selectedHskLevels}
                 onToggleHskLevel={handleToggleHskLevel}
               />
