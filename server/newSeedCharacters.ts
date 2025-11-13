@@ -19,9 +19,18 @@ function parseHSKCSV(): any[] {
   const characters: any[] = [];
   
   for (const record of records) {
+    // Handle traditional character variants (e.g., "準准" or "驩讙歡")
+    const tradField = record.hanzi_trad || record.hanzi_sc || '';
+    const tradArray = Array.from(tradField);
+    const traditional = tradArray[0] || record.hanzi_sc || '';
+    const traditionalVariants = tradArray.length > 1 
+      ? tradArray.slice(1).filter((v, i, arr) => arr.indexOf(v) === i && v !== traditional)
+      : [];
+    
     characters.push({
       simplified: record.hanzi_sc || '',
-      traditional: record.hanzi_trad || record.hanzi_sc || '',
+      traditional,
+      traditionalVariants,
       pinyin: record.pinyin || '',
       level: record.level || '1', // HSK level
       definitions: record.cc_cedict_definitions || record.hanzi_sc,
@@ -201,6 +210,7 @@ export async function reseedCharacters() {
         index,
         simplified: hsk.simplified,
         traditional: hsk.traditional,
+        traditionalVariants: hsk.traditionalVariants || [],
         pinyin: hsk.pinyin,
         radical: radicalInfo.radical,
         radicalPinyin: radicalInfo.pinyin,

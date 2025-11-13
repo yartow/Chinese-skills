@@ -70,6 +70,7 @@ export const chineseCharacters = pgTable("chinese_characters", {
   index: integer("index").primaryKey(),
   simplified: varchar("simplified").notNull(),
   traditional: varchar("traditional").notNull(),
+  traditionalVariants: text("traditional_variants").array(), // Additional traditional character variants
   pinyin: varchar("pinyin").notNull(),
   radical: varchar("radical").notNull(),
   radicalPinyin: varchar("radical_pinyin").notNull(),
