@@ -99,16 +99,27 @@ A full-stack web application for learning the 2500 most common Chinese character
 
 ## Character Data
 The app includes a comprehensive dataset of 2500 common Chinese characters:
-- First 20 characters are fully detailed with real data
-- Remaining characters use placeholder data (would be replaced with full dataset in production)
+- **All 2500 characters sourced from HSK 3.0** (Chinese Proficiency Test) frequency list
+- Data from the alyssabedard/chinese-hsk-and-frequency-lists repository
 - Each character includes:
   - Simplified and traditional forms
-  - Pinyin pronunciation
+  - Pinyin pronunciation with tone marks
   - Radical and radical pinyin
-  - Multiple English definitions
-  - 3-5 example sentences with translations
+  - Multiple English definitions from CC-CEDICT
+  - Example sentences (basic templates, expandable in future)
 
 ## Recent Changes
+### November 13, 2025
+- **Replaced all placeholder character data with real HSK 3.0 dataset**
+- Downloaded and processed 2500 most common Chinese characters
+- Added proper radical information for 100+ common characters
+- Implemented icon system: BookOpen (reading), PenTool (writing), Grid3x3 (radical)
+- Changed progress icons from stars to grey/green color states
+- Added optimistic updates for instant UI feedback when toggling progress
+- Implemented character filtering to show only unmastered characters
+- Updated test mode to accept numbered pinyin (e.g., "xue2") in addition to tone marks
+- Set traditional Chinese as default for new users
+
 ### November 11, 2025
 - Initial implementation of full application
 - Integrated Replit Auth for authentication
@@ -133,7 +144,12 @@ The app includes a comprehensive dataset of 2500 common Chinese characters:
 ## Development Commands
 - `npm run dev` - Start development server (frontend + backend)
 - `npm run db:push` - Push database schema changes
-- `cd server && tsx seedCharacters.ts` - Seed character database
+- `cd server && tsx newSeedCharacters.ts` - Reseed database with HSK 3.0 character data
+
+## Data Sources
+- **Character Data**: HSK 3.0 character list from alyssabedard/chinese-hsk-and-frequency-lists
+- **Supplementary Data**: Make Me a Hanzi for radical information
+- **Definitions**: CC-CEDICT (Creative Commons licensed Chinese-English dictionary)
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string
