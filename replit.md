@@ -1,16 +1,19 @@
 # Chinese Character Learning Application
 
 ## Overview
-A full-stack web application for learning the 2500 most common Chinese characters with progress tracking, detailed character information, and interactive testing modes.
+A full-stack web application for learning 3000 common Chinese characters with progress tracking, detailed character information, interactive testing modes, and two study modes (Daily and Standard).
 
 ## Features
 - **Authentication**: Replit Auth with Google login, email/password, and other OAuth providers
-- **Character Database**: 2500 most common Chinese characters with simplified/traditional variants
-- **Progress Tracking**: Three-star system tracking reading, writing, and radical knowledge for each character
-- **User Settings**: Customizable daily character count and current level (0-2500)
+- **Character Database**: 3000 common Chinese characters with simplified/traditional variants (HSK 1-6)
+- **Progress Tracking**: Three-icon system tracking reading (BookOpen), writing (PenTool), and radical (Grid3x3) knowledge for each character
+- **Daily Mode**: Shows current level characters based on user settings (0-3000 index)
+- **Standard Mode**: Browse all characters with configurable pagination (10-100 characters per page)
+- **User Settings**: Customizable daily character count, current level (0-3000), and standard mode page size
 - **Character Details**: Large Kaiti font display, stroke order animations, pinyin, radicals, definitions, and example sentences
-- **Script Toggle**: Switch between simplified and traditional Chinese characters throughout the app
-- **Test Mode**: Three testing types (pronunciation, writing, radical recognition)
+- **Script Toggle**: Switch between simplified and traditional Chinese characters throughout the app (traditional default)
+- **Test Mode**: Three testing types (pronunciation, writing, radical recognition) with numbered pinyin support
+- **Vocabulary Database**: Multi-character words with HSK levels and progress tracking (future expansion)
 
 ## Technology Stack
 ### Frontend
@@ -38,9 +41,10 @@ A full-stack web application for learning the 2500 most common Chinese character
 - Stores user session data
 
 ### User Settings Table
-- `currentLevel`: Character index (0-2500)
-- `dailyCharCount`: Number of characters to study per day
-- `preferTraditional`: Boolean for script preference
+- `currentLevel`: Character index (0-3000)
+- `dailyCharCount`: Number of characters to study per day (default: 5)
+- `preferTraditional`: Boolean for script preference (default: true)
+- `standardModePageSize`: Number of characters per page in standard mode (default: 20, range: 10-100)
 
 ### Character Progress Table
 - Tracks three-star ratings per character per user
@@ -49,11 +53,22 @@ A full-stack web application for learning the 2500 most common Chinese character
 - `radical`: User knows the radical
 
 ### Chinese Characters Table
-- 2500 characters with complete metadata
-- Simplified and traditional variants
-- Pinyin, radical information
+- 3000 characters with complete metadata
+- Simplified and traditional variants (with traditionalVariants array for dual-form characters)
+- Pinyin with tone marks, radical and radical pinyin
 - English definitions (array)
 - Example sentences with translations (JSONB)
+- HSK level (1-6)
+
+### Vocabulary Tables (For Future Expansion)
+**Chinese Words Table**
+- Multi-character words with pinyin and definitions
+- HSK level classification
+- Example sentences (JSONB)
+
+**Word Progress Table**
+- Tracks user knowledge of vocabulary words
+- Foreign keys to users and words tables
 
 ## Project Structure
 ```
@@ -90,28 +105,43 @@ A full-stack web application for learning the 2500 most common Chinese character
 
 ### Characters
 - `GET /api/characters/:index` - Get single character (protected)
-- `GET /api/characters/range/:start/:count` - Get character range (protected)
+- `GET /api/characters/range/:start/:count` - Get character range (protected, max count: 300)
 
 ### Progress
 - `GET /api/progress/:characterIndex` - Get progress for character (protected)
-- `GET /api/progress/range/:start/:count` - Get progress range (protected)
-- `POST /api/progress` - Update character progress (protected)
+- `GET /api/progress/range/:start/:count` - Get progress range (protected, max count: 300)
+- `POST /api/progress` - Update character progress with optimistic updates (protected)
 
 ## Character Data
-The app includes a comprehensive dataset of 2500 common Chinese characters:
-- **All 2500 characters sourced from HSK 3.0** (Chinese Proficiency Test) frequency list
+The app includes a comprehensive dataset of 3000 common Chinese characters:
+- **All 3000 characters sourced from HSK 3.0** (Chinese Proficiency Test) frequency list
 - Data from the alyssabedard/chinese-hsk-and-frequency-lists repository
 - Each character includes:
-  - Simplified and traditional forms
+  - Simplified and traditional forms (traditionalVariants array for dual-form characters)
   - Pinyin pronunciation with tone marks
   - Radical and radical pinyin
+  - HSK level classification (1-6)
   - Multiple English definitions from CC-CEDICT
   - Example sentences (basic templates, expandable in future)
 
 ## Recent Changes
-### November 13, 2025
+### November 13, 2025 (Latest Session)
+- **Expanded database to 3000 characters** - Updated all routes and validations from 2500 to 3000
+- **Created Standard Mode** with smart pagination (10-100 characters per page, configurable)
+  - Fetches 3x page size to maintain full pages after filtering
+  - HSK level and progress filters work seamlessly
+  - Previous/Next navigation with proper boundary checks
+  - Optimistic updates for instant UI feedback
+- **Added progress toggles to character detail view** - BookOpen, PenTool, Grid3x3 icons
+- **Fixed test mode radical testing** - Now accepts both tone marks and numbered pinyin
+- **Created vocabulary database schema** for future multi-character word support
+- **Implemented traditionalVariants array** - Fixed dual character display issues (e.g., 準准)
+- **Increased API limits** - Range endpoints now accept up to 300 characters for efficient pagination
+- All changes verified with comprehensive E2E testing
+
+### November 13, 2025 (Earlier)
 - **Replaced all placeholder character data with real HSK 3.0 dataset**
-- Downloaded and processed 2500 most common Chinese characters
+- Downloaded and processed 3000 most common Chinese characters
 - Added proper radical information for 100+ common characters
 - Implemented icon system: BookOpen (reading), PenTool (writing), Grid3x3 (radical)
 - Changed progress icons from stars to grey/green color states
@@ -134,12 +164,27 @@ The app includes a comprehensive dataset of 2500 common Chinese characters:
 1. User lands on landing page
 2. Clicks "Get Started" → redirects to Replit Auth
 3. Logs in with Google or email/password
-4. Arrives at home page showing current 5 characters
-5. Can adjust level and daily character count in settings
-6. Click character to see detailed view with stroke order
-7. Toggle stars to track progress (reading, writing, radical)
-8. Switch between simplified/traditional characters
-9. Use test mode to practice different aspects
+4. Arrives at home page with three modes:
+   - **Daily Mode**: Shows characters based on current level (default)
+   - **Standard Mode**: Browse all 3000 characters with pagination
+   - **Test Mode**: Practice pronunciation, writing, or radicals
+5. Can adjust settings:
+   - Current level (0-3000)
+   - Daily character count
+   - Standard mode page size (10-100)
+   - Script preference (simplified/traditional)
+6. Click character to see detailed view:
+   - Large Kaiti font display
+   - Stroke order animation
+   - Pinyin, radical, definitions, examples
+   - Progress toggles (reading, writing, radical)
+7. Apply filters to show only:
+   - Specific HSK levels (1-6)
+   - Unmastered reading/writing/radical
+8. Use test mode to practice:
+   - Pronunciation (accepts tone marks or numbered pinyin)
+   - Writing recognition
+   - Radical recognition
 
 ## Development Commands
 - `npm run dev` - Start development server (frontend + backend)
