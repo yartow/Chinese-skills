@@ -9,9 +9,10 @@ import Landing from "./pages/landing";
 import Home from "./pages/home-connected";
 import CharacterDetail from "./pages/character-detail";
 import TestModePage from "./pages/test-mode-page";
+import StandardMode from "./pages/standard-mode";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked } from "lucide-react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -33,6 +34,7 @@ function Router() {
     <div className="min-h-screen flex flex-col">
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/standard" component={StandardMode} />
         <Route path="/character/:id" component={CharacterDetail} />
         <Route path="/test" component={TestModePage} />
         <Route component={NotFound} />
@@ -47,7 +49,16 @@ function Router() {
             data-testid="nav-home"
           >
             <HomeIcon className="w-4 h-4" />
-            Home
+            Daily
+          </Button>
+          <Button
+            variant={location === "/standard" ? "default" : "ghost"}
+            onClick={() => setLocation("/standard")}
+            className="gap-2"
+            data-testid="nav-standard"
+          >
+            <BookMarked className="w-4 h-4" />
+            Standard
           </Button>
           <Button
             variant={location === "/test" ? "default" : "ghost"}
@@ -56,7 +67,7 @@ function Router() {
             data-testid="nav-test"
           >
             <FlaskConical className="w-4 h-4" />
-            Test Mode
+            Test
           </Button>
         </div>
       </nav>

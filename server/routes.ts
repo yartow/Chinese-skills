@@ -90,11 +90,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
       
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 100) {
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
 
-      const characters = await storage.getCharacters(start, Math.min(count, 3000 - start));
+      const safeCount = Math.min(count, 3000 - start);
+      const characters = await storage.getCharacters(start, safeCount);
       res.json(characters);
     } catch (error) {
       console.error("Error fetching characters:", error);
@@ -126,11 +127,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
       
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 100) {
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
 
-      const progress = await storage.getUserCharacterProgress(userId, start, count);
+      const safeCount = Math.min(count, 3000 - start);
+      const progress = await storage.getUserCharacterProgress(userId, start, safeCount);
       res.json(progress);
     } catch (error) {
       console.error("Error fetching progress:", error);

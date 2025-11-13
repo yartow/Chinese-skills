@@ -6,15 +6,19 @@ import { Slider } from "@/components/ui/slider";
 interface SettingsPanelProps {
   currentLevel: number;
   dailyCharCount: number;
+  standardModePageSize?: number;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
+  onStandardModePageSizeChange?: (size: number) => void;
 }
 
 export default function SettingsPanel({
   currentLevel,
   dailyCharCount,
+  standardModePageSize = 20,
   onLevelChange,
   onDailyCharCountChange,
+  onStandardModePageSizeChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
 
@@ -68,6 +72,26 @@ export default function SettingsPanel({
           data-testid="slider-daily-chars"
         />
       </div>
+
+      {onStandardModePageSizeChange && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="standard-page-size">Standard Mode Page Size</Label>
+            <span className="text-sm text-muted-foreground" data-testid="text-standard-page-size">
+              {standardModePageSize}
+            </span>
+          </div>
+          <Slider
+            id="standard-page-size"
+            min={10}
+            max={100}
+            step={5}
+            value={[standardModePageSize]}
+            onValueChange={([value]) => onStandardModePageSizeChange(value)}
+            data-testid="slider-standard-page-size"
+          />
+        </div>
+      )}
     </div>
   );
 }

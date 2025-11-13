@@ -199,8 +199,10 @@ export default function Home() {
                 <SettingsPanel
                   currentLevel={currentLevel}
                   dailyCharCount={dailyCharCount}
+                  standardModePageSize={settings?.standardModePageSize}
                   onLevelChange={handleLevelChange}
                   onDailyCharCountChange={handleDailyCharCountChange}
+                  onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
                 />
               </Card>
             )}
