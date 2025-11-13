@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowRight, Check, X } from "lucide-react";
+import { ArrowRight, Check, X, ArrowLeft, SkipForward } from "lucide-react";
+import ScriptToggle from "@/components/ScriptToggle";
+import type { UserSettings } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type TestType = "pronunciation" | "writing" | "radical";
 
@@ -19,6 +23,26 @@ export default function TestMode({ onStartTest }: TestModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [showResult, setShowResult] = useState<"correct" | "incorrect" | null>(null);
+
+  const { data: settings } = useQuery<UserSettings>({
+    queryKey: ["/api/settings"],
+  });
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: (newSettings: Partial<UserSettings>) => 
+      apiRequest("PATCH", "/api/settings", newSettings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    },
+  });
+
+  const isTraditional = settings?.preferTraditional ?? false;
+  
+  const handleToggleScript = () => {
+    updateSettingsMutation.mutate({
+      preferTraditional: !isTraditional,
+    });
+  };
 
   const mockQuestions = [
     { character: "学", pinyin: "xué", radical: "子", radicalPinyin: "zǐ" },
@@ -86,10 +110,26 @@ export default function TestMode({ onStartTest }: TestModeProps) {
     }, 1500);
   };
 
+  const handleSkip = () => {
+    setCurrentIndex(currentIndex + 1);
+    setAnswer("");
+    setShowResult(null);
+  };
+
+  const handleBackToSetup = () => {
+    setIsActive(false);
+    setCurrentIndex(0);
+    setAnswer("");
+    setShowResult(null);
+  };
+
   if (!isActive) {
     return (
       <div className="max-w-2xl mx-auto p-6 space-y-6">
-        <h2 className="text-2xl font-semibold">Test Mode</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-semibold">Test Mode</h2>
+          <ScriptToggle isTraditional={isTraditional} onToggle={handleToggleScript} />
+        </div>
 
         <Card className="p-6 space-y-6">
           <div className="space-y-3">
@@ -117,22 +157,28 @@ export default function TestMode({ onStartTest }: TestModeProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="start-index">Starting Index (0-2500)</Label>
+            <Label htmlFor="start-index">Starting Index (0-2999)</Label>
             <Input
               id="start-index"
               type="number"
               min="0"
-              max="2500"
+              max="2999"
               value={startIndex}
-              onChange={(e) => setStartIndex(Math.max(0, Math.min(2500, parseInt(e.target.value) || 0)))}
+              onChange={(e) => setStartIndex(Math.max(0, Math.min(2999, parseInt(e.target.value) || 0)))}
               data-testid="input-start-index"
             />
           </div>
 
-          <Button onClick={handleStart} className="w-full" data-testid="button-start-test">
-            Start Test
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleBackToSetup} className="flex-1" data-testid="button-back-to-home">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <Button onClick={handleStart} className="flex-1" data-testid="button-start-test">
+              Start Test
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -146,8 +192,11 @@ export default function TestMode({ onStartTest }: TestModeProps) {
         <h2 className="text-xl font-semibold">
           {testType === "pronunciation" ? "Pronunciation Test" : testType === "writing" ? "Writing Test" : "Radical Test"}
         </h2>
-        <div className="text-sm text-muted-foreground" data-testid="text-question-number">
-          Question {currentIndex + 1}
+        <div className="flex items-center gap-4">
+          <ScriptToggle isTraditional={isTraditional} onToggle={handleToggleScript} />
+          <div className="text-sm text-muted-foreground" data-testid="text-question-number">
+            Question {currentIndex + 1}
+          </div>
         </div>
       </div>
 
@@ -200,14 +249,26 @@ export default function TestMode({ onStartTest }: TestModeProps) {
             </div>
           )}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!answer || showResult !== null}
-            className="w-full"
-            data-testid="button-submit-answer"
-          >
-            Submit Answer
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSkip}
+              disabled={showResult !== null}
+              className="flex-1"
+              data-testid="button-skip"
+            >
+              <SkipForward className="w-4 h-4 mr-2" />
+              Skip
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!answer || showResult !== null}
+              className="flex-1"
+              data-testid="button-submit-answer"
+            >
+              Submit Answer
+            </Button>
+          </div>
         </div>
       </Card>
 

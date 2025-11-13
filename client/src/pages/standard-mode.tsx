@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,11 @@ import ProgressFilter from "@/components/ProgressFilter";
 import { ArrowLeft } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
+
+interface FilteredCharactersResponse {
+  characters: ChineseCharacter[];
+  total: number;
+}
 
 export default function StandardMode() {
   const [, setLocation] = useLocation();
@@ -24,48 +29,87 @@ export default function StandardMode() {
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
 
-  // Fetch a larger batch to account for filtering
-  // We'll fetch 3x the page size to increase likelihood of having enough characters after filtering
-  const fetchSize = Math.min(pageSize * 3, 3000 - currentPage * pageSize);
-  const startIndex = currentPage * pageSize;
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [filterReading, filterWriting, filterRadical, selectedHskLevels]);
 
-  const { data: characters = [], isLoading: charactersLoading } = useQuery<ChineseCharacter[]>({
-    queryKey: ["/api/characters/range", startIndex, fetchSize],
-    enabled: fetchSize > 0,
+  const { data, isLoading } = useQuery<FilteredCharactersResponse>({
+    queryKey: [
+      "/api/characters/filtered",
+      currentPage,
+      pageSize,
+      selectedHskLevels,
+      filterReading,
+      filterWriting,
+      filterRadical
+    ],
+    queryFn: async ({ queryKey }) => {
+      // Destructure fresh values from queryKey instead of closing over stale component state
+      const [_, page, size, hskLevels, reading, writing, radical] = queryKey;
+
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        pageSize: String(size),
+      });
+
+      if (Array.isArray(hskLevels) && hskLevels.length > 0) {
+        queryParams.set('hskLevels', hskLevels.join(','));
+      }
+      if (reading) {
+        queryParams.set('filterReading', 'true');
+      }
+      if (writing) {
+        queryParams.set('filterWriting', 'true');
+      }
+      if (radical) {
+        queryParams.set('filterRadical', 'true');
+      }
+
+      const res = await fetch(`/api/characters/filtered?${queryParams.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${res.statusText}`);
+      }
+      return await res.json();
+    },
   });
 
-  const { data: progressList = [], isLoading: progressLoading } = useQuery<CharacterProgress[]>({
-    queryKey: ["/api/progress/range", startIndex, fetchSize],
-    enabled: fetchSize > 0,
+  const characters = data?.characters ?? [];
+  const totalCharacters = data?.total ?? 0;
+
+  // Fetch progress in a single batch request to avoid sparse range issues and performance problems
+  const characterIndices = characters.map(c => c.index);
+  const { data: progressList = [] } = useQuery<CharacterProgress[]>({
+    queryKey: ["/api/progress/batch", characterIndices.join(',')],
+    queryFn: async ({ queryKey }) => {
+      const [_, indicesString] = queryKey;
+      if (!indicesString || indicesString === '') return [];
+      
+      const res = await fetch(`/api/progress/batch?indices=${indicesString}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${res.statusText}`);
+      }
+      return await res.json();
+    },
+    enabled: characters.length > 0,
   });
 
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
-    onMutate: async (newProgress) => {
-      await queryClient.cancelQueries({ queryKey: ["/api/progress/range", startIndex, fetchSize] });
-      const previousProgress = queryClient.getQueryData(["/api/progress/range", startIndex, fetchSize]);
-
-      queryClient.setQueryData(["/api/progress/range", startIndex, fetchSize], (old: CharacterProgress[] = []) => {
-        const existing = old.find(p => p.characterIndex === newProgress.characterIndex);
-        if (existing) {
-          return old.map(p => p.characterIndex === newProgress.characterIndex ? { ...p, reading: newProgress.reading, writing: newProgress.writing, radical: newProgress.radical } : p);
-        }
-        return [...old, newProgress];
-      });
-
-      return { previousProgress };
-    },
-    onError: (err, newProgress, context) => {
-      queryClient.setQueryData(["/api/progress/range", startIndex, fetchSize], context?.previousProgress);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/progress/range", startIndex, fetchSize] });
+    onSuccess: () => {
+      // Invalidate both the filtered characters and progress queries
+      queryClient.invalidateQueries({ queryKey: ["/api/characters/filtered"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/batch"] });
     },
   });
 
   const handleToggleStar = (characterIndex: number, type: "reading" | "writing" | "radical") => {
-    const progress = progressList.find(p => p.characterIndex === characterIndex) || {
+    const progress = progressList.find((p: CharacterProgress) => p.characterIndex === characterIndex) || {
       reading: false,
       writing: false,
       radical: false,
@@ -87,38 +131,11 @@ export default function StandardMode() {
     );
   };
 
-  // Apply filters and take exactly pageSize characters
-  const filteredCharacters = useMemo(() => {
-    let filtered = characters;
-
-    // Apply HSK level filter
-    if (selectedHskLevels.length > 0) {
-      filtered = filtered.filter(char => selectedHskLevels.includes(char.hskLevel));
-    }
-
-    // Apply progress filters (show only unmastered)
-    if (filterReading || filterWriting || filterRadical) {
-      filtered = filtered.filter(char => {
-        const progress = progressList.find(p => p.characterIndex === char.index);
-        const reading = progress?.reading ?? false;
-        const writing = progress?.writing ?? false;
-        const radical = progress?.radical ?? false;
-
-        return (
-          (!filterReading || !reading) &&
-          (!filterWriting || !writing) &&
-          (!filterRadical || !radical)
-        );
-      });
-    }
-
-    return filtered.slice(0, pageSize);
-  }, [characters, progressList, selectedHskLevels, filterReading, filterWriting, filterRadical, pageSize]);
-
-  const hasNext = startIndex + pageSize < 3000;
+  const totalPages = Math.ceil(totalCharacters / pageSize);
+  const hasNext = currentPage < totalPages - 1;
   const hasPrevious = currentPage > 0;
 
-  if (charactersLoading || progressLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg text-muted-foreground">Loading...</div>
@@ -142,7 +159,7 @@ export default function StandardMode() {
             <h1 className="text-2xl font-bold">Standard Mode</h1>
           </div>
           <div className="text-sm text-muted-foreground">
-            Page {currentPage + 1} · Characters {startIndex + 1}-{startIndex + pageSize}
+            Page {currentPage + 1} of {totalPages} · {totalCharacters} total characters
           </div>
         </div>
       </header>
@@ -152,7 +169,7 @@ export default function StandardMode() {
           <div className="lg:col-span-3 space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                Showing {filteredCharacters.length} of {pageSize} characters
+                Showing {characters.length} characters
               </h2>
               <div className="flex gap-2">
                 <Button
@@ -175,8 +192,8 @@ export default function StandardMode() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCharacters.map((char) => {
-                const progress = progressList.find(p => p.characterIndex === char.index);
+              {characters.map((char) => {
+                const progress = progressList.find((p: CharacterProgress) => p.characterIndex === char.index);
                 return (
                   <CharacterCard
                     key={char.index}
@@ -193,7 +210,7 @@ export default function StandardMode() {
               })}
             </div>
 
-            {filteredCharacters.length === 0 && (
+            {characters.length === 0 && (
               <Card className="p-12 text-center">
                 <p className="text-muted-foreground">
                   No characters match your current filters. Try adjusting your filter settings.

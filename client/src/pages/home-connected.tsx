@@ -8,7 +8,7 @@ import CharacterCard from "@/components/CharacterCard";
 import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
-import { Settings, LogOut, Filter } from "lucide-react";
+import { Settings, LogOut, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -159,11 +159,12 @@ export default function Home() {
             <ScriptToggle isTraditional={isTraditional} onToggle={handleScriptToggle} />
             <Button
               variant="ghost"
-              size="icon"
               onClick={() => setShowSettings(!showSettings)}
               data-testid="button-settings"
+              className="gap-2"
             >
               <Settings className="w-5 h-5" />
+              {showSettings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"

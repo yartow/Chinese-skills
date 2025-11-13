@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -21,6 +20,8 @@ export default function SettingsPanel({
   onStandardModePageSizeChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
+  const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
+  const [tempPageSize, setTempPageSize] = useState(standardModePageSize.toString());
 
   const handleLevelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -37,6 +38,33 @@ export default function SettingsPanel({
       onLevelChange(clampedVal);
     }
   };
+
+  const handleDailyCountBlur = () => {
+    const val = parseInt(tempDailyCount) || 1;
+    const clampedVal = Math.max(1, Math.min(50, val));
+    setTempDailyCount(clampedVal.toString());
+    if (clampedVal !== dailyCharCount) {
+      onDailyCharCountChange(clampedVal);
+    }
+  };
+
+  const handlePageSizeBlur = () => {
+    const val = parseInt(tempPageSize) || 20;
+    const clampedVal = Math.max(10, Math.min(100, val));
+    setTempPageSize(clampedVal.toString());
+    if (clampedVal !== standardModePageSize && onStandardModePageSizeChange) {
+      onStandardModePageSizeChange(clampedVal);
+    }
+  };
+
+  // Update temp values when props change
+  useEffect(() => {
+    setTempDailyCount(dailyCharCount.toString());
+  }, [dailyCharCount]);
+
+  useEffect(() => {
+    setTempPageSize(standardModePageSize.toString());
+  }, [standardModePageSize]);
 
   return (
     <div className="space-y-6">
@@ -55,40 +83,33 @@ export default function SettingsPanel({
         />
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="daily-chars">Daily Characters</Label>
-          <span className="text-sm text-muted-foreground" data-testid="text-daily-count">
-            {dailyCharCount}
-          </span>
-        </div>
-        <Slider
+      <div className="space-y-2">
+        <Label htmlFor="daily-chars">Daily Characters (1-50)</Label>
+        <Input
           id="daily-chars"
-          min={1}
-          max={50}
-          step={1}
-          value={[dailyCharCount]}
-          onValueChange={([value]) => onDailyCharCountChange(value)}
-          data-testid="slider-daily-chars"
+          type="number"
+          min="1"
+          max="50"
+          value={tempDailyCount}
+          onChange={(e) => setTempDailyCount(e.target.value)}
+          onBlur={handleDailyCountBlur}
+          data-testid="input-daily-chars"
         />
       </div>
 
       {onStandardModePageSizeChange && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="standard-page-size">Standard Mode Page Size</Label>
-            <span className="text-sm text-muted-foreground" data-testid="text-standard-page-size">
-              {standardModePageSize}
-            </span>
-          </div>
-          <Slider
+        <div className="space-y-2">
+          <Label htmlFor="standard-page-size">Standard Mode Page Size (10-100)</Label>
+          <Input
             id="standard-page-size"
-            min={10}
-            max={100}
-            step={5}
-            value={[standardModePageSize]}
-            onValueChange={([value]) => onStandardModePageSizeChange(value)}
-            data-testid="slider-standard-page-size"
+            type="number"
+            min="10"
+            max="100"
+            step="5"
+            value={tempPageSize}
+            onChange={(e) => setTempPageSize(e.target.value)}
+            onBlur={handlePageSizeBlur}
+            data-testid="input-standard-page-size"
           />
         </div>
       )}

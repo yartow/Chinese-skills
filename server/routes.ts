@@ -103,6 +103,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Filtered characters query with pagination
+  app.get('/api/characters/filtered', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const page = parseInt(req.query.page as string) || 0;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      
+      if (page < 0 || pageSize < 1 || pageSize > 100) {
+        return res.status(400).json({ message: "Invalid pagination parameters" });
+      }
+
+      // Parse filter parameters
+      const filters: any = {};
+      
+      if (req.query.hskLevels) {
+        const levels = (req.query.hskLevels as string).split(',').map(Number).filter(n => !isNaN(n) && n >= 1 && n <= 6);
+        if (levels.length > 0) {
+          filters.hskLevels = levels;
+        }
+      }
+      
+      if (req.query.filterReading === 'true') {
+        filters.filterReading = true;
+      }
+      
+      if (req.query.filterWriting === 'true') {
+        filters.filterWriting = true;
+      }
+      
+      if (req.query.filterRadical === 'true') {
+        filters.filterRadical = true;
+      }
+
+      const result = await storage.getFilteredCharacters(userId, page, pageSize, filters);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching filtered characters:", error);
+      res.status(500).json({ message: "Failed to fetch filtered characters" });
+    }
+  });
+
   // Character progress routes
   app.get('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
     try {
@@ -137,6 +178,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching progress:", error);
       res.status(500).json({ message: "Failed to fetch progress" });
+    }
+  });
+
+  app.get('/api/progress/batch', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const indicesParam = req.query.indices as string;
+      
+      if (!indicesParam) {
+        return res.status(400).json({ message: "Missing indices parameter" });
+      }
+
+      const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 3000);
+      
+      if (indices.length === 0) {
+        return res.json([]);
+      }
+      
+      if (indices.length > 300) {
+        return res.status(400).json({ message: "Too many indices (max 300)" });
+      }
+
+      const progress = await storage.getBatchCharacterProgress(userId, indices);
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching batch progress:", error);
+      res.status(500).json({ message: "Failed to fetch batch progress" });
     }
   });
 

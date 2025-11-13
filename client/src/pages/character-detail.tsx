@@ -29,6 +29,14 @@ export default function CharacterDetail() {
     },
   });
 
+  const updateSettingsMutation = useMutation({
+    mutationFn: (newSettings: Partial<UserSettings>) => 
+      apiRequest("PATCH", "/api/settings", newSettings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    },
+  });
+
   const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
     const currentProgress = progress || { reading: false, writing: false, radical: false };
     updateProgressMutation.mutate({
@@ -36,6 +44,12 @@ export default function CharacterDetail() {
       reading: type === "reading" ? !currentProgress.reading : currentProgress.reading,
       writing: type === "writing" ? !currentProgress.writing : currentProgress.writing,
       radical: type === "radical" ? !currentProgress.radical : currentProgress.radical,
+    });
+  };
+
+  const handleToggleScript = () => {
+    updateSettingsMutation.mutate({
+      preferTraditional: !isTraditional,
     });
   };
 
@@ -67,7 +81,7 @@ export default function CharacterDetail() {
       progress={progress || { reading: false, writing: false, radical: false }}
       onBack={() => setLocation("/")}
       isTraditional={isTraditional}
-      onToggleScript={() => {}}
+      onToggleScript={handleToggleScript}
       onToggleReading={() => handleToggleProgress("reading")}
       onToggleWriting={() => handleToggleProgress("writing")}
       onToggleRadical={() => handleToggleProgress("radical")}
