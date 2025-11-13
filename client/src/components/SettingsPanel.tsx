@@ -21,13 +21,13 @@ export default function SettingsPanel({
   const handleLevelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const val = parseInt(tempLevel) || 0;
-      onLevelChange(Math.max(0, Math.min(2500, val)));
+      onLevelChange(Math.max(0, Math.min(3000, val)));
     }
   };
 
   const handleLevelBlur = () => {
     const val = parseInt(tempLevel) || 0;
-    const clampedVal = Math.max(0, Math.min(2500, val));
+    const clampedVal = Math.max(0, Math.min(3000, val));
     setTempLevel(clampedVal.toString());
     if (clampedVal !== currentLevel) {
       onLevelChange(clampedVal);
@@ -37,12 +37,12 @@ export default function SettingsPanel({
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="current-level">Current Level (0-2500)</Label>
+        <Label htmlFor="current-level">Current Level (0-3000)</Label>
         <Input
           id="current-level"
           type="number"
           min="0"
-          max="2500"
+          max="3000"
           value={tempLevel}
           onChange={(e) => setTempLevel(e.target.value)}
           onKeyDown={handleLevelKeyDown}

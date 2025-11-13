@@ -19,6 +19,7 @@ export default function Home() {
   const [filterReading, setFilterReading] = useState(false);
   const [filterWriting, setFilterWriting] = useState(false);
   const [filterRadical, setFilterRadical] = useState(false);
+  const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
 
   // Fetch user settings
   const { data: settings, isLoading: settingsLoading } = useQuery<UserSettings>({
@@ -31,13 +32,13 @@ export default function Home() {
 
   // Fetch characters for current level
   const { data: characters = [], isLoading: charactersLoading } = useQuery<ChineseCharacter[]>({
-    queryKey: ["/api/characters/range", currentLevel, 5],
+    queryKey: ["/api/characters/range", currentLevel, dailyCharCount],
     enabled: !settingsLoading,
   });
 
   // Fetch progress for current characters
   const { data: progressList = [] } = useQuery<CharacterProgress[]>({
-    queryKey: ["/api/progress/range", currentLevel, 5],
+    queryKey: ["/api/progress/range", currentLevel, dailyCharCount],
     enabled: !settingsLoading,
   });
 
@@ -58,14 +59,14 @@ export default function Home() {
       apiRequest("POST", "/api/progress", progressData),
     onMutate: async (newProgress) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/progress/range", currentLevel, 5] });
+      await queryClient.cancelQueries({ queryKey: ["/api/progress/range", currentLevel, dailyCharCount] });
       
       // Snapshot the previous value
-      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/range", currentLevel, 5]);
+      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/range", currentLevel, dailyCharCount]);
       
       // Optimistically update to the new value
       queryClient.setQueryData<CharacterProgress[]>(
-        ["/api/progress/range", currentLevel, 5],
+        ["/api/progress/range", currentLevel, dailyCharCount],
         (old = []) => {
           const existingIndex = old.findIndex(p => p.characterIndex === newProgress.characterIndex);
           if (existingIndex >= 0) {
@@ -86,7 +87,7 @@ export default function Home() {
     onError: (err, newProgress, context) => {
       // Rollback on error
       if (context?.previousProgress) {
-        queryClient.setQueryData(["/api/progress/range", currentLevel, 5], context.previousProgress);
+        queryClient.setQueryData(["/api/progress/range", currentLevel, dailyCharCount], context.previousProgress);
       }
     },
     onSettled: () => {
@@ -126,6 +127,14 @@ export default function Home() {
     window.location.href = "/api/logout";
   };
 
+  const handleToggleHskLevel = (level: number) => {
+    setSelectedHskLevels((prev) =>
+      prev.includes(level)
+        ? prev.filter((l) => l !== level)
+        : [...prev, level]
+    );
+  };
+
   if (settingsLoading || charactersLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -134,7 +143,7 @@ export default function Home() {
     );
   }
 
-  const progressPercentage = (currentLevel / 2500) * 100;
+  const progressPercentage = (currentLevel / 3000) * 100;
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,7 +152,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold font-chinese">汉字学习</h1>
             <div className="text-sm text-muted-foreground">
-              Level {currentLevel} / 2500
+              Level {currentLevel} / 3000
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -178,7 +187,7 @@ export default function Home() {
           </div>
           <Progress value={progressPercentage} data-testid="progress-overall" />
           <p className="text-sm text-muted-foreground">
-            You've learned {currentLevel} out of 2500 characters
+            You've learned {currentLevel} out of 3000 characters
           </p>
         </Card>
 
@@ -198,24 +207,51 @@ export default function Home() {
 
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  Current Characters (Index {currentLevel} - {currentLevel + 4})
-                </h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  data-testid="button-toggle-filters"
-                  className="lg:hidden"
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filter
-                </Button>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold">
+                    Current Characters (Index {currentLevel} - {currentLevel + dailyCharCount - 1})
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleLevelChange(Math.max(0, currentLevel - dailyCharCount))}
+                    disabled={currentLevel === 0}
+                    data-testid="button-previous"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleLevelChange(Math.min(3000 - dailyCharCount, currentLevel + dailyCharCount))}
+                    disabled={currentLevel >= 3000 - dailyCharCount}
+                    data-testid="button-next"
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                    data-testid="button-toggle-filters"
+                    className="lg:hidden"
+                  >
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filter
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {characters
                   .filter((char) => {
-                    // If no filters are active, show all characters
+                    // Filter by HSK level first (if any levels are selected)
+                    if (selectedHskLevels.length > 0 && !selectedHskLevels.includes(char.hskLevel)) {
+                      return false;
+                    }
+                    
+                    // If no progress filters are active, show the character
                     if (!filterReading && !filterWriting && !filterRadical) return true;
                     
                     const progress = progressList.find(p => p.characterIndex === char.index);
@@ -260,6 +296,8 @@ export default function Home() {
                   onToggleFilterReading={() => setFilterReading(!filterReading)}
                   onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
                   onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
+                  selectedHskLevels={selectedHskLevels}
+                  onToggleHskLevel={handleToggleHskLevel}
                 />
               </Card>
             )}

@@ -2,30 +2,34 @@ import { db } from "./db";
 import { chineseCharacters } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import fs from 'fs';
+import { parse } from 'csv-parse/sync';
 
-// Parse HSK CSV data
+// Parse HSK CSV data using proper CSV parser
 function parseHSKCSV(): any[] {
   const csvPath = '/tmp/hsk_characters.csv';
   const content = fs.readFileSync(csvPath, 'utf-8');
-  const lines = content.split('\n').filter(line => line.trim());
+  
+  // Parse CSV with proper handling of quoted fields
+  const records = parse(content, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+  });
   
   const characters: any[] = [];
   
-  for (let i = 1; i < Math.min(lines.length, 2501); i++) {
-    const line = lines[i];
-    const parts = line.split(',');
-    
-    if (parts.length >= 3) {
-      characters.push({
-        simplified: parts[0] || '',
-        traditional: parts[1] || parts[0] || '',
-        pinyin: parts[2] || '',
-        definitions: parts[6] || parts[0],
-      });
-    }
+  for (const record of records) {
+    characters.push({
+      simplified: record.hanzi_sc || '',
+      traditional: record.hanzi_trad || record.hanzi_sc || '',
+      pinyin: record.pinyin || '',
+      level: record.level || '1', // HSK level
+      definitions: record.cc_cedict_definitions || record.hanzi_sc,
+    });
   }
   
-  return characters.slice(0, 2500);
+  console.log(`Parsed ${characters.length} total characters from HSK dataset`);
+  return characters;
 }
 
 // Common radicals with pinyin
@@ -186,6 +190,13 @@ export async function reseedCharacters() {
       const definitions = parseDefinitions(hsk.definitions);
       const examples = generateExamples(hsk.simplified, hsk.pinyin);
       
+      // Parse HSK level - map levels to 1-6 range
+      // HSK 3.0 has levels 1-9, but we'll normalize to 1-6
+      let hskLevel = parseInt(hsk.level) || 1;
+      if (hskLevel > 6) {
+        hskLevel = 6; // Map higher levels to level 6
+      }
+      
       return {
         index,
         simplified: hsk.simplified,
@@ -195,6 +206,7 @@ export async function reseedCharacters() {
         radicalPinyin: radicalInfo.pinyin,
         definition: definitions,
         examples,
+        hskLevel,
       };
     });
     

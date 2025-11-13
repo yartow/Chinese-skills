@@ -23,6 +23,8 @@ interface CharacterDetailViewProps {
   onBack: () => void;
   isTraditional: boolean;
   onToggleScript: (isTraditional: boolean) => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 
 export default function CharacterDetailView({
@@ -30,6 +32,8 @@ export default function CharacterDetailView({
   onBack,
   isTraditional,
   onToggleScript,
+  onPrevious,
+  onNext,
 }: CharacterDetailViewProps) {
   const [showAllExamples, setShowAllExamples] = useState(false);
   const displayChar = isTraditional ? character.traditional : character.simplified;
@@ -48,7 +52,29 @@ export default function CharacterDetailView({
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <ScriptToggle isTraditional={isTraditional} onToggle={onToggleScript} />
+          <div className="flex items-center gap-2">
+            {onPrevious && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onPrevious}
+                data-testid="button-previous-char"
+              >
+                Previous
+              </Button>
+            )}
+            {onNext && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNext}
+                data-testid="button-next-char"
+              >
+                Next
+              </Button>
+            )}
+            <ScriptToggle isTraditional={isTraditional} onToggle={onToggleScript} />
+          </div>
         </div>
 
         <div className="text-center">

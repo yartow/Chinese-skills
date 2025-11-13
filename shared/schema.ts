@@ -65,7 +65,7 @@ export const insertCharacterProgressSchema = createInsertSchema(characterProgres
 export type InsertCharacterProgress = z.infer<typeof insertCharacterProgressSchema>;
 export type CharacterProgress = typeof characterProgress.$inferSelect;
 
-// Chinese characters table - the 2500 most common characters
+// Chinese characters table - HSK 1-6 characters
 export const chineseCharacters = pgTable("chinese_characters", {
   index: integer("index").primaryKey(),
   simplified: varchar("simplified").notNull(),
@@ -75,6 +75,7 @@ export const chineseCharacters = pgTable("chinese_characters", {
   radicalPinyin: varchar("radical_pinyin").notNull(),
   definition: text("definition").array().notNull(),
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
+  hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect;

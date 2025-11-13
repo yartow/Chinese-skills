@@ -44,6 +44,8 @@ export default function CharacterDetail() {
       onBack={() => setLocation("/")}
       isTraditional={isTraditional}
       onToggleScript={() => {}}
+      onPrevious={characterIndex > 0 ? () => setLocation(`/character/${characterIndex - 1}`) : undefined}
+      onNext={characterIndex < 2999 ? () => setLocation(`/character/${characterIndex + 1}`) : undefined}
     />
   );
 }
