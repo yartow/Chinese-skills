@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import CharacterDetailView from "@/components/CharacterDetailView";
-import type { ChineseCharacter, UserSettings } from "@shared/schema";
+import type { ChineseCharacter, UserSettings, CharacterProgress } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function CharacterDetail() {
   const [, setLocation] = useLocation();
@@ -15,6 +16,28 @@ export default function CharacterDetail() {
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
   });
+
+  const { data: progress } = useQuery<CharacterProgress>({
+    queryKey: ["/api/progress", characterIndex],
+  });
+
+  const updateProgressMutation = useMutation({
+    mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
+      apiRequest("POST", "/api/progress", progressData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/progress", characterIndex] });
+    },
+  });
+
+  const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
+    const currentProgress = progress || { reading: false, writing: false, radical: false };
+    updateProgressMutation.mutate({
+      characterIndex,
+      reading: type === "reading" ? !currentProgress.reading : currentProgress.reading,
+      writing: type === "writing" ? !currentProgress.writing : currentProgress.writing,
+      radical: type === "radical" ? !currentProgress.radical : currentProgress.radical,
+    });
+  };
 
   const isTraditional = settings?.preferTraditional ?? false;
 
@@ -41,9 +64,13 @@ export default function CharacterDetail() {
   return (
     <CharacterDetailView
       character={formattedCharacter}
+      progress={progress || { reading: false, writing: false, radical: false }}
       onBack={() => setLocation("/")}
       isTraditional={isTraditional}
       onToggleScript={() => {}}
+      onToggleReading={() => handleToggleProgress("reading")}
+      onToggleWriting={() => handleToggleProgress("writing")}
+      onToggleRadical={() => handleToggleProgress("radical")}
       onPrevious={characterIndex > 0 ? () => setLocation(`/character/${characterIndex - 1}`) : undefined}
       onNext={characterIndex < 2999 ? () => setLocation(`/character/${characterIndex + 1}`) : undefined}
     />

@@ -21,9 +21,9 @@ export default function TestMode({ onStartTest }: TestModeProps) {
   const [showResult, setShowResult] = useState<"correct" | "incorrect" | null>(null);
 
   const mockQuestions = [
-    { character: "学", pinyin: "xué", radical: "子" },
-    { character: "生", pinyin: "shēng", radical: "生" },
-    { character: "中", pinyin: "zhōng", radical: "丨" },
+    { character: "学", pinyin: "xué", radical: "子", radicalPinyin: "zǐ" },
+    { character: "生", pinyin: "shēng", radical: "生", radicalPinyin: "shēng" },
+    { character: "中", pinyin: "zhōng", radical: "丨", radicalPinyin: "gǔn" },
   ];
 
   const handleStart = () => {
@@ -73,7 +73,8 @@ export default function TestMode({ onStartTest }: TestModeProps) {
     } else if (testType === "writing") {
       isCorrect = answer === current.character;
     } else if (testType === "radical") {
-      isCorrect = answer === current.radical;
+      // Accept both regular pinyin (zǐ) and numbered pinyin (zi3) for radical test
+      isCorrect = normalizePinyin(answer) === normalizePinyin(current.radicalPinyin || current.radical);
     }
 
     setShowResult(isCorrect ? "correct" : "incorrect");
@@ -170,7 +171,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                 ? "Enter pinyin (e.g., xue2 or xué)..."
                 : testType === "writing"
                 ? "Enter character..."
-                : "Enter radical..."
+                : "Enter radical pinyin (e.g., zi3 or zǐ)..."
             }
             disabled={showResult !== null}
             data-testid="input-test-answer"
@@ -193,7 +194,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
               ) : (
                 <>
                   <X className="w-4 h-4" />
-                  <span>Incorrect. The answer was: {testType === "pronunciation" ? current.pinyin : testType === "writing" ? current.character : current.radical}</span>
+                  <span>Incorrect. The answer was: {testType === "pronunciation" ? current.pinyin : testType === "writing" ? current.character : (current.radicalPinyin || current.radical)}</span>
                 </>
               )}
             </div>

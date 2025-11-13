@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen, PenTool, Grid3x3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ScriptToggle from "./ScriptToggle";
@@ -20,18 +20,30 @@ interface CharacterDetailViewProps {
     definition: string[];
     examples: ExampleSentence[];
   };
+  progress: {
+    reading: boolean;
+    writing: boolean;
+    radical: boolean;
+  };
   onBack: () => void;
   isTraditional: boolean;
   onToggleScript: (isTraditional: boolean) => void;
+  onToggleReading: () => void;
+  onToggleWriting: () => void;
+  onToggleRadical: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
 }
 
 export default function CharacterDetailView({
   character,
+  progress,
   onBack,
   isTraditional,
   onToggleScript,
+  onToggleReading,
+  onToggleWriting,
+  onToggleRadical,
   onPrevious,
   onNext,
 }: CharacterDetailViewProps) {
@@ -77,9 +89,41 @@ export default function CharacterDetailView({
           </div>
         </div>
 
-        <div className="text-center">
+        <div className="text-center space-y-6">
           <div className="text-[12rem] font-chinese leading-none" data-testid="text-character-large">
             {displayChar}
+          </div>
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={onToggleReading}
+              className="flex flex-col items-center gap-1 p-2 rounded hover-elevate active-elevate-2"
+              data-testid="button-toggle-reading"
+            >
+              <BookOpen
+                className={`w-6 h-6 ${progress.reading ? "text-green-600" : "text-gray-400"}`}
+              />
+              <span className="text-xs text-muted-foreground">Reading</span>
+            </button>
+            <button
+              onClick={onToggleWriting}
+              className="flex flex-col items-center gap-1 p-2 rounded hover-elevate active-elevate-2"
+              data-testid="button-toggle-writing"
+            >
+              <PenTool
+                className={`w-6 h-6 ${progress.writing ? "text-green-600" : "text-gray-400"}`}
+              />
+              <span className="text-xs text-muted-foreground">Writing</span>
+            </button>
+            <button
+              onClick={onToggleRadical}
+              className="flex flex-col items-center gap-1 p-2 rounded hover-elevate active-elevate-2"
+              data-testid="button-toggle-radical"
+            >
+              <Grid3x3
+                className={`w-6 h-6 ${progress.radical ? "text-green-600" : "text-gray-400"}`}
+              />
+              <span className="text-xs text-muted-foreground">Radical</span>
+            </button>
           </div>
         </div>
 

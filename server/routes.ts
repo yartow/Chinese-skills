@@ -90,11 +90,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
       
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 2500 || count < 1 || count > 100) {
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 100) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
 
-      const characters = await storage.getCharacters(start, Math.min(count, 2500 - start));
+      const characters = await storage.getCharacters(start, Math.min(count, 3000 - start));
       res.json(characters);
     } catch (error) {
       console.error("Error fetching characters:", error);
@@ -108,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const characterIndex = parseInt(req.params.characterIndex);
       
-      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 2500) {
+      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 3000) {
         return res.status(400).json({ message: "Invalid character index" });
       }
 
@@ -126,7 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
       
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 2500 || count < 1 || count > 100) {
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 100) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
 

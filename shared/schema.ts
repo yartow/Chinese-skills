@@ -80,3 +80,34 @@ export const chineseCharacters = pgTable("chinese_characters", {
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect;
+
+// Chinese words/vocabulary table - Multi-character words from HSK
+export const chineseWords = pgTable("chinese_words", {
+  id: integer("id").primaryKey(),
+  word: varchar("word").notNull(), // e.g., "学校"
+  pinyin: varchar("pinyin").notNull(), // e.g., "xué xiào"
+  definition: text("definition").array().notNull(),
+  hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
+  examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
+});
+
+export type ChineseWord = typeof chineseWords.$inferSelect;
+
+// Word progress table - tracks user's knowledge of vocabulary words
+export const wordProgress = pgTable("word_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  wordId: integer("word_id").notNull().references(() => chineseWords.id, { onDelete: "cascade" }),
+  known: boolean("known").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_user_word").on(table.userId, table.wordId),
+]);
+
+export const insertWordProgressSchema = createInsertSchema(wordProgress).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertWordProgress = z.infer<typeof insertWordProgressSchema>;
+export type WordProgress = typeof wordProgress.$inferSelect;
