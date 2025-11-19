@@ -1,14 +1,21 @@
 # Chinese Character Learning Application
 
 ## Overview
-A full-stack web application for learning 3000 common Chinese characters with progress tracking, detailed character information, interactive testing modes, and two study modes (Daily and Standard).
+A full-stack web application for learning 3000 common Chinese characters with progress tracking, detailed character information, interactive testing modes, and three study modes (Daily, Standard, and Search).
 
 ## Features
 - **Authentication**: Replit Auth with Google login, email/password, and other OAuth providers
 - **Character Database**: 3000 common Chinese characters with simplified/traditional variants (HSK 1-6)
 - **Progress Tracking**: Three-icon system tracking reading (BookOpen), writing (PenTool), and radical (Grid3x3) knowledge for each character
+  - **Progress State Persistence**: Progress toggles are remembered across all views - changes made in character detail view are immediately reflected when returning to Daily, Standard, or Search Mode
 - **Daily Mode**: Shows current level characters based on user settings (0-3000 index)
 - **Standard Mode**: Browse all characters with configurable pagination (10-100 characters per page)
+- **Search Mode**: Search characters by:
+  - Character (simplified or traditional)
+  - Pinyin (partial match, case-insensitive)
+  - English definition (partial match, case-insensitive)
+  - Results displayed in grid format with progress toggles
+  - Click any character to view details
 - **User Settings**: Customizable daily character count, current level (0-3000), and standard mode page size
 - **Character Details**: Large Kaiti font display, stroke order animations, pinyin, radicals, definitions, and example sentences
 - **Script Toggle**: Switch between simplified and traditional Chinese characters throughout the app (traditional default)
@@ -106,10 +113,13 @@ A full-stack web application for learning 3000 common Chinese characters with pr
 ### Characters
 - `GET /api/characters/:index` - Get single character (protected)
 - `GET /api/characters/range/:start/:count` - Get character range (protected, max count: 300)
+- `GET /api/characters/filtered` - Get filtered characters with pagination and HSK/progress filters (protected)
+- `GET /api/characters/search?q={searchTerm}` - Search characters by character, pinyin, or definition (protected)
 
 ### Progress
 - `GET /api/progress/:characterIndex` - Get progress for character (protected)
 - `GET /api/progress/range/:start/:count` - Get progress range (protected, max count: 300)
+- `GET /api/progress/batch?indices={indices}` - Get batch progress for up to 300 characters (protected)
 - `POST /api/progress` - Update character progress with optimistic updates (protected)
 
 ## Character Data
@@ -134,6 +144,17 @@ Currently, example sentences are stored only in simplified Chinese in the databa
 This is documented as a future enhancement and does not impact the core learning functionality.
 
 ## Recent Changes
+### November 19, 2025
+- **Implemented Search Mode** - New search page with ability to search characters by:
+  - Character (simplified or traditional exact match)
+  - Pinyin (partial match, case-insensitive)
+  - English definition (partial match, case-insensitive)
+- **Fixed progress state persistence** - Progress toggles in character detail view now properly refresh all character lists (Daily, Standard, Search) when navigating back
+- **Enhanced cache management** - Progress mutations now use predicate-based invalidation to catch all progress query variants
+- Backend search uses `array_to_string` for PostgreSQL text array searching
+- Added "Search" navigation button to bottom nav with search icon
+- All changes verified with comprehensive code review and testing
+
 ### November 13, 2025 (Latest Session - Afternoon)
 - **Implemented server-side filtering** - New `/api/characters/filtered` endpoint accepts HSK levels and progress filters as query parameters
 - **Added batched progress endpoint** - `/api/progress/batch` efficiently fetches progress for up to 300 characters in a single request
