@@ -103,6 +103,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search characters
+  app.get('/api/characters/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const searchTerm = req.query.q as string;
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      if (!searchTerm || searchTerm.trim() === '') {
+        return res.json([]);
+      }
+      
+      if (limit < 1 || limit > 100) {
+        return res.status(400).json({ message: "Invalid limit parameter (1-100)" });
+      }
+
+      const results = await storage.searchCharacters(searchTerm, limit);
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching characters:", error);
+      res.status(500).json({ message: "Failed to search characters" });
+    }
+  });
+
   // Filtered characters query with pagination
   app.get('/api/characters/filtered', isAuthenticated, async (req: any, res) => {
     try {

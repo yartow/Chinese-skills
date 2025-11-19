@@ -25,7 +25,11 @@ export default function CharacterDetail() {
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
     onSuccess: () => {
+      // Invalidate the current character's progress
       queryClient.invalidateQueries({ queryKey: ["/api/progress", characterIndex] });
+      // Invalidate all progress queries so Daily Mode and Standard Mode show updated state
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/batch"] });
     },
   });
 

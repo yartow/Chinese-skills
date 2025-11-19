@@ -10,9 +10,10 @@ import Home from "./pages/home-connected";
 import CharacterDetail from "./pages/character-detail";
 import TestModePage from "./pages/test-mode-page";
 import StandardMode from "./pages/standard-mode";
+import Search from "./pages/search";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical, BookMarked } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon } from "lucide-react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -35,6 +36,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/standard" component={StandardMode} />
+        <Route path="/search" component={Search} />
         <Route path="/character/:id" component={CharacterDetail} />
         <Route path="/test" component={TestModePage} />
         <Route component={NotFound} />
@@ -59,6 +61,15 @@ function Router() {
           >
             <BookMarked className="w-4 h-4" />
             Standard
+          </Button>
+          <Button
+            variant={location === "/search" ? "default" : "ghost"}
+            onClick={() => setLocation("/search")}
+            className="gap-2"
+            data-testid="nav-search"
+          >
+            <SearchIcon className="w-4 h-4" />
+            Search
           </Button>
           <Button
             variant={location === "/test" ? "default" : "ghost"}

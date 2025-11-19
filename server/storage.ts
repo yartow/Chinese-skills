@@ -13,7 +13,7 @@ import {
   type ChineseCharacter,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lt, inArray, or, isNull, sql } from "drizzle-orm";
+import { eq, and, gte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
 
 export interface CharacterFilters {
   hskLevels?: number[];
@@ -272,6 +272,32 @@ export class DatabaseStorage implements IStorage {
       characters: characters as ChineseCharacter[],
       total
     };
+  }
+
+  async searchCharacters(searchTerm: string, limit: number = 50): Promise<ChineseCharacter[]> {
+    const lowerSearchTerm = searchTerm.toLowerCase().trim();
+    
+    if (!lowerSearchTerm) {
+      return [];
+    }
+
+    // Search in simplified, traditional, pinyin, or definition (text array)
+    // For definition array, we convert to string and search within it
+    const results = await db
+      .select()
+      .from(chineseCharacters)
+      .where(
+        or(
+          eq(chineseCharacters.simplified, searchTerm),
+          eq(chineseCharacters.traditional, searchTerm),
+          like(chineseCharacters.pinyin, `%${lowerSearchTerm}%`),
+          sql`LOWER(array_to_string(${chineseCharacters.definition}, ' ')) LIKE ${`%${lowerSearchTerm}%`}`
+        )
+      )
+      .orderBy(chineseCharacters.index)
+      .limit(limit);
+    
+    return results;
   }
 }
 
