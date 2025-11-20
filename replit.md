@@ -144,6 +144,19 @@ Currently, example sentences are stored only in simplified Chinese in the databa
 This is documented as a future enhancement and does not impact the core learning functionality.
 
 ## Recent Changes
+### November 20, 2025
+- **Fixed critical route ordering bugs** - Moved specific routes before parameterized routes in server/routes.ts:
+  - `/api/characters/search`, `/api/characters/filtered`, `/api/characters/range` now before `/api/characters/:index`
+  - `/api/progress/batch`, `/api/progress/range` now before `/api/progress/:characterIndex`
+- **Improved navigation with window.history.back()** - All back buttons now use browser's native back navigation:
+  - Character detail view back button properly returns to previous page (Daily/Standard/Search)
+  - Test mode setup screen back button returns to previous page
+  - Test results screen back button returns to test setup screen
+- **Added optimistic updates to Standard Mode** - Progress toggle changes show immediate color change before server confirmation
+- **Enhanced example sentences** - Updated first 17 most common characters with meaningful contextual examples (e.g., 学: "我在学中文" instead of template "The character 学")
+- **Search functionality now fully operational** - Route ordering fix resolved search endpoint conflicts
+- All changes verified with E2E testing using Playwright
+
 ### November 19, 2025
 - **Implemented Search Mode** - New search page with ability to search characters by:
   - Character (simplified or traditional exact match)
