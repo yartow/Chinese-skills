@@ -66,43 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Character routes
-  app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
-    try {
-      const index = parseInt(req.params.index);
-      if (isNaN(index) || index < 0 || index >= 3000) {
-        return res.status(400).json({ message: "Invalid character index" });
-      }
-
-      const character = await storage.getCharacter(index);
-      if (!character) {
-        return res.status(404).json({ message: "Character not found" });
-      }
-
-      res.json(character);
-    } catch (error) {
-      console.error("Error fetching character:", error);
-      res.status(500).json({ message: "Failed to fetch character" });
-    }
-  });
-
-  app.get('/api/characters/range/:start/:count', isAuthenticated, async (req: any, res) => {
-    try {
-      const start = parseInt(req.params.start);
-      const count = parseInt(req.params.count);
-      
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
-        return res.status(400).json({ message: "Invalid range parameters" });
-      }
-
-      const safeCount = Math.min(count, 3000 - start);
-      const characters = await storage.getCharacters(start, safeCount);
-      res.json(characters);
-    } catch (error) {
-      console.error("Error fetching characters:", error);
-      res.status(500).json({ message: "Failed to fetch characters" });
-    }
-  });
-
+  // IMPORTANT: Specific routes must come before generic :index route to avoid matching issues
+  
   // Search characters
   app.get('/api/characters/search', isAuthenticated, async (req: any, res) => {
     try {
@@ -163,6 +128,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching filtered characters:", error);
       res.status(500).json({ message: "Failed to fetch filtered characters" });
+    }
+  });
+
+  app.get('/api/characters/range/:start/:count', isAuthenticated, async (req: any, res) => {
+    try {
+      const start = parseInt(req.params.start);
+      const count = parseInt(req.params.count);
+      
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
+        return res.status(400).json({ message: "Invalid range parameters" });
+      }
+
+      const safeCount = Math.min(count, 3000 - start);
+      const characters = await storage.getCharacters(start, safeCount);
+      res.json(characters);
+    } catch (error) {
+      console.error("Error fetching characters:", error);
+      res.status(500).json({ message: "Failed to fetch characters" });
+    }
+  });
+
+  // Generic :index route must come LAST after all specific routes
+  app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
+    try {
+      const index = parseInt(req.params.index);
+      if (isNaN(index) || index < 0 || index >= 3000) {
+        return res.status(400).json({ message: "Invalid character index" });
+      }
+
+      const character = await storage.getCharacter(index);
+      if (!character) {
+        return res.status(404).json({ message: "Character not found" });
+      }
+
+      res.json(character);
+    } catch (error) {
+      console.error("Error fetching character:", error);
+      res.status(500).json({ message: "Failed to fetch character" });
     }
   });
 
