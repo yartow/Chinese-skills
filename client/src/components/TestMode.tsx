@@ -203,13 +203,19 @@ export default function TestMode({ onStartTest }: TestModeProps) {
   };
 
   const handleBackToSetup = () => {
-    setIsActive(false);
-    setCurrentQuestionIndex(0);
-    setAnswer("");
-    setShowResult(null);
-    setTestResults([]);
-    setShowSummary(false);
-    setTestCharacters([]);
+    if (isActive || showSummary) {
+      // If test is active or showing summary, reset to setup screen
+      setIsActive(false);
+      setCurrentQuestionIndex(0);
+      setAnswer("");
+      setShowResult(null);
+      setTestResults([]);
+      setShowSummary(false);
+      setTestCharacters([]);
+    } else {
+      // If on setup screen, use browser's back button
+      window.history.back();
+    }
   };
   
   const handleEndTest = () => {
@@ -329,7 +335,8 @@ export default function TestMode({ onStartTest }: TestModeProps) {
           </div>
           
           <Button onClick={handleBackToSetup} className="w-full" data-testid="button-back-to-setup">
-            Back to Setup
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
           </Button>
         </Card>
       </div>

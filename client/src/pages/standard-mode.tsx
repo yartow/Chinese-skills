@@ -101,10 +101,46 @@ export default function StandardMode() {
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
-    onSuccess: () => {
-      // Invalidate both the filtered characters and progress queries
-      queryClient.invalidateQueries({ queryKey: ["/api/characters/filtered"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/progress/batch"] });
+    onMutate: async (newProgress) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/progress/batch"] });
+      
+      // Snapshot the previous value
+      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/batch", characterIndices.join(',')]);
+      
+      // Optimistically update to the new value
+      queryClient.setQueryData<CharacterProgress[]>(
+        ["/api/progress/batch", characterIndices.join(',')],
+        (old = []) => {
+          const existingIndex = old.findIndex(p => p.characterIndex === newProgress.characterIndex);
+          if (existingIndex >= 0) {
+            // Update existing progress
+            const updated = [...old];
+            updated[existingIndex] = { ...updated[existingIndex], ...newProgress };
+            return updated;
+          } else {
+            // Add new progress entry
+            return [...old, newProgress as CharacterProgress];
+          }
+        }
+      );
+      
+      // Return context with snapshot for rollback
+      return { previousProgress };
+    },
+    onError: (err, newProgress, context) => {
+      // Rollback on error
+      if (context?.previousProgress) {
+        queryClient.setQueryData(["/api/progress/batch", characterIndices.join(',')], context.previousProgress);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after success or error
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === "/api/progress/batch" ||
+        query.queryKey[0] === "/api/progress/range" ||
+        (query.queryKey[0] === "/api/progress" && typeof query.queryKey[1] === "number")
+      });
     },
   });
 

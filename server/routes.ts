@@ -170,42 +170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Character progress routes
-  app.get('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const characterIndex = parseInt(req.params.characterIndex);
-      
-      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 3000) {
-        return res.status(400).json({ message: "Invalid character index" });
-      }
-
-      const progress = await storage.getCharacterProgress(userId, characterIndex);
-      res.json(progress || { reading: false, writing: false, radical: false });
-    } catch (error) {
-      console.error("Error fetching progress:", error);
-      res.status(500).json({ message: "Failed to fetch progress" });
-    }
-  });
-
-  app.get('/api/progress/range/:start/:count', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const start = parseInt(req.params.start);
-      const count = parseInt(req.params.count);
-      
-      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
-        return res.status(400).json({ message: "Invalid range parameters" });
-      }
-
-      const safeCount = Math.min(count, 3000 - start);
-      const progress = await storage.getUserCharacterProgress(userId, start, safeCount);
-      res.json(progress);
-    } catch (error) {
-      console.error("Error fetching progress:", error);
-      res.status(500).json({ message: "Failed to fetch progress" });
-    }
-  });
-
+  // IMPORTANT: Specific routes must come before generic :characterIndex route
+  
   app.get('/api/progress/batch', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -230,6 +196,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching batch progress:", error);
       res.status(500).json({ message: "Failed to fetch batch progress" });
+    }
+  });
+
+  app.get('/api/progress/range/:start/:count', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const start = parseInt(req.params.start);
+      const count = parseInt(req.params.count);
+      
+      if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
+        return res.status(400).json({ message: "Invalid range parameters" });
+      }
+
+      const safeCount = Math.min(count, 3000 - start);
+      const progress = await storage.getUserCharacterProgress(userId, start, safeCount);
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching progress:", error);
+      res.status(500).json({ message: "Failed to fetch progress" });
+    }
+  });
+
+  // Generic :characterIndex route must come LAST
+  app.get('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const characterIndex = parseInt(req.params.characterIndex);
+      
+      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 3000) {
+        return res.status(400).json({ message: "Invalid character index" });
+      }
+
+      const progress = await storage.getCharacterProgress(userId, characterIndex);
+      res.json(progress || { reading: false, writing: false, radical: false });
+    } catch (error) {
+      console.error("Error fetching progress:", error);
+      res.status(500).json({ message: "Failed to fetch progress" });
     }
   });
 

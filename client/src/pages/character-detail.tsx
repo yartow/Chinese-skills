@@ -79,11 +79,16 @@ export default function CharacterDetail() {
       : [],
   };
 
+  const handleBack = () => {
+    // Use browser's history to go back to previous page
+    window.history.back();
+  };
+
   return (
     <CharacterDetailView
       character={formattedCharacter}
       progress={progress || { reading: false, writing: false, radical: false }}
-      onBack={() => setLocation("/")}
+      onBack={handleBack}
       isTraditional={isTraditional}
       onToggleScript={handleToggleScript}
       onToggleReading={() => handleToggleProgress("reading")}
