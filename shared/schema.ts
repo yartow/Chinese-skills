@@ -86,8 +86,6 @@ export const chineseCharacters = pgTable("chinese_characters", {
   traditional: varchar("traditional").notNull(),
   traditionalVariants: text("traditional_variants").array(), // Additional traditional character variants
   pinyin: varchar("pinyin").notNull(),
-  radical: varchar("radical").notNull(),
-  radicalPinyin: varchar("radical_pinyin").notNull(),
   radicalIndex: integer("radical_index").references(() => radicals.index, { onDelete: "set null" }), // Foreign key to radicals table
   definition: text("definition").array().notNull(),
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }

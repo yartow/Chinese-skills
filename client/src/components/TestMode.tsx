@@ -173,18 +173,12 @@ export default function TestMode({ onStartTest }: TestModeProps) {
         : current.simplified;
       isCorrect = answer.trim() === correctAnswer;
     } else if (testType === "radical") {
-      // Skip if radicalPinyin is "unknown"
-      if (!current.radicalPinyin || current.radicalPinyin.toLowerCase() === "unknown") {
-        alert("This character has unknown radical pronunciation. Skipping...");
-        handleNext();
-        return;
-      }
       // Require numbered pinyin for radicals too
       if (!/\d/.test(answer)) {
         alert("Please use numbered pinyin (e.g., 'shu4' instead of 'shu')");
         return;
       }
-      isCorrect = normalizePinyin(answer) === normalizePinyin(current.radicalPinyin || current.radical);
+      isCorrect = normalizePinyin(answer) === normalizePinyin(current.radicalPinyin || "");
     }
 
     setShowResult(isCorrect ? "correct" : "incorrect");
@@ -391,10 +385,15 @@ export default function TestMode({ onStartTest }: TestModeProps) {
             </div>
           </div>
           
-          <Button onClick={handleBackToSetup} className="w-full" data-testid="button-back-to-setup">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleBackToSetup} className="flex-1" variant="outline" data-testid="button-back-to-setup">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <Button onClick={() => window.location.href = '/test'} className="flex-1" data-testid="button-new-test">
+              New Test
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -495,8 +494,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      <div className="text-4xl font-chinese text-foreground">{current.radical}</div>
-                      <div className="text-lg text-foreground">{current.radicalPinyin || current.radical}</div>
+                      <div className="text-lg text-foreground">{current.radicalPinyin || "(No radical pinyin)"}</div>
                     </div>
                   )}
                 </div>
@@ -505,7 +503,34 @@ export default function TestMode({ onStartTest }: TestModeProps) {
           )}
 
           <div className="flex gap-2">
-            {testType === "radical" && showResult === "incorrect" ? (
+            {testType === "writing" && !showResult ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleSkip}
+                  className="flex-1"
+                  data-testid="button-skip"
+                >
+                  <SkipForward className="w-4 h-4 mr-2" />
+                  Skip
+                </Button>
+                <Button
+                  onClick={handleMastered}
+                  className="flex-1"
+                  data-testid="button-mastered"
+                >
+                  Mastered
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleShowAnswer}
+                  className="flex-1"
+                  data-testid="button-show-answer"
+                >
+                  Show Answer
+                </Button>
+              </>
+            ) : testType === "radical" && showResult === "incorrect" ? (
               <>
                 <Button
                   variant="outline"
