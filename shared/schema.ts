@@ -92,7 +92,10 @@ export const chineseCharacters = pgTable("chinese_characters", {
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
 });
 
-export type ChineseCharacter = typeof chineseCharacters.$inferSelect;
+export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {
+  radicalPinyin?: string;
+  radical?: string;
+};
 
 // Chinese words/vocabulary table - Multi-character words from HSK
 export const chineseWords = pgTable("chinese_words", {
