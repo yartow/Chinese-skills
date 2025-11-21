@@ -3,6 +3,19 @@ import { pgTable, text, varchar, timestamp, integer, boolean, index, jsonb } fro
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Radicals table - Chinese character radicals
+export const radicals = pgTable("radicals", {
+  index: integer("index").primaryKey(),
+  traditional: varchar("traditional").notNull(), // Traditional form of radical
+  simplified: varchar("simplified").notNull(), // Simplified form of radical
+  pinyin: varchar("pinyin").notNull(), // Pinyin with tone marks
+  numberedPinyin: varchar("numbered_pinyin"), // Numbered pinyin (e.g., "pi3e4")
+  alternativeFormIndex: integer("alternative_form_index"), // Reference to alternative form of this radical
+  mainIndex: integer("main_index").notNull().default(1), // 1 if single form, 2+ if multiple forms
+});
+
+export type Radical = typeof radicals.$inferSelect;
+
 // Session storage table (required for Replit Auth)
 export const sessions = pgTable(
   "sessions",
@@ -75,6 +88,7 @@ export const chineseCharacters = pgTable("chinese_characters", {
   pinyin: varchar("pinyin").notNull(),
   radical: varchar("radical").notNull(),
   radicalPinyin: varchar("radical_pinyin").notNull(),
+  radicalIndex: integer("radical_index").references(() => radicals.index, { onDelete: "set null" }), // Foreign key to radicals table
   definition: text("definition").array().notNull(),
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6

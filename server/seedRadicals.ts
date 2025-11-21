@@ -1,0 +1,148 @@
+import db from "./db";
+import { radicals } from "@shared/schema";
+
+// Comprehensive list of Chinese radicals with traditional/simplified forms
+const radicalsData = [
+  { index: 1, traditional: "一", simplified: "一", pinyin: "yī", numberedPinyin: "yi1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 2, traditional: "丨", simplified: "丨", pinyin: "shù", numberedPinyin: "shu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 3, traditional: "丶", simplified: "丶", pinyin: "diǎn", numberedPinyin: "dian3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 4, traditional: "丿", simplified: "丿", pinyin: "piě", numberedPinyin: "pie3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 5, traditional: "乙", simplified: "乙", pinyin: "yǐ", numberedPinyin: "yi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 6, traditional: "亅", simplified: "亅", pinyin: "gōu", numberedPinyin: "gou1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 7, traditional: "二", simplified: "二", pinyin: "èr", numberedPinyin: "er4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 8, traditional: "亠", simplified: "亠", pinyin: "tóu", numberedPinyin: "tou2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 9, traditional: "人", simplified: "人", pinyin: "rén", numberedPinyin: "ren2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 10, traditional: "儿", simplified: "儿", pinyin: "ér", numberedPinyin: "er2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 11, traditional: "入", simplified: "入", pinyin: "rù", numberedPinyin: "ru4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 12, traditional: "八", simplified: "八", pinyin: "bā", numberedPinyin: "ba1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 13, traditional: "冂", simplified: "冂", pinyin: "jiǒng", numberedPinyin: "jiong3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 14, traditional: "冖", simplified: "冖", pinyin: "mì", numberedPinyin: "mi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 15, traditional: "冫", simplified: "冫", pinyin: "bīng", numberedPinyin: "bing1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 16, traditional: "几", simplified: "几", pinyin: "jī", numberedPinyin: "ji1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 17, traditional: "凵", simplified: "凵", pinyin: "qǔ", numberedPinyin: "qu3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 18, traditional: "刀", simplified: "刀", pinyin: "dāo", numberedPinyin: "dao1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 19, traditional: "力", simplified: "力", pinyin: "lì", numberedPinyin: "li4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 20, traditional: "勹", simplified: "勹", pinyin: "bāo", numberedPinyin: "bao1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 21, traditional: "匕", simplified: "匕", pinyin: "bǐ", numberedPinyin: "bi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 22, traditional: "匚", simplified: "匚", pinyin: "fāng", numberedPinyin: "fang1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 23, traditional: "匸", simplified: "匸", pinyin: "xǐ", numberedPinyin: "xi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 24, traditional: "十", simplified: "十", pinyin: "shí", numberedPinyin: "shi2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 25, traditional: "卜", simplified: "卜", pinyin: "bǔ", numberedPinyin: "bu3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 26, traditional: "卩", simplified: "卩", pinyin: "jié", numberedPinyin: "jie2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 27, traditional: "厂", simplified: "厂", pinyin: "hàn", numberedPinyin: "han4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 28, traditional: "厶", simplified: "厶", pinyin: "sī", numberedPinyin: "si1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 29, traditional: "又", simplified: "又", pinyin: "yòu", numberedPinyin: "you4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 30, traditional: "口", simplified: "口", pinyin: "kǒu", numberedPinyin: "kou3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 31, traditional: "囗", simplified: "囗", pinyin: "wéi", numberedPinyin: "wei2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 32, traditional: "土", simplified: "土", pinyin: "tǔ", numberedPinyin: "tu3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 33, traditional: "士", simplified: "士", pinyin: "shì", numberedPinyin: "shi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 34, traditional: "夂", simplified: "夂", pinyin: "zhī", numberedPinyin: "zhi1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 35, traditional: "夊", simplified: "夊", pinyin: "suī", numberedPinyin: "sui1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 36, traditional: "夕", simplified: "夕", pinyin: "xī", numberedPinyin: "xi1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 37, traditional: "大", simplified: "大", pinyin: "dà", numberedPinyin: "da4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 38, traditional: "女", simplified: "女", pinyin: "nǚ", numberedPinyin: "nv3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 39, traditional: "子", simplified: "子", pinyin: "zǐ", numberedPinyin: "zi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 40, traditional: "宀", simplified: "宀", pinyin: "miánzi", numberedPinyin: "mianzi", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 41, traditional: "寸", simplified: "寸", pinyin: "cùn", numberedPinyin: "cun4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 42, traditional: "小", simplified: "小", pinyin: "xiǎo", numberedPinyin: "xiao3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 43, traditional: "尢", simplified: "尢", pinyin: "yóu", numberedPinyin: "you2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 44, traditional: "尸", simplified: "尸", pinyin: "shī", numberedPinyin: "shi1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 45, traditional: "屮", simplified: "屮", pinyin: "chè", numberedPinyin: "che4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 46, traditional: "山", simplified: "山", pinyin: "shān", numberedPinyin: "shan1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 47, traditional: "川", simplified: "川", pinyin: "chuān", numberedPinyin: "chuan1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 48, traditional: "工", simplified: "工", pinyin: "gōng", numberedPinyin: "gong1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 49, traditional: "己", simplified: "己", pinyin: "jǐ", numberedPinyin: "ji3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 50, traditional: "巾", simplified: "巾", pinyin: "jīn", numberedPinyin: "jin1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 51, traditional: "干", simplified: "干", pinyin: "gān", numberedPinyin: "gan1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 52, traditional: "幺", simplified: "幺", pinyin: "yāo", numberedPinyin: "yao1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 53, traditional: "广", simplified: "广", pinyin: "guǎng", numberedPinyin: "guang3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 54, traditional: "廴", simplified: "廴", pinyin: "yǐn", numberedPinyin: "yin3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 55, traditional: "廾", simplified: "廾", pinyin: "gǒng", numberedPinyin: "gong3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 56, traditional: "弋", simplified: "弋", pinyin: "yì", numberedPinyin: "yi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 57, traditional: "弓", simplified: "弓", pinyin: "gōng", numberedPinyin: "gong1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 58, traditional: "彐", simplified: "彐", pinyin: "jì", numberedPinyin: "ji4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 59, traditional: "彡", simplified: "彡", pinyin: "shān", numberedPinyin: "shan1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 60, traditional: "彳", simplified: "彳", pinyin: "chì", numberedPinyin: "chi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 61, traditional: "心", simplified: "心", pinyin: "xīn", numberedPinyin: "xin1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 62, traditional: "戈", simplified: "戈", pinyin: "gē", numberedPinyin: "ge1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 63, traditional: "户", simplified: "户", pinyin: "hù", numberedPinyin: "hu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 64, traditional: "手", simplified: "手", pinyin: "shǒu", numberedPinyin: "shou3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 65, traditional: "支", simplified: "支", pinyin: "zhī", numberedPinyin: "zhi1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 66, traditional: "攴", simplified: "攴", pinyin: "pū", numberedPinyin: "pu1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 67, traditional: "文", simplified: "文", pinyin: "wén", numberedPinyin: "wen2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 68, traditional: "斗", simplified: "斗", pinyin: "dǒu", numberedPinyin: "dou3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 69, traditional: "斤", simplified: "斤", pinyin: "jīn", numberedPinyin: "jin1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 70, traditional: "方", simplified: "方", pinyin: "fāng", numberedPinyin: "fang1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 71, traditional: "无", simplified: "无", pinyin: "wú", numberedPinyin: "wu2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 72, traditional: "日", simplified: "日", pinyin: "rì", numberedPinyin: "ri4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 73, traditional: "曰", simplified: "曰", pinyin: "yuē", numberedPinyin: "yue1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 74, traditional: "月", simplified: "月", pinyin: "yuè", numberedPinyin: "yue4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 75, traditional: "木", simplified: "木", pinyin: "mù", numberedPinyin: "mu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 76, traditional: "欠", simplified: "欠", pinyin: "qiàn", numberedPinyin: "qian4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 77, traditional: "止", simplified: "止", pinyin: "zhǐ", numberedPinyin: "zhi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 78, traditional: "歹", simplified: "歹", pinyin: "dǎi", numberedPinyin: "dai3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 79, traditional: "殳", simplified: "殳", pinyin: "shū", numberedPinyin: "shu1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 80, traditional: "母", simplified: "母", pinyin: "mǔ", numberedPinyin: "mu3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 81, traditional: "比", simplified: "比", pinyin: "bǐ", numberedPinyin: "bi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 82, traditional: "毛", simplified: "毛", pinyin: "máo", numberedPinyin: "mao2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 83, traditional: "氏", simplified: "氏", pinyin: "shì", numberedPinyin: "shi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 84, traditional: "气", simplified: "气", pinyin: "qì", numberedPinyin: "qi4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 85, traditional: "水", simplified: "水", pinyin: "shuǐ", numberedPinyin: "shui3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 86, traditional: "火", simplified: "火", pinyin: "huǒ", numberedPinyin: "huo3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 87, traditional: "爪", simplified: "爪", pinyin: "zhǎo", numberedPinyin: "zhao3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 88, traditional: "父", simplified: "父", pinyin: "fù", numberedPinyin: "fu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 89, traditional: "爻", simplified: "爻", pinyin: "yáo", numberedPinyin: "yao2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 90, traditional: "爿", simplified: "爿", pinyin: "qiáng", numberedPinyin: "qiang2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 91, traditional: "片", simplified: "片", pinyin: "piàn", numberedPinyin: "pian4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 92, traditional: "牙", simplified: "牙", pinyin: "yá", numberedPinyin: "ya2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 93, traditional: "牛", simplified: "牛", pinyin: "niú", numberedPinyin: "niu2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 94, traditional: "犭", simplified: "犭", pinyin: "quǎn", numberedPinyin: "quan3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 95, traditional: "玄", simplified: "玄", pinyin: "xuán", numberedPinyin: "xuan2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 96, traditional: "玉", simplified: "玉", pinyin: "yù", numberedPinyin: "yu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 97, traditional: "瓜", simplified: "瓜", pinyin: "guā", numberedPinyin: "gua1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 98, traditional: "瓦", simplified: "瓦", pinyin: "wǎ", numberedPinyin: "wa3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 99, traditional: "甘", simplified: "甘", pinyin: "gān", numberedPinyin: "gan1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 100, traditional: "生", simplified: "生", pinyin: "shēng", numberedPinyin: "sheng1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 101, traditional: "用", simplified: "用", pinyin: "yòng", numberedPinyin: "yong4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 102, traditional: "田", simplified: "田", pinyin: "tián", numberedPinyin: "tian2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 103, traditional: "疋", simplified: "疋", pinyin: "pǐ", numberedPinyin: "pi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 104, traditional: "疒", simplified: "疒", pinyin: "bìng", numberedPinyin: "bing4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 105, traditional: "癶", simplified: "癶", pinyin: "bō", numberedPinyin: "bo1", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 106, traditional: "白", simplified: "白", pinyin: "bái", numberedPinyin: "bai2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 107, traditional: "皮", simplified: "皮", pinyin: "pí", numberedPinyin: "pi2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 108, traditional: "皿", simplified: "皿", pinyin: "mǐn", numberedPinyin: "min3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 109, traditional: "矛", simplified: "矛", pinyin: "máo", numberedPinyin: "mao2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 110, traditional: "矢", simplified: "矢", pinyin: "shǐ", numberedPinyin: "shi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 111, traditional: "石", simplified: "石", pinyin: "shí", numberedPinyin: "shi2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 112, traditional: "龙", simplified: "龙", pinyin: "lóng", numberedPinyin: "long2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 113, traditional: "业", simplified: "业", pinyin: "yè", numberedPinyin: "ye4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 114, traditional: "目", simplified: "目", pinyin: "mù", numberedPinyin: "mu4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 115, traditional: "矛", simplified: "矛", pinyin: "máo", numberedPinyin: "mao2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 116, traditional: "矢", simplified: "矢", pinyin: "shǐ", numberedPinyin: "shi3", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 117, traditional: "石", simplified: "石", pinyin: "shí", numberedPinyin: "shi2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 118, traditional: "龙", simplified: "龙", pinyin: "lóng", numberedPinyin: "long2", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 119, traditional: "业", simplified: "业", pinyin: "yè", numberedPinyin: "ye4", alternativeFormIndex: null, mainIndex: 1 },
+  { index: 120, traditional: "目", simplified: "目", pinyin: "mù", numberedPinyin: "mu4", alternativeFormIndex: null, mainIndex: 1 },
+];
+
+async function seedRadicals() {
+  try {
+    console.log("Starting to seed radicals...");
+    
+    // Delete existing radicals
+    await db.delete(radicals);
+    
+    // Insert new radicals
+    for (const radical of radicalsData) {
+      await db.insert(radicals).values(radical).onConflictDoNothing();
+    }
+    
+    console.log(`Successfully seeded ${radicalsData.length} radicals`);
+    process.exit(0);
+  } catch (error) {
+    console.error("Error seeding radicals:", error);
+    process.exit(1);
+  }
+}
+
+seedRadicals();
