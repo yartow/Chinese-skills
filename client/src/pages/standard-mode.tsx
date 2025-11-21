@@ -15,12 +15,30 @@ interface FilteredCharactersResponse {
 }
 
 export default function StandardMode() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [currentPage, setCurrentPage] = useState(0);
   const [filterReading, setFilterReading] = useState(false);
   const [filterWriting, setFilterWriting] = useState(false);
   const [filterRadical, setFilterRadical] = useState(false);
   const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
+
+  // Parse URL query parameters on mount to restore filters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    
+    const page = parseInt(params.get('page') || '0');
+    const reading = params.get('filterReading') === 'true';
+    const writing = params.get('filterWriting') === 'true';
+    const radical = params.get('filterRadical') === 'true';
+    const hskLevelsStr = params.get('hskLevels');
+    const hskLevels = hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
+
+    setCurrentPage(page);
+    setFilterReading(reading);
+    setFilterWriting(writing);
+    setFilterRadical(radical);
+    setSelectedHskLevels(hskLevels);
+  }, []);
 
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
@@ -29,7 +47,36 @@ export default function StandardMode() {
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
 
-  // Reset to first page when filters change
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (currentPage > 0) {
+      params.set('page', String(currentPage));
+    }
+    if (filterReading) {
+      params.set('filterReading', 'true');
+    }
+    if (filterWriting) {
+      params.set('filterWriting', 'true');
+    }
+    if (filterRadical) {
+      params.set('filterRadical', 'true');
+    }
+    if (selectedHskLevels.length > 0) {
+      params.set('hskLevels', selectedHskLevels.join(','));
+    }
+
+    const queryString = params.toString();
+    const newLocation = queryString ? `/standard?${queryString}` : '/standard';
+    
+    // Only update if location actually changed to avoid unnecessary updates
+    if (location !== newLocation) {
+      setLocation(newLocation);
+    }
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, location, setLocation]);
+
+  // Reset to first page when filters (not page) change
   useEffect(() => {
     setCurrentPage(0);
   }, [filterReading, filterWriting, filterRadical, selectedHskLevels]);
