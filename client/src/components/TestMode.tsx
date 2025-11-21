@@ -161,6 +161,11 @@ export default function TestMode({ onStartTest }: TestModeProps) {
     let isCorrect = false;
 
     if (testType === "pronunciation") {
+      // Require numbered pinyin (e.g., "xue2" not "xue")
+      if (!/\d/.test(answer)) {
+        alert("Please use numbered pinyin (e.g., 'xue2' instead of 'xue')");
+        return;
+      }
       isCorrect = normalizePinyin(answer) === normalizePinyin(current.pinyin);
     } else if (testType === "writing") {
       const correctAnswer = isTraditional 
@@ -168,6 +173,17 @@ export default function TestMode({ onStartTest }: TestModeProps) {
         : current.simplified;
       isCorrect = answer.trim() === correctAnswer;
     } else if (testType === "radical") {
+      // Skip if radicalPinyin is "unknown"
+      if (!current.radicalPinyin || current.radicalPinyin.toLowerCase() === "unknown") {
+        alert("This character has unknown radical pronunciation. Skipping...");
+        handleNext();
+        return;
+      }
+      // Require numbered pinyin for radicals too
+      if (!/\d/.test(answer)) {
+        alert("Please use numbered pinyin (e.g., 'shu4' instead of 'shu')");
+        return;
+      }
       isCorrect = normalizePinyin(answer) === normalizePinyin(current.radicalPinyin || current.radical);
     }
 
@@ -184,6 +200,47 @@ export default function TestMode({ onStartTest }: TestModeProps) {
     setTimeout(() => {
       handleNext();
     }, 1500);
+  };
+
+  const handleMastered = async () => {
+    const current = testCharacters[currentQuestionIndex];
+    setShowResult("correct");
+    setTestResults([...testResults, { characterIndex: current.index, isCorrect: true }]);
+    
+    // Update progress to mark this category as mastered
+    try {
+      const progressType = testType === "pronunciation" ? "reading" : testType === "writing" ? "writing" : "radical";
+      await apiRequest("POST", "/api/progress", {
+        characterIndex: current.index,
+        [progressType]: true,
+        reading: testType === "pronunciation" ? true : undefined,
+        writing: testType === "writing" ? true : undefined,
+        radical: testType === "radical" ? true : undefined,
+      });
+      queryClient.invalidateQueries({ predicate: (query) =>
+        query.queryKey[0] === "/api/progress" || query.queryKey[0] === "/api/progress/batch"
+      });
+    } catch (error) {
+      console.error("Error updating progress:", error);
+    }
+    
+    setTimeout(() => {
+      handleNext();
+    }, 500);
+  };
+
+  const handleShowAnswer = () => {
+    const current = testCharacters[currentQuestionIndex];
+    if (testType === "pronunciation") {
+      alert(`Answer: ${current.pinyin}`);
+    } else if (testType === "writing") {
+      const answer = isTraditional 
+        ? (current.traditionalVariants && current.traditionalVariants.length > 0 ? current.traditionalVariants[0] : current.traditional)
+        : current.simplified;
+      alert(`Answer: ${answer}`);
+    } else if (testType === "radical") {
+      alert(`Answer: ${current.radicalPinyin || current.radical}`);
+    }
   };
 
   const handleNext = () => {

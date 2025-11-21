@@ -1,4 +1,4 @@
-import db from "./db";
+import { db } from "./db";
 import { radicals } from "@shared/schema";
 
 // Comprehensive list of Chinese radicals with traditional/simplified forms

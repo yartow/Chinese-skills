@@ -33,16 +33,7 @@ function Router() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/standard" component={StandardMode} />
-        <Route path="/search" component={Search} />
-        <Route path="/character/:id" component={CharacterDetail} />
-        <Route path="/test" component={TestModePage} />
-        <Route component={NotFound} />
-      </Switch>
-
-      <nav className="border-t mt-auto">
+      <nav className="border-b sticky top-0 z-50 bg-background">
         <div className="max-w-7xl mx-auto p-4 flex items-center justify-center gap-2">
           <Button
             variant={location === "/" ? "default" : "ghost"}
@@ -82,6 +73,17 @@ function Router() {
           </Button>
         </div>
       </nav>
+
+      <main className="flex-1">
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/standard" component={StandardMode} />
+          <Route path="/search" component={Search} />
+          <Route path="/character/:id" component={CharacterDetail} />
+          <Route path="/test" component={TestModePage} />
+          <Route component={NotFound} />
+        </Switch>
+      </main>
     </div>
   );
 }
