@@ -166,7 +166,15 @@ export default function TestMode({ onStartTest }: TestModeProps) {
         alert("Please use numbered pinyin (e.g., 'xue2' instead of 'xue')");
         return;
       }
-      isCorrect = normalizePinyin(answer) === normalizePinyin(current.pinyin);
+      // Check primary pinyin, numbered pinyin, and all alternative pronunciations
+      const normalizedAnswer = normalizePinyin(answer);
+      const validPinyins: string[] = [current.pinyin];
+      if (current.pinyin2) validPinyins.push(current.pinyin2);
+      if (current.pinyin3) validPinyins.push(current.pinyin3);
+      if (current.numberedPinyin) validPinyins.push(current.numberedPinyin);
+      if (current.numberedPinyin2) validPinyins.push(current.numberedPinyin2);
+      if (current.numberedPinyin3) validPinyins.push(current.numberedPinyin3);
+      isCorrect = validPinyins.some(p => normalizePinyin(p) === normalizedAnswer);
     } else if (testType === "writing") {
       const correctAnswer = isTraditional 
         ? (current.traditionalVariants && current.traditionalVariants.length > 0 ? current.traditionalVariants[0] : current.traditional)
@@ -226,7 +234,10 @@ export default function TestMode({ onStartTest }: TestModeProps) {
   const handleShowAnswer = () => {
     const current = testCharacters[currentQuestionIndex];
     if (testType === "pronunciation") {
-      alert(`Answer: ${current.pinyin}`);
+      let answer = current.pinyin;
+      if (current.pinyin2) answer += ` / ${current.pinyin2}`;
+      if (current.pinyin3) answer += ` / ${current.pinyin3}`;
+      alert(`Answer: ${answer}`);
     } else if (testType === "writing") {
       const answer = isTraditional 
         ? (current.traditionalVariants && current.traditionalVariants.length > 0 ? current.traditionalVariants[0] : current.traditional)
@@ -485,7 +496,11 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                 <div className="p-4 rounded-md bg-muted">
                   <div className="text-sm font-medium text-foreground mb-2">Correct answer:</div>
                   {testType === "pronunciation" ? (
-                    <div className="text-lg text-foreground">{current.pinyin}</div>
+                    <div className="text-lg text-foreground">
+                      {current.pinyin}
+                      {current.pinyin2 && <span className="text-muted-foreground ml-2">/ {current.pinyin2}</span>}
+                      {current.pinyin3 && <span className="text-muted-foreground ml-2">/ {current.pinyin3}</span>}
+                    </div>
                   ) : testType === "writing" ? (
                     <div className="text-4xl font-chinese text-foreground">
                       {isTraditional 
