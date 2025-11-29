@@ -47,5 +47,21 @@ The application is built as a full-stack web application, utilizing React with T
 - **Wouter**: Small routing library for React.
 - **Drizzle ORM**: TypeScript ORM for PostgreSQL.
 - **alyssabedard/chinese-hsk-and-frequency-lists**: Source for character data.
-- **Make Me a Hanzi**: Source for radical information and supplementary character data.
+- **Make Me a Hanzi**: Source for radical information, character definitions, and supplementary character data.
 - **CC-CEDICT**: Source for Chinese-English dictionary definitions.
+- **Tatoeba Project**: Source for authentic Chinese-English example sentences (30,000+ sentence pairs).
+
+## Recent Changes
+
+### November 29, 2025
+- **Improved character definitions and example sentences** for all 3000 characters:
+  - Updated definitions from Make Me a Hanzi dataset (1993 definitions improved)
+  - Added authentic example sentences from Tatoeba corpus (2482 characters now have real sentence pairs)
+  - Examples are short, practical Chinese sentences with English translations from native speakers
+  - Remaining 518 rare characters still use placeholder examples as they don't appear in common sentence corpora
+- **Added alternative pronunciations support** - Characters can have up to 3 pronunciation variants:
+  - Added pinyin2, pinyin3 columns for alternative tone-marked pronunciations  
+  - Added numberedPinyin, numberedPinyin2, numberedPinyin3 columns for test validation
+  - CharacterDetailView displays all alternative pronunciations
+  - TestMode accepts any valid pronunciation as correct
+- **Added radicals table** - Complete 214 Kangxi radicals with metadata
