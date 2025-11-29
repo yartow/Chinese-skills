@@ -71,6 +71,8 @@ export default function CharacterDetail() {
     simplified: character.simplified,
     traditional: character.traditional,
     pinyin: character.pinyin,
+    pinyin2: character.pinyin2,
+    pinyin3: character.pinyin3,
     radical: character.radical,
     radicalPinyin: character.radicalPinyin,
     definition: Array.isArray(character.definition) ? character.definition : [],

@@ -15,6 +15,8 @@ interface CharacterDetailViewProps {
     simplified: string;
     traditional: string;
     pinyin: string;
+    pinyin2?: string | null;
+    pinyin3?: string | null;
     radical: string;
     radicalPinyin: string;
     definition: string[];
@@ -130,7 +132,15 @@ export default function CharacterDetailView({
         <Card className="p-6 space-y-6">
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Pinyin</h3>
-            <p className="text-3xl font-semibold" data-testid="text-pinyin">{character.pinyin}</p>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <p className="text-3xl font-semibold" data-testid="text-pinyin">{character.pinyin}</p>
+              {character.pinyin2 && (
+                <p className="text-2xl text-muted-foreground" data-testid="text-pinyin2">{character.pinyin2}</p>
+              )}
+              {character.pinyin3 && (
+                <p className="text-2xl text-muted-foreground" data-testid="text-pinyin3">{character.pinyin3}</p>
+              )}
+            </div>
           </div>
 
           <div>
