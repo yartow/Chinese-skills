@@ -28,6 +28,14 @@ export interface FilteredCharactersResult {
   total: number;
 }
 
+export interface MasteryStats {
+  readingMastered: number;
+  writingMastered: number;
+  radicalMastered: number;
+  characterMastered: number; // True only when all three above are true
+  total: number;
+}
+
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
@@ -41,6 +49,7 @@ export interface IStorage {
   getCharacterProgress(userId: string, characterIndex: number): Promise<CharacterProgress | undefined>;
   getUserCharacterProgress(userId: string, startIndex: number, count: number): Promise<CharacterProgress[]>;
   upsertCharacterProgress(progress: InsertCharacterProgress): Promise<CharacterProgress>;
+  getMasteryStats(userId: string): Promise<MasteryStats>;
   
   // Chinese characters operations
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
@@ -159,6 +168,26 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async getMasteryStats(userId: string): Promise<MasteryStats> {
+    const result = await db
+      .select({
+        readingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true)`,
+        writingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.writing} = true)`,
+        radicalMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.radical} = true)`,
+        characterMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true AND ${characterProgress.writing} = true AND ${characterProgress.radical} = true)`,
+      })
+      .from(characterProgress)
+      .where(eq(characterProgress.userId, userId));
+
+    return {
+      readingMastered: Number(result[0]?.readingMastered || 0),
+      writingMastered: Number(result[0]?.writingMastered || 0),
+      radicalMastered: Number(result[0]?.radicalMastered || 0),
+      characterMastered: Number(result[0]?.characterMastered || 0),
+      total: 3000,
+    };
   }
 
   // Chinese characters operations

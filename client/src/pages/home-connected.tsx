@@ -8,9 +8,17 @@ import CharacterCard from "@/components/CharacterCard";
 import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
-import { Settings, LogOut, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Settings, LogOut, Filter, ChevronDown, ChevronUp, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
+
+interface MasteryStats {
+  readingMastered: number;
+  writingMastered: number;
+  radicalMastered: number;
+  characterMastered: number;
+  total: number;
+}
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -39,6 +47,12 @@ export default function Home() {
   // Fetch progress for current characters
   const { data: progressList = [] } = useQuery<CharacterProgress[]>({
     queryKey: ["/api/progress/range", currentLevel, dailyCharCount],
+    enabled: !settingsLoading,
+  });
+
+  // Fetch mastery statistics for progress overview
+  const { data: masteryStats } = useQuery<MasteryStats>({
+    queryKey: ["/api/progress/stats"],
     enabled: !settingsLoading,
   });
 
@@ -93,6 +107,7 @@ export default function Home() {
     onSettled: () => {
       // Always refetch after success or error
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
     },
   });
 
@@ -180,15 +195,80 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         <Card className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Progress Overview</h2>
-            <span className="text-sm text-muted-foreground" data-testid="text-progress-percentage">
-              {progressPercentage.toFixed(1)}%
-            </span>
+          <h2 className="text-lg font-semibold">Progress Overview</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm font-medium">Reading Mastered</span>
+                </div>
+                <span className="text-sm text-muted-foreground" data-testid="text-reading-mastered">
+                  {masteryStats?.readingMastered ?? 0} / {masteryStats?.total ?? 3000}
+                </span>
+              </div>
+              <Progress 
+                value={((masteryStats?.readingMastered ?? 0) / (masteryStats?.total ?? 3000)) * 100} 
+                className="h-2"
+                data-testid="progress-reading" 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PenTool className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Writing Mastered</span>
+                </div>
+                <span className="text-sm text-muted-foreground" data-testid="text-writing-mastered">
+                  {masteryStats?.writingMastered ?? 0} / {masteryStats?.total ?? 3000}
+                </span>
+              </div>
+              <Progress 
+                value={((masteryStats?.writingMastered ?? 0) / (masteryStats?.total ?? 3000)) * 100} 
+                className="h-2"
+                data-testid="progress-writing" 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Grid3x3 className="w-4 h-4 text-purple-500" />
+                  <span className="text-sm font-medium">Radical Mastered</span>
+                </div>
+                <span className="text-sm text-muted-foreground" data-testid="text-radical-mastered">
+                  {masteryStats?.radicalMastered ?? 0} / {masteryStats?.total ?? 3000}
+                </span>
+              </div>
+              <Progress 
+                value={((masteryStats?.radicalMastered ?? 0) / (masteryStats?.total ?? 3000)) * 100} 
+                className="h-2"
+                data-testid="progress-radical" 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-medium">Character Mastered</span>
+                </div>
+                <span className="text-sm text-muted-foreground" data-testid="text-character-mastered">
+                  {masteryStats?.characterMastered ?? 0} / {masteryStats?.total ?? 3000}
+                </span>
+              </div>
+              <Progress 
+                value={((masteryStats?.characterMastered ?? 0) / (masteryStats?.total ?? 3000)) * 100} 
+                className="h-2"
+                data-testid="progress-character" 
+              />
+            </div>
           </div>
-          <Progress value={progressPercentage} data-testid="progress-overall" />
-          <p className="text-sm text-muted-foreground">
-            You've learned {currentLevel} out of 3000 characters
+
+          <p className="text-sm text-muted-foreground pt-2">
+            A character is fully mastered when reading, writing, and radical are all mastered.
           </p>
         </Card>
 

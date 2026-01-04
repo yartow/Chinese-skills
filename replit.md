@@ -53,6 +53,17 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### January 4, 2026
+- **Added four mastery attributes and Progress Overview with 4 progress bars**:
+  - `reading_mastered`: Boolean tracking if user has mastered reading the character
+  - `writing_mastered`: Boolean tracking if user has mastered writing the character
+  - `radical_mastered`: Boolean tracking if user has mastered the character's radical
+  - `character_mastered`: Computed field - TRUE only when all three above are TRUE
+  - Progress Overview now displays 4 progress bars showing counts for each mastery type
+  - New API endpoint: GET /api/progress/stats returns aggregate mastery counts
+- **Fixed radical display bug**: Characters now correctly show radical information instead of "()"
+- **Added Playwright test infrastructure**: Comprehensive e2e tests in tests/automated-test-1.spec.ts
+
 ### November 29, 2025
 - **Improved character definitions and example sentences** for all 3000 characters:
   - Updated definitions from Make Me a Hanzi dataset (1993 definitions improved)
