@@ -54,6 +54,11 @@ The application is built as a full-stack web application, utilizing React with T
 ## Recent Changes
 
 ### January 14, 2026
+- **Converted to Progressive Web App (PWA)**: App is now installable on Android/iOS devices
+  - Added web manifest (manifest.json) with app metadata and icons
+  - Added service worker (sw.js) for offline caching with cache-first for static assets, network-first for API
+  - Added PWA meta tags for iOS and Android compatibility
+  - Created app icons in multiple sizes (72-512px)
 - **Added settings help tooltips**: Three help icons (?) next to settings fields show explanatory tooltips on hover/tap
 - **Added auto-progress level feature**: Daily view automatically progresses to the first non-mastered character when opened
   - New API endpoint: GET /api/progress/first-non-mastered/:startIndex finds first character not fully mastered
