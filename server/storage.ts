@@ -50,6 +50,7 @@ export interface IStorage {
   getUserCharacterProgress(userId: string, startIndex: number, count: number): Promise<CharacterProgress[]>;
   upsertCharacterProgress(progress: InsertCharacterProgress): Promise<CharacterProgress>;
   getMasteryStats(userId: string): Promise<MasteryStats>;
+  getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number>;
   
   // Chinese characters operations
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
@@ -188,6 +189,32 @@ export class DatabaseStorage implements IStorage {
       characterMastered: Number(result[0]?.characterMastered || 0),
       total: 3000,
     };
+  }
+
+  async getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number> {
+    const masteredIndices = await db
+      .select({ characterIndex: characterProgress.characterIndex })
+      .from(characterProgress)
+      .where(
+        and(
+          eq(characterProgress.userId, userId),
+          eq(characterProgress.reading, true),
+          eq(characterProgress.writing, true),
+          eq(characterProgress.radical, true),
+          gte(characterProgress.characterIndex, startIndex),
+          lt(characterProgress.characterIndex, 3000)
+        )
+      );
+
+    const masteredSet = new Set(masteredIndices.map(r => r.characterIndex));
+    
+    for (let i = startIndex; i < 3000; i++) {
+      if (!masteredSet.has(i)) {
+        return i;
+      }
+    }
+    
+    return 3000;
   }
 
   // Chinese characters operations

@@ -53,6 +53,12 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### January 14, 2026
+- **Added settings help tooltips**: Three help icons (?) next to settings fields show explanatory tooltips on hover/tap
+- **Added auto-progress level feature**: Daily view automatically progresses to the first non-mastered character when opened
+  - New API endpoint: GET /api/progress/first-non-mastered/:startIndex finds first character not fully mastered
+  - Level updates automatically if current level character is already fully mastered
+
 ### January 4, 2026
 - **Added four mastery attributes and Progress Overview with 4 progress bars**:
   - `reading_mastered`: Boolean tracking if user has mastered reading the character

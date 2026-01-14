@@ -230,6 +230,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get first non-mastered character index starting from a given index
+  app.get('/api/progress/first-non-mastered/:startIndex', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const startIndex = parseInt(req.params.startIndex);
+      
+      if (isNaN(startIndex) || startIndex < 0 || startIndex >= 3000) {
+        return res.status(400).json({ message: "Invalid start index" });
+      }
+
+      const firstNonMastered = await storage.getFirstNonMasteredIndex(userId, startIndex);
+      res.json({ index: firstNonMastered });
+    } catch (error) {
+      console.error("Error finding first non-mastered character:", error);
+      res.status(500).json({ message: "Failed to find first non-mastered character" });
+    }
+  });
+
   // Generic :characterIndex route must come LAST
   app.get('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -110,6 +110,32 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
     },
   });
+
+  // Auto-progress to first non-mastered character on initial load
+  const hasAutoProgressed = useRef(false);
+  
+  useEffect(() => {
+    if (settingsLoading || hasAutoProgressed.current) return;
+    
+    const autoProgressLevel = async () => {
+      try {
+        const response = await fetch(`/api/progress/first-non-mastered/${currentLevel}`, {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.index > currentLevel && data.index < 3000) {
+            updateSettingsMutation.mutate({ currentLevel: data.index });
+          }
+        }
+      } catch (error) {
+        console.error("Error auto-progressing level:", error);
+      }
+      hasAutoProgressed.current = true;
+    };
+    
+    autoProgressLevel();
+  }, [settingsLoading, currentLevel]);
 
   const handleLevelChange = (newLevel: number) => {
     updateSettingsMutation.mutate({ currentLevel: newLevel });
