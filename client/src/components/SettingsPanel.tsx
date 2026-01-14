@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -69,7 +71,17 @@ export default function SettingsPanel({
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="current-level">Current Level (0-3000)</Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor="current-level">Reading mastered</Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" data-testid="help-reading-mastered" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p>This is the character index of the characters shown on the <em>Daily</em> view. This level will automatically progress to the next character that has not yet been fully mastered.</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <Input
           id="current-level"
           type="number"
@@ -84,7 +96,17 @@ export default function SettingsPanel({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="daily-chars">Daily Characters (1-50)</Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor="daily-chars">Daily characters</Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" data-testid="help-daily-characters" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p>This is the number of characters shown on the <em>Daily</em> view.</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <Input
           id="daily-chars"
           type="number"
@@ -99,7 +121,17 @@ export default function SettingsPanel({
 
       {onStandardModePageSizeChange && (
         <div className="space-y-2">
-          <Label htmlFor="standard-page-size">Standard Mode Page Size (10-100)</Label>
+          <div className="flex items-center gap-1">
+            <Label htmlFor="standard-page-size">Standard mode page size</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" data-testid="help-page-size" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>This indicates the number of characters shown per page. More characters will result in more loading time, but less frequent refreshing.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <Input
             id="standard-page-size"
             type="number"
