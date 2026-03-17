@@ -42,6 +42,10 @@ export interface CharacterUpdate {
   hskLevel?: number;
   simplified?: string;
   traditional?: string;
+  traditionalVariants?: string[] | null;
+  radicalIndex?: number | null;
+  definition?: string[];
+  examples?: unknown;
   pinyin?: string;
   pinyin2?: string | null;
   pinyin3?: string | null;
@@ -485,6 +489,10 @@ export class DatabaseStorage implements IStorage {
         if ('hskLevel' in update && update.hskLevel !== undefined) setFields.hskLevel = update.hskLevel;
         if ('simplified' in update && update.simplified) setFields.simplified = update.simplified;
         if ('traditional' in update && update.traditional) setFields.traditional = update.traditional;
+        if ('traditionalVariants' in update) setFields.traditionalVariants = update.traditionalVariants ?? null;
+        if ('radicalIndex' in update) setFields.radicalIndex = update.radicalIndex ?? null;
+        if ('definition' in update && Array.isArray(update.definition)) setFields.definition = update.definition;
+        if ('examples' in update && update.examples !== undefined) setFields.examples = update.examples;
         if ('pinyin' in update && update.pinyin) setFields.pinyin = update.pinyin;
         if ('pinyin2' in update) setFields.pinyin2 = update.pinyin2 ?? null;
         if ('pinyin3' in update) setFields.pinyin3 = update.pinyin3 ?? null;

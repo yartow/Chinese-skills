@@ -414,6 +414,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const v = row["numberedPinyin3"];
           update.numberedPinyin3 = (v === null || v === "") ? null : String(v); hasField = true;
         }
+        // traditionalVariants: exported as comma-separated string, import splits back to array
+        if ("traditionalVariants" in row) {
+          const v = row["traditionalVariants"];
+          if (v === null || v === "") {
+            update.traditionalVariants = null;
+          } else {
+            update.traditionalVariants = String(v).split(",").map((s) => s.trim()).filter(Boolean);
+          }
+          hasField = true;
+        }
+        // radicalIndex: nullable integer
+        if ("radicalIndex" in row) {
+          const v = row["radicalIndex"];
+          const n = (v === null || v === "") ? null : Number(v);
+          update.radicalIndex = (n !== null && !isNaN(n)) ? n : null;
+          hasField = true;
+        }
+        // definition: exported as " | "-joined string, import splits back to array
+        if ("definition" in row) {
+          const v = row["definition"];
+          if (v !== null && v !== "") {
+            update.definition = String(v).split("|").map((s) => s.trim()).filter(Boolean);
+            hasField = true;
+          }
+        }
+        // examples: exported as JSON string, import parses back to object
+        if ("examples" in row) {
+          const v = row["examples"];
+          if (v !== null && v !== "") {
+            try {
+              update.examples = JSON.parse(String(v));
+              hasField = true;
+            } catch {
+              // Skip malformed examples JSON — do not overwrite existing data
+            }
+          }
+        }
 
         if (hasField) updates.push(update);
       }

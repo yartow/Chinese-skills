@@ -76,8 +76,9 @@ export default function SettingsPanel({
       a.download = "chinese_characters.xlsx";
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setImportStatus({ type: "error", message: "Export failed. Please try again." });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Export failed. Please try again.";
+      setImportStatus({ type: "error", message: msg });
     } finally {
       setIsExporting(false);
     }
@@ -102,8 +103,9 @@ export default function SettingsPanel({
         type: "success",
         message: `Updated ${data.updated} characters (${data.skipped} skipped, ${data.total} total rows).`,
       });
-    } catch (err: any) {
-      setImportStatus({ type: "error", message: err.message || "Import failed. Please check the file and try again." });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Import failed. Please check the file and try again.";
+      setImportStatus({ type: "error", message: msg });
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
