@@ -318,7 +318,18 @@ export default function TestMode({ onStartTest }: TestModeProps) {
             </div>
 
             <div className="space-y-3">
-              <Label>Character Filter</Label>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <Label>Character Filter</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBrowser(true)}
+                  data-testid="button-browse-for-index"
+                >
+                  <BookOpen className="w-3 h-3 mr-1" />
+                  Browse Characters
+                </Button>
+              </div>
               <RadioGroup
                 value={filterMode}
                 onValueChange={(v) => setFilterMode(v as FilterMode)}
@@ -332,7 +343,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                     </Label>
                   </div>
                   {filterMode === "startIndex" && (
-                    <div className="ml-6 flex items-center gap-2">
+                    <div className="ml-6">
                       <Input
                         type="number"
                         min="0"
@@ -344,15 +355,6 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                         data-testid="input-start-index"
                         className="w-32"
                       />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowBrowser(true)}
-                        data-testid="button-browse-for-index"
-                      >
-                        <BookOpen className="w-3 h-3 mr-1" />
-                        Browse
-                      </Button>
                     </div>
                   )}
                 </div>
@@ -392,9 +394,11 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                         type="number"
                         min="1"
                         value={lessonRangeStart}
-                        onChange={(e) =>
-                          setLessonRangeStart(Math.max(1, parseInt(e.target.value) || 1))
-                        }
+                        onChange={(e) => {
+                          const newStart = Math.max(1, parseInt(e.target.value) || 1);
+                          setLessonRangeStart(newStart);
+                          setLessonRangeEnd((prev) => Math.max(prev, newStart));
+                        }}
                         data-testid="input-lesson-range-start"
                         className="w-24"
                         placeholder="From"
@@ -402,7 +406,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                       <span className="text-muted-foreground text-sm">to</span>
                       <Input
                         type="number"
-                        min="1"
+                        min={lessonRangeStart}
                         value={lessonRangeEnd}
                         onChange={(e) =>
                           setLessonRangeEnd(
