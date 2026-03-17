@@ -53,6 +53,20 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### March 17, 2026 (Part 3)
+- **Fixed PWA service worker caching**: Rewrote `sw.js` with correct cache-busting strategy
+  - HTML/navigation requests now use network-first so the browser always gets the latest JS bundle references
+  - Vite-built hashed assets (`/assets/*`) use cache-first (safe, since filenames change with content)
+  - Cache version bumped to `v2` to clear all old caches on update
+  - All other resources (manifest, icons) use network-first
+- **Added `wordExamples` column** (`jsonb`, nullable) to `chinese_characters` table
+  - Displayed in character detail view above the existing "Example Sentences" section
+  - Only shown when data is present (gracefully hidden when null/empty)
+  - Included in Excel export as JSON string column `wordExamples`
+  - Import handler parses JSON back to object on import
+  - Expected shape: `[{ word, pinyin, definition, chinese, english }]`
+- **Updated all storage queries** to include `wordExamples` in select fields
+
 ### March 17, 2026 (Part 2)
 - **Lesson-based test filtering**: Test Mode setup screen now has three mutually exclusive filter modes:
   - "Starting from index" — existing index input (unchanged), plus a "Browse" button

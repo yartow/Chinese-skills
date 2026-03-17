@@ -10,6 +10,14 @@ interface ExampleSentence {
   english: string;
 }
 
+interface WordExample {
+  word: string;
+  pinyin: string;
+  definition: string;
+  chinese: string;
+  english: string;
+}
+
 interface CharacterDetailViewProps {
   character: {
     simplified: string;
@@ -21,6 +29,7 @@ interface CharacterDetailViewProps {
     radicalPinyin: string;
     definition: string[];
     examples: ExampleSentence[];
+    wordExamples?: WordExample[];
   };
   progress: {
     reading: boolean;
@@ -167,6 +176,30 @@ export default function CharacterDetailView({
           <h3 className="text-lg font-semibold mb-4">Stroke Order</h3>
           <StrokeOrder character={displayChar} />
         </Card>
+
+        {character.wordExamples && character.wordExamples.length > 0 && (
+          <Card className="p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Word Examples</h3>
+            <div className="space-y-4">
+              {character.wordExamples.map((we, index) => (
+                <div key={index} className="space-y-1" data-testid={`word-example-${index}`}>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-2xl font-chinese" data-testid={`text-word-example-word-${index}`}>{we.word}</span>
+                    <span className="text-base text-muted-foreground" data-testid={`text-word-example-pinyin-${index}`}>{we.pinyin}</span>
+                    <span className="text-base text-muted-foreground">—</span>
+                    <span className="text-base" data-testid={`text-word-example-definition-${index}`}>{we.definition}</span>
+                  </div>
+                  {we.chinese && (
+                    <p className="text-base font-chinese pl-1" data-testid={`text-word-example-chinese-${index}`}>{we.chinese}</p>
+                  )}
+                  {we.english && (
+                    <p className="text-sm text-muted-foreground pl-1" data-testid={`text-word-example-english-${index}`}>{we.english}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Example Sentences</h3>

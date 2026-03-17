@@ -96,6 +96,7 @@ export const chineseCharacters = pgTable("chinese_characters", {
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
   lesson: smallint("lesson"), // Lesson number for curriculum organization (nullable)
+  wordExamples: jsonb("word_examples"), // Array of word usage examples (nullable)
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {

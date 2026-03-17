@@ -16,7 +16,7 @@ const EXPORT_COLUMNS = [
   "pinyin", "pinyin2", "pinyin3",
   "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
   "radicalIndex", "hskLevel", "lesson",
-  "definition", "examples",
+  "definition", "examples", "wordExamples",
 ];
 
 
@@ -356,6 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lesson: c.lesson ?? "",
         definition: Array.isArray(c.definition) ? c.definition.join(" | ") : "",
         examples: JSON.stringify(c.examples),
+        wordExamples: c.wordExamples != null ? JSON.stringify(c.wordExamples) : "",
       }));
 
       const wb = XLSX.utils.book_new();
@@ -494,6 +495,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               hasField = true;
             } catch {
               // Skip malformed examples JSON — do not overwrite existing data
+            }
+          }
+        }
+        // wordExamples: exported as JSON string, import parses back to object
+        if ("wordExamples" in row) {
+          const v = row["wordExamples"];
+          if (v === null || v === "") {
+            update.wordExamples = null;
+            hasField = true;
+          } else {
+            try {
+              update.wordExamples = JSON.parse(String(v));
+              hasField = true;
+            } catch {
+              // Skip malformed wordExamples JSON — do not overwrite existing data
             }
           }
         }

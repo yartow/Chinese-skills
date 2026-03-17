@@ -76,8 +76,11 @@ export default function CharacterDetail() {
     radical: character.radical || "",
     radicalPinyin: character.radicalPinyin || "",
     definition: Array.isArray(character.definition) ? character.definition : [],
-    examples: Array.isArray(character.examples) 
+    examples: Array.isArray(character.examples)
       ? character.examples as Array<{ chinese: string; english: string }>
+      : [],
+    wordExamples: Array.isArray(character.wordExamples)
+      ? character.wordExamples as Array<{ word: string; pinyin: string; definition: string; chinese: string; english: string }>
       : [],
   };
 

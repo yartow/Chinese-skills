@@ -46,6 +46,7 @@ export interface CharacterUpdate {
   radicalIndex?: number | null;
   definition?: string[];
   examples?: unknown;
+  wordExamples?: unknown;
   pinyin?: string;
   pinyin2?: string | null;
   pinyin3?: string | null;
@@ -257,6 +258,7 @@ export class DatabaseStorage implements IStorage {
         radicalIndex: chineseCharacters.radicalIndex,
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
         hskLevel: chineseCharacters.hskLevel,
         lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
@@ -285,6 +287,7 @@ export class DatabaseStorage implements IStorage {
         radicalIndex: chineseCharacters.radicalIndex,
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
         hskLevel: chineseCharacters.hskLevel,
         lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
@@ -319,6 +322,7 @@ export class DatabaseStorage implements IStorage {
         radicalIndex: chineseCharacters.radicalIndex,
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
         hskLevel: chineseCharacters.hskLevel,
         lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
@@ -354,6 +358,7 @@ export class DatabaseStorage implements IStorage {
       radicalIndex: chineseCharacters.radicalIndex,
       definition: chineseCharacters.definition,
       examples: chineseCharacters.examples,
+      wordExamples: chineseCharacters.wordExamples,
       hskLevel: chineseCharacters.hskLevel,
       lesson: chineseCharacters.lesson,
       radical: radicals.simplified,
@@ -452,6 +457,7 @@ export class DatabaseStorage implements IStorage {
         radicalIndex: chineseCharacters.radicalIndex,
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
         hskLevel: chineseCharacters.hskLevel,
         lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
@@ -514,6 +520,7 @@ export class DatabaseStorage implements IStorage {
         radicalIndex: chineseCharacters.radicalIndex,
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
         hskLevel: chineseCharacters.hskLevel,
         lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
@@ -550,6 +557,7 @@ export class DatabaseStorage implements IStorage {
         if ('radicalIndex' in update) setFields.radicalIndex = update.radicalIndex ?? null;
         if ('definition' in update && Array.isArray(update.definition)) setFields.definition = update.definition;
         if ('examples' in update && update.examples !== undefined) setFields.examples = update.examples;
+        if ('wordExamples' in update) setFields.wordExamples = update.wordExamples ?? null;
         if ('pinyin' in update && update.pinyin) setFields.pinyin = update.pinyin;
         if ('pinyin2' in update) setFields.pinyin2 = update.pinyin2 ?? null;
         if ('pinyin3' in update) setFields.pinyin3 = update.pinyin3 ?? null;
