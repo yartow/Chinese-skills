@@ -345,6 +345,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      // Validate file type: must be .xlsx by MIME type or filename extension
+      const allowedMimes = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+      ];
+      const hasValidMime = allowedMimes.includes(file.mimetype);
+      const hasValidExt = file.originalname.toLowerCase().endsWith(".xlsx");
+      if (!hasValidMime && !hasValidExt) {
+        return res.status(400).json({ message: "Only .xlsx files are accepted" });
+      }
+
       const wb = XLSX.read(file.buffer, { type: "buffer" });
       const sheetName = wb.SheetNames[0];
       if (!sheetName) {
