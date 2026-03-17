@@ -11,9 +11,10 @@ import CharacterDetail from "./pages/character-detail";
 import TestModePage from "./pages/test-mode-page";
 import StandardMode from "./pages/standard-mode";
 import Search from "./pages/search";
+import CharacterBrowserPage from "./pages/character-browser-page";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library } from "lucide-react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -71,6 +72,15 @@ function Router() {
             <FlaskConical className="w-4 h-4" />
             Test
           </Button>
+          <Button
+            variant={location === "/browse" ? "default" : "ghost"}
+            onClick={() => setLocation("/browse")}
+            className="gap-2"
+            data-testid="nav-browse"
+          >
+            <Library className="w-4 h-4" />
+            Browse
+          </Button>
         </div>
       </nav>
 
@@ -81,6 +91,7 @@ function Router() {
           <Route path="/search" component={Search} />
           <Route path="/character/:id" component={CharacterDetail} />
           <Route path="/test" component={TestModePage} />
+          <Route path="/browse" component={CharacterBrowserPage} />
           <Route component={NotFound} />
         </Switch>
       </main>

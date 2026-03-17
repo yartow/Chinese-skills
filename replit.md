@@ -53,6 +53,23 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### March 17, 2026 (Part 2)
+- **Lesson-based test filtering**: Test Mode setup screen now has three mutually exclusive filter modes:
+  - "Starting from index" — existing index input (unchanged), plus a "Browse" button
+  - "Specific lesson" — enter a lesson number; only characters from that lesson are tested
+  - "Range of lessons" — enter start and end lesson numbers; characters in that range are tested
+  - "Only unmastered" checkbox still applies on top of any filter
+- **Character Browser**: New `/browse` page accessible from the nav bar
+  - Scrollable paginated table (60 per page) of all 3000 characters
+  - Shows: index, character (simplified/traditional), pinyin, HSK level, lesson number
+  - Client-side search: filters by character, pinyin, or exact index number
+  - "Copy" button (standalone) or "Use" button (from TestMode sheet) per character
+  - Embedded in TestMode via a slide-over sheet: clicking "Use" sets the start index and closes the sheet
+- **API endpoints added**:
+  - `GET /api/characters/browse` — lightweight list (index, simplified, traditional, pinyin, hskLevel, lesson)
+  - `GET /api/characters/by-lesson?lesson=N` — characters in a specific lesson
+  - `GET /api/characters/by-lesson?lessonStart=N&lessonEnd=M` — characters in a lesson range
+
 ### March 17, 2026
 - **Added `lesson` column to `chinese_characters` table**: Nullable smallint for curriculum organization
 - **Excel export/import for character data**:
