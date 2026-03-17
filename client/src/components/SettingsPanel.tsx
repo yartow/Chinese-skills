@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Download, Upload } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -24,6 +25,10 @@ export default function SettingsPanel({
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
   const [tempPageSize, setTempPageSize] = useState(standardModePageSize.toString());
+  const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLevelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -59,7 +64,52 @@ export default function SettingsPanel({
     }
   };
 
-  // Update temp values when props change
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch("/api/admin/characters/export", { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "chinese_characters.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setImportStatus({ type: "error", message: "Export failed. Please try again." });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    setImportStatus(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/characters/import", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Import failed");
+      setImportStatus({
+        type: "success",
+        message: `Updated ${data.updated} characters (${data.skipped} skipped, ${data.total} total rows).`,
+      });
+    } catch (err: any) {
+      setImportStatus({ type: "error", message: err.message || "Import failed. Please check the file and try again." });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   useEffect(() => {
     setTempDailyCount(dailyCharCount.toString());
   }, [dailyCharCount]);
@@ -145,6 +195,55 @@ export default function SettingsPanel({
           />
         </div>
       )}
+
+      <div className="space-y-3 pt-2 border-t">
+        <Label className="text-sm font-semibold">Admin</Label>
+
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Download all characters as an Excel file. Edit the <strong>lesson</strong> column (and other fields), then upload the file to apply changes.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting}
+              data-testid="button-export-excel"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              {isExporting ? "Exporting…" : "Export to Excel"}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              data-testid="button-import-excel"
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              {isImporting ? "Importing…" : "Import from Excel"}
+            </Button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleImport}
+            data-testid="input-import-file"
+          />
+          {importStatus && (
+            <p
+              className={`text-xs ${importStatus.type === "success" ? "text-green-600 dark:text-green-400" : "text-destructive"}`}
+              data-testid="text-import-status"
+            >
+              {importStatus.message}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -95,6 +95,7 @@ export const chineseCharacters = pgTable("chinese_characters", {
   definition: text("definition").array().notNull(),
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
+  lesson: smallint("lesson"), // Lesson number for curriculum organization (nullable)
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {

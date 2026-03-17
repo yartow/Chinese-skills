@@ -53,6 +53,14 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### March 17, 2026
+- **Added `lesson` column to `chinese_characters` table**: Nullable smallint for curriculum organization
+- **Excel export/import for character data**:
+  - `GET /api/admin/characters/export` — downloads all 3000 characters as `.xlsx` with all fields including `lesson`
+  - `POST /api/admin/characters/import` — accepts `.xlsx` upload; updates writable fields (lesson, hskLevel, simplified, traditional, pinyin variants, numberedPinyin variants) matched by `index`
+  - Admin section added to Settings panel with Export and Import buttons plus success/error feedback
+- **Dependencies**: Added `multer` + `@types/multer` for multipart file upload handling
+
 ### January 14, 2026
 - **Converted to Progressive Web App (PWA)**: App is now installable on Android/iOS devices
   - Added web manifest (manifest.json) with app metadata and icons

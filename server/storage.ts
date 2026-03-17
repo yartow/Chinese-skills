@@ -36,6 +36,20 @@ export interface MasteryStats {
   total: number;
 }
 
+export interface CharacterUpdate {
+  index: number;
+  lesson?: number | null;
+  hskLevel?: number;
+  simplified?: string;
+  traditional?: string;
+  pinyin?: string;
+  pinyin2?: string | null;
+  pinyin3?: string | null;
+  numberedPinyin?: string | null;
+  numberedPinyin2?: string | null;
+  numberedPinyin3?: string | null;
+}
+
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
@@ -57,6 +71,7 @@ export interface IStorage {
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
   getAllCharacters(): Promise<ChineseCharacter[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
+  updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -235,6 +250,7 @@ export class DatabaseStorage implements IStorage {
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
         hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
         radicalPinyin: radicals.pinyin,
       })
@@ -262,6 +278,7 @@ export class DatabaseStorage implements IStorage {
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
         hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
         radicalPinyin: radicals.pinyin,
       })
@@ -295,6 +312,7 @@ export class DatabaseStorage implements IStorage {
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
         hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
         radicalPinyin: radicals.pinyin,
       })
@@ -363,6 +381,7 @@ export class DatabaseStorage implements IStorage {
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
         hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
         radicalPinyin: radicals.pinyin,
       })
@@ -424,6 +443,7 @@ export class DatabaseStorage implements IStorage {
         definition: chineseCharacters.definition,
         examples: chineseCharacters.examples,
         hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
         radical: radicals.simplified,
         radicalPinyin: radicals.pinyin,
       })
@@ -441,6 +461,32 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
     
     return results;
+  }
+
+  async updateCharactersBatch(updates: CharacterUpdate[]): Promise<number> {
+    if (updates.length === 0) return 0;
+    let count = 0;
+    await db.transaction(async (tx) => {
+      for (const update of updates) {
+        const { index: idx, ...rest } = update;
+        const setFields: Record<string, any> = {};
+        if ('lesson' in rest) setFields.lesson = rest.lesson ?? null;
+        if ('hskLevel' in rest) setFields.hskLevel = rest.hskLevel;
+        if ('simplified' in rest && rest.simplified) setFields.simplified = rest.simplified;
+        if ('traditional' in rest && rest.traditional) setFields.traditional = rest.traditional;
+        if ('pinyin' in rest && rest.pinyin) setFields.pinyin = rest.pinyin;
+        if ('pinyin2' in rest) setFields.pinyin2 = rest.pinyin2 ?? null;
+        if ('pinyin3' in rest) setFields.pinyin3 = rest.pinyin3 ?? null;
+        if ('numberedPinyin' in rest) setFields.numberedPinyin = rest.numberedPinyin ?? null;
+        if ('numberedPinyin2' in rest) setFields.numberedPinyin2 = rest.numberedPinyin2 ?? null;
+        if ('numberedPinyin3' in rest) setFields.numberedPinyin3 = rest.numberedPinyin3 ?? null;
+        if (Object.keys(setFields).length > 0) {
+          await tx.update(chineseCharacters).set(setFields).where(eq(chineseCharacters.index, idx));
+          count++;
+        }
+      }
+    });
+    return count;
   }
 }
 

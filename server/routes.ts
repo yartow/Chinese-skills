@@ -1,10 +1,30 @@
 // Replit Auth and API routes - blueprint:javascript_log_in_with_replit
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, type CharacterUpdate } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertUserSettingsSchema, insertCharacterProgressSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+import * as XLSX from "xlsx";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+// Columns exported to Excel (in order)
+const EXPORT_COLUMNS = [
+  "index", "simplified", "traditional", "traditionalVariants",
+  "pinyin", "pinyin2", "pinyin3",
+  "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
+  "radicalIndex", "hskLevel", "lesson",
+  "definition", "radical", "radicalPinyin",
+];
+
+// Columns that may be updated on import (index is the key, not updated)
+const IMPORTABLE_FIELDS = new Set([
+  "lesson", "hskLevel", "simplified", "traditional",
+  "pinyin", "pinyin2", "pinyin3",
+  "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
+]);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -283,6 +303,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error updating progress:", error);
         res.status(500).json({ message: "Failed to update progress" });
       }
+    }
+  });
+
+  // Admin: Export all characters as Excel
+  app.get('/api/admin/characters/export', isAuthenticated, async (_req, res) => {
+    try {
+      const characters = await storage.getAllCharacters();
+
+      const rows = characters.map((c: any) => ({
+        index: c.index,
+        simplified: c.simplified ?? "",
+        traditional: c.traditional ?? "",
+        traditionalVariants: Array.isArray(c.traditionalVariants) ? c.traditionalVariants.join(", ") : "",
+        pinyin: c.pinyin ?? "",
+        pinyin2: c.pinyin2 ?? "",
+        pinyin3: c.pinyin3 ?? "",
+        numberedPinyin: c.numberedPinyin ?? "",
+        numberedPinyin2: c.numberedPinyin2 ?? "",
+        numberedPinyin3: c.numberedPinyin3 ?? "",
+        radicalIndex: c.radicalIndex ?? "",
+        hskLevel: c.hskLevel ?? 1,
+        lesson: c.lesson ?? "",
+        definition: Array.isArray(c.definition) ? c.definition.join(" | ") : "",
+        radical: c.radical ?? "",
+        radicalPinyin: c.radicalPinyin ?? "",
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows, { header: EXPORT_COLUMNS });
+      XLSX.utils.book_append_sheet(wb, ws, "Characters");
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader("Content-Disposition", "attachment; filename=\"chinese_characters.xlsx\"");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    } catch (error) {
+      console.error("Error exporting characters:", error);
+      res.status(500).json({ message: "Failed to export characters" });
+    }
+  });
+
+  // Admin: Import characters from Excel (updates writable fields matched by index)
+  app.post('/api/admin/characters/import', isAuthenticated, upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheetName = wb.SheetNames[0];
+      if (!sheetName) {
+        return res.status(400).json({ message: "Excel file has no sheets" });
+      }
+
+      const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "Excel file has no data rows" });
+      }
+
+      const updates: CharacterUpdate[] = [];
+      const skipped: number[] = [];
+
+      for (const row of rows) {
+        const idx = typeof row.index === "number" ? row.index : parseInt(row.index);
+        if (isNaN(idx) || idx < 0 || idx >= 3000) {
+          skipped.push(row.index);
+          continue;
+        }
+
+        const update: CharacterUpdate = { index: idx };
+        let hasField = false;
+
+        for (const field of IMPORTABLE_FIELDS) {
+          if (field in row) {
+            const val = row[field];
+            if (field === "lesson" || field === "hskLevel") {
+              const num = val === null || val === "" ? null : Number(val);
+              if (field === "lesson") {
+                (update as any).lesson = (num !== null && !isNaN(num)) ? num : null;
+              } else {
+                if (num !== null && !isNaN(num)) (update as any).hskLevel = num;
+              }
+            } else {
+              (update as any)[field] = val === "" ? null : val;
+            }
+            hasField = true;
+          }
+        }
+
+        if (hasField) {
+          updates.push(update);
+        }
+      }
+
+      const updatedCount = await storage.updateCharactersBatch(updates);
+
+      res.json({
+        message: `Successfully updated ${updatedCount} characters`,
+        updated: updatedCount,
+        skipped: skipped.length,
+        total: rows.length,
+      });
+    } catch (error) {
+      console.error("Error importing characters:", error);
+      res.status(500).json({ message: "Failed to import characters" });
     }
   });
 
