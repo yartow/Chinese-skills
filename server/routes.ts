@@ -10,21 +10,15 @@ import * as XLSX from "xlsx";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-// Columns exported to Excel (in order)
+// Columns exported to Excel — all actual chinese_characters table columns (in order)
 const EXPORT_COLUMNS = [
   "index", "simplified", "traditional", "traditionalVariants",
   "pinyin", "pinyin2", "pinyin3",
   "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
   "radicalIndex", "hskLevel", "lesson",
-  "definition", "radical", "radicalPinyin",
+  "definition", "examples",
 ];
 
-// Columns that may be updated on import (index is the key, not updated)
-const IMPORTABLE_FIELDS = new Set([
-  "lesson", "hskLevel", "simplified", "traditional",
-  "pinyin", "pinyin2", "pinyin3",
-  "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
-]);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -306,28 +300,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Export all characters as Excel
+  // Admin: Export all characters as Excel (full chinese_characters table, ordered by index)
   app.get('/api/admin/characters/export', isAuthenticated, async (_req, res) => {
     try {
-      const characters = await storage.getAllCharacters();
+      const characters = await storage.getAllCharactersRaw();
 
-      const rows = characters.map((c: any) => ({
+      const rows = characters.map((c) => ({
         index: c.index,
-        simplified: c.simplified ?? "",
-        traditional: c.traditional ?? "",
+        simplified: c.simplified,
+        traditional: c.traditional,
         traditionalVariants: Array.isArray(c.traditionalVariants) ? c.traditionalVariants.join(", ") : "",
-        pinyin: c.pinyin ?? "",
+        pinyin: c.pinyin,
         pinyin2: c.pinyin2 ?? "",
         pinyin3: c.pinyin3 ?? "",
         numberedPinyin: c.numberedPinyin ?? "",
         numberedPinyin2: c.numberedPinyin2 ?? "",
         numberedPinyin3: c.numberedPinyin3 ?? "",
         radicalIndex: c.radicalIndex ?? "",
-        hskLevel: c.hskLevel ?? 1,
+        hskLevel: c.hskLevel,
         lesson: c.lesson ?? "",
         definition: Array.isArray(c.definition) ? c.definition.join(" | ") : "",
-        radical: c.radical ?? "",
-        radicalPinyin: c.radicalPinyin ?? "",
+        examples: JSON.stringify(c.examples),
       }));
 
       const wb = XLSX.utils.book_new();
@@ -345,57 +338,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Import characters from Excel (updates writable fields matched by index)
-  app.post('/api/admin/characters/import', isAuthenticated, upload.single("file"), async (req: any, res) => {
+  app.post('/api/admin/characters/import', isAuthenticated, upload.single("file"), async (req, res) => {
     try {
-      if (!req.file) {
+      const file = (req as Express.Request & { file?: Express.Multer.File }).file;
+      if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+      const wb = XLSX.read(file.buffer, { type: "buffer" });
       const sheetName = wb.SheetNames[0];
       if (!sheetName) {
         return res.status(400).json({ message: "Excel file has no sheets" });
       }
 
-      const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null });
+      type ImportRow = Record<string, string | number | null>;
+      const rows = XLSX.utils.sheet_to_json<ImportRow>(wb.Sheets[sheetName], { defval: null });
 
       if (rows.length === 0) {
         return res.status(400).json({ message: "Excel file has no data rows" });
       }
 
       const updates: CharacterUpdate[] = [];
-      const skipped: number[] = [];
+      let skippedCount = 0;
 
       for (const row of rows) {
-        const idx = typeof row.index === "number" ? row.index : parseInt(row.index);
+        const rawIdx = row["index"];
+        const idx = typeof rawIdx === "number" ? rawIdx : parseInt(String(rawIdx ?? ""));
         if (isNaN(idx) || idx < 0 || idx >= 3000) {
-          skipped.push(row.index);
+          skippedCount++;
           continue;
         }
 
         const update: CharacterUpdate = { index: idx };
         let hasField = false;
 
-        for (const field of IMPORTABLE_FIELDS) {
-          if (field in row) {
-            const val = row[field];
-            if (field === "lesson" || field === "hskLevel") {
-              const num = val === null || val === "" ? null : Number(val);
-              if (field === "lesson") {
-                (update as any).lesson = (num !== null && !isNaN(num)) ? num : null;
-              } else {
-                if (num !== null && !isNaN(num)) (update as any).hskLevel = num;
-              }
-            } else {
-              (update as any)[field] = val === "" ? null : val;
-            }
-            hasField = true;
-          }
+        if ("lesson" in row) {
+          const v = row["lesson"];
+          const n = (v === null || v === "") ? null : Number(v);
+          update.lesson = (n !== null && !isNaN(n)) ? n : null;
+          hasField = true;
+        }
+        if ("hskLevel" in row) {
+          const v = row["hskLevel"];
+          const n = (v === null || v === "") ? undefined : Number(v);
+          if (n !== undefined && !isNaN(n)) { update.hskLevel = n; hasField = true; }
+        }
+        // Required string fields — only update if non-empty value provided
+        if ("simplified" in row && row["simplified"] !== null && row["simplified"] !== "") {
+          update.simplified = String(row["simplified"]); hasField = true;
+        }
+        if ("traditional" in row && row["traditional"] !== null && row["traditional"] !== "") {
+          update.traditional = String(row["traditional"]); hasField = true;
+        }
+        if ("pinyin" in row && row["pinyin"] !== null && row["pinyin"] !== "") {
+          update.pinyin = String(row["pinyin"]); hasField = true;
+        }
+        // Nullable string fields — set to null when empty, string when present
+        if ("pinyin2" in row) {
+          const v = row["pinyin2"];
+          update.pinyin2 = (v === null || v === "") ? null : String(v); hasField = true;
+        }
+        if ("pinyin3" in row) {
+          const v = row["pinyin3"];
+          update.pinyin3 = (v === null || v === "") ? null : String(v); hasField = true;
+        }
+        if ("numberedPinyin" in row) {
+          const v = row["numberedPinyin"];
+          update.numberedPinyin = (v === null || v === "") ? null : String(v); hasField = true;
+        }
+        if ("numberedPinyin2" in row) {
+          const v = row["numberedPinyin2"];
+          update.numberedPinyin2 = (v === null || v === "") ? null : String(v); hasField = true;
+        }
+        if ("numberedPinyin3" in row) {
+          const v = row["numberedPinyin3"];
+          update.numberedPinyin3 = (v === null || v === "") ? null : String(v); hasField = true;
         }
 
-        if (hasField) {
-          updates.push(update);
-        }
+        if (hasField) updates.push(update);
       }
 
       const updatedCount = await storage.updateCharactersBatch(updates);
@@ -403,7 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         message: `Successfully updated ${updatedCount} characters`,
         updated: updatedCount,
-        skipped: skipped.length,
+        skipped: skippedCount,
         total: rows.length,
       });
     } catch (error) {

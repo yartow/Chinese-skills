@@ -99,8 +99,8 @@ export const chineseCharacters = pgTable("chinese_characters", {
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {
-  radicalPinyin?: string;
-  radical?: string;
+  radicalPinyin?: string | null;
+  radical?: string | null;
 };
 
 // Chinese words/vocabulary table - Multi-character words from HSK

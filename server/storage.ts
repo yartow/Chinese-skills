@@ -70,6 +70,7 @@ export interface IStorage {
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
   getAllCharacters(): Promise<ChineseCharacter[]>;
+  getAllCharactersRaw(): Promise<typeof chineseCharacters.$inferSelect[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 }
@@ -317,8 +318,18 @@ export class DatabaseStorage implements IStorage {
         radicalPinyin: radicals.pinyin,
       })
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index));
+      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .orderBy(chineseCharacters.index);
     return characters;
+  }
+
+  // Returns all columns from the chinese_characters table directly (no joins) ordered by index.
+  // Used for admin Excel export to represent the full table faithfully.
+  async getAllCharactersRaw(): Promise<typeof chineseCharacters.$inferSelect[]> {
+    return db
+      .select()
+      .from(chineseCharacters)
+      .orderBy(chineseCharacters.index);
   }
 
   async getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult> {
@@ -468,21 +479,25 @@ export class DatabaseStorage implements IStorage {
     let count = 0;
     await db.transaction(async (tx) => {
       for (const update of updates) {
-        const { index: idx, ...rest } = update;
-        const setFields: Record<string, any> = {};
-        if ('lesson' in rest) setFields.lesson = rest.lesson ?? null;
-        if ('hskLevel' in rest) setFields.hskLevel = rest.hskLevel;
-        if ('simplified' in rest && rest.simplified) setFields.simplified = rest.simplified;
-        if ('traditional' in rest && rest.traditional) setFields.traditional = rest.traditional;
-        if ('pinyin' in rest && rest.pinyin) setFields.pinyin = rest.pinyin;
-        if ('pinyin2' in rest) setFields.pinyin2 = rest.pinyin2 ?? null;
-        if ('pinyin3' in rest) setFields.pinyin3 = rest.pinyin3 ?? null;
-        if ('numberedPinyin' in rest) setFields.numberedPinyin = rest.numberedPinyin ?? null;
-        if ('numberedPinyin2' in rest) setFields.numberedPinyin2 = rest.numberedPinyin2 ?? null;
-        if ('numberedPinyin3' in rest) setFields.numberedPinyin3 = rest.numberedPinyin3 ?? null;
+        const { index: idx } = update;
+        const setFields: Partial<typeof chineseCharacters.$inferInsert> = {};
+        if ('lesson' in update) setFields.lesson = update.lesson ?? null;
+        if ('hskLevel' in update && update.hskLevel !== undefined) setFields.hskLevel = update.hskLevel;
+        if ('simplified' in update && update.simplified) setFields.simplified = update.simplified;
+        if ('traditional' in update && update.traditional) setFields.traditional = update.traditional;
+        if ('pinyin' in update && update.pinyin) setFields.pinyin = update.pinyin;
+        if ('pinyin2' in update) setFields.pinyin2 = update.pinyin2 ?? null;
+        if ('pinyin3' in update) setFields.pinyin3 = update.pinyin3 ?? null;
+        if ('numberedPinyin' in update) setFields.numberedPinyin = update.numberedPinyin ?? null;
+        if ('numberedPinyin2' in update) setFields.numberedPinyin2 = update.numberedPinyin2 ?? null;
+        if ('numberedPinyin3' in update) setFields.numberedPinyin3 = update.numberedPinyin3 ?? null;
         if (Object.keys(setFields).length > 0) {
-          await tx.update(chineseCharacters).set(setFields).where(eq(chineseCharacters.index, idx));
-          count++;
+          const rows = await tx
+            .update(chineseCharacters)
+            .set(setFields)
+            .where(eq(chineseCharacters.index, idx))
+            .returning({ index: chineseCharacters.index });
+          count += rows.length;
         }
       }
     });
