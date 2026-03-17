@@ -14,7 +14,7 @@ import {
   type ChineseCharacter,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
 
 export interface CharacterFilters {
   hskLevels?: number[];
@@ -75,6 +75,9 @@ export interface IStorage {
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
   getAllCharacters(): Promise<ChineseCharacter[]>;
   getAllCharactersRaw(): Promise<typeof chineseCharacters.$inferSelect[]>;
+  getCharactersByLesson(lesson: number): Promise<ChineseCharacter[]>;
+  getCharactersByLessonRange(lessonStart: number, lessonEnd: number): Promise<ChineseCharacter[]>;
+  getBrowseCharacters(): Promise<{ index: number; simplified: string; traditional: string; pinyin: string; hskLevel: number; lesson: number | null }[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 }
@@ -332,6 +335,60 @@ export class DatabaseStorage implements IStorage {
   async getAllCharactersRaw(): Promise<typeof chineseCharacters.$inferSelect[]> {
     return db
       .select()
+      .from(chineseCharacters)
+      .orderBy(chineseCharacters.index);
+  }
+
+  private characterSelectFields() {
+    return {
+      index: chineseCharacters.index,
+      simplified: chineseCharacters.simplified,
+      traditional: chineseCharacters.traditional,
+      traditionalVariants: chineseCharacters.traditionalVariants,
+      pinyin: chineseCharacters.pinyin,
+      pinyin2: chineseCharacters.pinyin2,
+      pinyin3: chineseCharacters.pinyin3,
+      numberedPinyin: chineseCharacters.numberedPinyin,
+      numberedPinyin2: chineseCharacters.numberedPinyin2,
+      numberedPinyin3: chineseCharacters.numberedPinyin3,
+      radicalIndex: chineseCharacters.radicalIndex,
+      definition: chineseCharacters.definition,
+      examples: chineseCharacters.examples,
+      hskLevel: chineseCharacters.hskLevel,
+      lesson: chineseCharacters.lesson,
+      radical: radicals.simplified,
+      radicalPinyin: radicals.pinyin,
+    } as const;
+  }
+
+  async getCharactersByLesson(lesson: number): Promise<ChineseCharacter[]> {
+    return db
+      .select(this.characterSelectFields())
+      .from(chineseCharacters)
+      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .where(eq(chineseCharacters.lesson, lesson))
+      .orderBy(chineseCharacters.index);
+  }
+
+  async getCharactersByLessonRange(lessonStart: number, lessonEnd: number): Promise<ChineseCharacter[]> {
+    return db
+      .select(this.characterSelectFields())
+      .from(chineseCharacters)
+      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .where(and(gte(chineseCharacters.lesson, lessonStart), lte(chineseCharacters.lesson, lessonEnd)))
+      .orderBy(chineseCharacters.index);
+  }
+
+  async getBrowseCharacters(): Promise<{ index: number; simplified: string; traditional: string; pinyin: string; hskLevel: number; lesson: number | null }[]> {
+    return db
+      .select({
+        index: chineseCharacters.index,
+        simplified: chineseCharacters.simplified,
+        traditional: chineseCharacters.traditional,
+        pinyin: chineseCharacters.pinyin,
+        hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
+      })
       .from(chineseCharacters)
       .orderBy(chineseCharacters.index);
   }

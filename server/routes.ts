@@ -163,6 +163,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Browse characters — lightweight list (index, simplified, traditional, pinyin, hskLevel, lesson)
+  app.get('/api/characters/browse', isAuthenticated, async (_req, res) => {
+    try {
+      const chars = await storage.getBrowseCharacters();
+      res.json(chars);
+    } catch (error) {
+      console.error("Error fetching browse characters:", error);
+      res.status(500).json({ message: "Failed to fetch characters" });
+    }
+  });
+
+  // Lesson-based character filter — query params: lesson OR (lessonStart + lessonEnd)
+  app.get('/api/characters/by-lesson', isAuthenticated, async (req, res) => {
+    try {
+      const { lesson, lessonStart, lessonEnd } = req.query as Record<string, string | undefined>;
+      if (lesson !== undefined) {
+        const n = parseInt(lesson);
+        if (isNaN(n) || n < 1) return res.status(400).json({ message: "Invalid lesson number" });
+        const chars = await storage.getCharactersByLesson(n);
+        return res.json(chars);
+      }
+      if (lessonStart !== undefined && lessonEnd !== undefined) {
+        const s = parseInt(lessonStart);
+        const e = parseInt(lessonEnd);
+        if (isNaN(s) || isNaN(e) || s < 1 || e < s) return res.status(400).json({ message: "Invalid lesson range" });
+        const chars = await storage.getCharactersByLessonRange(s, e);
+        return res.json(chars);
+      }
+      return res.status(400).json({ message: "Provide lesson or lessonStart+lessonEnd query params" });
+    } catch (error) {
+      console.error("Error fetching characters by lesson:", error);
+      res.status(500).json({ message: "Failed to fetch characters" });
+    }
+  });
+
   // Generic :index route must come LAST after all specific routes
   app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
     try {
