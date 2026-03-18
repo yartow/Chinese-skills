@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, BookOpen, PenTool, Grid3x3 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ScriptToggle from "./ScriptToggle";
@@ -66,35 +66,37 @@ export default function CharacterDetailView({
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto p-6 space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             onClick={onBack}
-            className="gap-2"
+            className="gap-2 shrink-0"
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {onPrevious && (
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={onPrevious}
                 data-testid="button-previous-char"
+                title="Previous character"
               >
-                Previous
+                <ArrowLeft className="w-4 h-4" />
               </Button>
             )}
             {onNext && (
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={onNext}
                 data-testid="button-next-char"
+                title="Next character"
               >
-                Next
+                <ArrowRight className="w-4 h-4" />
               </Button>
             )}
             <ScriptToggle isTraditional={isTraditional} onToggle={onToggleScript} />

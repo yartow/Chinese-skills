@@ -393,7 +393,7 @@ export default function Home() {
           </div>
 
           <div className="lg:col-span-1">
-            {(showFilters || window.innerWidth >= 1024) && (
+            <div className={showFilters ? undefined : "hidden lg:block"}>
               <Card className="p-6 sticky top-6">
                 <h2 className="text-lg font-semibold mb-4">Filters</h2>
                 <ProgressFilter
@@ -407,7 +407,7 @@ export default function Home() {
                   onToggleHskLevel={handleToggleHskLevel}
                 />
               </Card>
-            )}
+            </div>
           </div>
         </div>
       </main>

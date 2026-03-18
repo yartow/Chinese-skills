@@ -8,9 +8,10 @@ interface ScriptToggleProps {
 
 export default function ScriptToggle({ isTraditional, onToggle }: ScriptToggleProps) {
   return (
-    <div className="flex items-center gap-3" data-testid="script-toggle">
-      <Label htmlFor="script-toggle" className="text-sm font-medium">
-        {isTraditional ? "Traditional" : "Simplified"}
+    <div className="flex items-center gap-2" data-testid="script-toggle">
+      <Label htmlFor="script-toggle" className="text-sm font-medium cursor-pointer">
+        <span className="hidden sm:inline">{isTraditional ? "Traditional" : "Simplified"}</span>
+        <span className="sm:hidden font-chinese">{isTraditional ? "繁" : "简"}</span>
       </Label>
       <Switch
         id="script-toggle"

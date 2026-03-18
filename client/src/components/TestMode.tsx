@@ -561,23 +561,23 @@ export default function TestMode({ onStartTest }: TestModeProps) {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base sm:text-xl font-semibold shrink-0">
           {testType === "pronunciation"
             ? "Pronunciation Test"
             : testType === "writing"
             ? "Writing Test"
             : "Radical Test"}
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 shrink-0">
           <ScriptToggle isTraditional={isTraditional} onToggle={handleToggleScript} />
-          <div className="text-sm text-muted-foreground" data-testid="text-question-number">
-            Index {current.index} • HSK {current.hskLevel}
+          <div className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap" data-testid="text-question-number">
+            #{current.index} HSK{current.hskLevel}
           </div>
         </div>
       </div>
 
-      <Card className="p-12 space-y-8">
+      <Card className="p-6 sm:p-12 space-y-8">
         <div className="text-center">
           <div className="text-9xl font-chinese" data-testid="text-test-character">
             {displayCharacter}
@@ -664,25 +664,27 @@ export default function TestMode({ onStartTest }: TestModeProps) {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             {testType === "writing" && !showResult ? (
               <>
-                <Button
-                  variant="outline"
-                  onClick={handleSkip}
-                  className="flex-1"
-                  data-testid="button-skip"
-                >
-                  <SkipForward className="w-4 h-4 mr-2" />
-                  Skip
-                </Button>
-                <Button onClick={handleMastered} className="flex-1" data-testid="button-mastered">
-                  Mastered
-                </Button>
+                <div className="flex gap-2 sm:contents">
+                  <Button
+                    variant="outline"
+                    onClick={handleSkip}
+                    className="flex-1"
+                    data-testid="button-skip"
+                  >
+                    <SkipForward className="w-4 h-4 mr-2" />
+                    Skip
+                  </Button>
+                  <Button onClick={handleMastered} className="flex-1" data-testid="button-mastered">
+                    Mastered
+                  </Button>
+                </div>
                 <Button
                   variant="outline"
                   onClick={handleShowAnswer}
-                  className="flex-1"
+                  className="w-full sm:flex-1"
                   data-testid="button-show-answer"
                 >
                   Show Answer
