@@ -174,12 +174,15 @@ export default function TestMode({ onStartTest }: TestModeProps) {
       if (current.numberedPinyin3) validPinyins.push(current.numberedPinyin3);
       isCorrect = validPinyins.some((p) => normalizePinyin(p) === normalizedAnswer);
     } else if (testType === "writing") {
-      const correctAnswer = isTraditional
-        ? current.traditionalVariants && current.traditionalVariants.length > 0
-          ? current.traditionalVariants[0]
-          : current.traditional
-        : current.simplified;
-      isCorrect = answer.trim() === correctAnswer;
+      const trimmed = answer.trim();
+      const validAnswers = new Set<string>(
+        [
+          current.simplified,
+          current.traditional,
+          ...(current.traditionalVariants ?? []),
+        ].filter(Boolean)
+      );
+      isCorrect = validAnswers.has(trimmed);
     } else if (testType === "radical") {
       if (!/\d/.test(answer)) {
         alert("Please use numbered pinyin (e.g., 'shu4' instead of 'shu')");
@@ -234,12 +237,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
       if (current.pinyin3) ans += ` / ${current.pinyin3}`;
       alert(`Answer: ${ans}`);
     } else if (testType === "writing") {
-      const ans = isTraditional
-        ? current.traditionalVariants && current.traditionalVariants.length > 0
-          ? current.traditionalVariants[0]
-          : current.traditional
-        : current.simplified;
-      alert(`Answer: ${ans}`);
+      alert(`Answer: ${current.simplified}`);
     } else if (testType === "radical") {
       alert(`Answer: ${current.radicalPinyin || current.radical}`);
     }
@@ -282,6 +280,18 @@ export default function TestMode({ onStartTest }: TestModeProps) {
       handleSubmit();
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === "n" || e.key === "N") && document.activeElement !== inputRef.current) {
+        if (testType === "radical" && showResult === "incorrect") {
+          handleNext();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [testType, showResult, currentQuestionIndex]);
 
   if (!isActive) {
     return (
@@ -553,10 +563,6 @@ export default function TestMode({ onStartTest }: TestModeProps) {
   const displayCharacter =
     testType === "writing"
       ? current.pinyin
-      : isTraditional
-      ? current.traditionalVariants && current.traditionalVariants.length > 0
-        ? current.traditionalVariants[0]
-        : current.traditional
       : current.simplified;
 
   return (
@@ -646,11 +652,7 @@ export default function TestMode({ onStartTest }: TestModeProps) {
                     </div>
                   ) : testType === "writing" ? (
                     <div className="text-4xl font-chinese text-foreground">
-                      {isTraditional
-                        ? current.traditionalVariants && current.traditionalVariants.length > 0
-                          ? current.traditionalVariants[0]
-                          : current.traditional
-                        : current.simplified}
+                      {current.simplified}
                     </div>
                   ) : (
                     <div className="space-y-1">
