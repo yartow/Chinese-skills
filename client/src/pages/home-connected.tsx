@@ -189,23 +189,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="max-w-7xl mx-auto p-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold font-chinese">汉字学习</h1>
-            <div className="text-sm text-muted-foreground">
-              Level {currentLevel} / 3000
+        <div className="max-w-7xl mx-auto p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold font-chinese shrink-0">汉字学习</h1>
+            <div className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+              Lv {currentLevel} / 3000
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 shrink-0">
             <ScriptToggle isTraditional={isTraditional} onToggle={handleScriptToggle} />
             <Button
               variant="ghost"
+              size="icon"
               onClick={() => setShowSettings(!showSettings)}
               data-testid="button-settings"
-              className="gap-2"
             >
               <Settings className="w-5 h-5" />
-              {showSettings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
@@ -315,13 +314,12 @@ export default function Home() {
             )}
 
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-semibold">
-                    Current Characters (Index {currentLevel} - {currentLevel + dailyCharCount - 1})
-                  </h2>
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                <h2 className="text-base sm:text-xl font-semibold">
+                  <span className="hidden sm:inline">Characters </span>
+                  ({currentLevel}–{currentLevel + dailyCharCount - 1})
+                </h2>
+                <div className="flex items-center gap-2 shrink-0">
                   <Button
                     variant="outline"
                     size="sm"

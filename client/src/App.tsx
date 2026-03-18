@@ -43,7 +43,7 @@ function Router() {
             data-testid="nav-home"
           >
             <HomeIcon className="w-4 h-4" />
-            Daily
+            <span className="hidden sm:inline">Daily</span>
           </Button>
           <Button
             variant={location === "/standard" ? "default" : "ghost"}
@@ -52,7 +52,7 @@ function Router() {
             data-testid="nav-standard"
           >
             <BookMarked className="w-4 h-4" />
-            Standard
+            <span className="hidden sm:inline">Standard</span>
           </Button>
           <Button
             variant={location === "/search" ? "default" : "ghost"}
@@ -61,7 +61,7 @@ function Router() {
             data-testid="nav-search"
           >
             <SearchIcon className="w-4 h-4" />
-            Search
+            <span className="hidden sm:inline">Search</span>
           </Button>
           <Button
             variant={location === "/test" ? "default" : "ghost"}
@@ -70,7 +70,7 @@ function Router() {
             data-testid="nav-test"
           >
             <FlaskConical className="w-4 h-4" />
-            Test
+            <span className="hidden sm:inline">Test</span>
           </Button>
           <Button
             variant={location === "/browse" ? "default" : "ghost"}
@@ -79,7 +79,7 @@ function Router() {
             data-testid="nav-browse"
           >
             <Library className="w-4 h-4" />
-            Browse
+            <span className="hidden sm:inline">Browse</span>
           </Button>
         </div>
       </nav>

@@ -89,12 +89,12 @@ export default function CharacterBrowser({ onSelectIndex }: CharacterBrowserProp
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background border-b z-10">
             <tr>
-              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-16">Index</th>
-              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-14">Char</th>
+              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-14">Index</th>
+              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-12">Char</th>
               <th className="text-left py-2 px-3 font-medium text-muted-foreground">Pinyin</th>
               <th className="text-left py-2 px-3 font-medium text-muted-foreground w-12">HSK</th>
-              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-16">Lesson</th>
-              <th className="w-16 py-2 px-3" />
+              <th className="text-left py-2 px-3 font-medium text-muted-foreground w-16 hidden sm:table-cell">Lesson</th>
+              <th className="w-14 py-2 px-3" />
             </tr>
           </thead>
           <tbody>
@@ -112,7 +112,7 @@ export default function CharacterBrowser({ onSelectIndex }: CharacterBrowserProp
                 <td className="py-2 px-3">
                   <Badge variant="outline" className="text-xs font-normal">{c.hskLevel}</Badge>
                 </td>
-                <td className="py-2 px-3 text-muted-foreground" data-testid={`text-lesson-${c.index}`}>
+                <td className="py-2 px-3 text-muted-foreground hidden sm:table-cell" data-testid={`text-lesson-${c.index}`}>
                   {c.lesson !== null ? c.lesson : <span className="text-muted-foreground/40">—</span>}
                 </td>
                 <td className="py-2 px-3">

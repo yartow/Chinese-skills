@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Filter } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -21,6 +21,7 @@ export default function StandardMode() {
   const [filterWriting, setFilterWriting] = useState(false);
   const [filterRadical, setFilterRadical] = useState(false);
   const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Parse URL query parameters on mount to restore filters
   useEffect(() => {
@@ -229,8 +230,8 @@ export default function StandardMode() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="max-w-7xl mx-auto p-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Button
               variant="ghost"
               size="icon"
@@ -239,10 +240,22 @@ export default function StandardMode() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="text-2xl font-bold">Standard Mode</h1>
+            <h1 className="text-lg sm:text-2xl font-bold truncate">Standard Mode</h1>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Page {currentPage + 1} of {totalPages} · {totalCharacters} total characters
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs sm:text-sm text-muted-foreground hidden sm:inline">
+              Page {currentPage + 1} of {totalPages} · {totalCharacters} chars
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              data-testid="button-toggle-filters"
+              className="lg:hidden"
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filter
+            </Button>
           </div>
         </div>
       </header>
@@ -303,19 +316,21 @@ export default function StandardMode() {
           </div>
 
           <div className="lg:col-span-1">
-            <Card className="p-6 sticky top-6">
-              <h2 className="text-lg font-semibold mb-4">Filters</h2>
-              <ProgressFilter
-                filterReading={filterReading}
-                filterWriting={filterWriting}
-                filterRadical={filterRadical}
-                onToggleFilterReading={() => setFilterReading(!filterReading)}
-                onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
-                onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
-                selectedHskLevels={selectedHskLevels}
-                onToggleHskLevel={handleToggleHskLevel}
-              />
-            </Card>
+            {(showFilters || typeof window !== "undefined" && window.innerWidth >= 1024) && (
+              <Card className="p-6 sticky top-6">
+                <h2 className="text-lg font-semibold mb-4">Filters</h2>
+                <ProgressFilter
+                  filterReading={filterReading}
+                  filterWriting={filterWriting}
+                  filterRadical={filterRadical}
+                  onToggleFilterReading={() => setFilterReading(!filterReading)}
+                  onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
+                  onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
+                  selectedHskLevels={selectedHskLevels}
+                  onToggleHskLevel={handleToggleHskLevel}
+                />
+              </Card>
+            )}
           </div>
         </div>
       </main>
