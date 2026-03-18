@@ -13,9 +13,10 @@ interface ExampleSentence {
 interface WordExample {
   word: string;
   pinyin: string;
-  definition: string;
-  chinese: string;
-  english: string;
+  meaning?: string;
+  definition?: string;
+  chinese?: string;
+  english?: string;
 }
 
 interface CharacterDetailViewProps {
@@ -183,11 +184,11 @@ export default function CharacterDetailView({
             <div className="space-y-4">
               {character.wordExamples.map((we, index) => (
                 <div key={index} className="space-y-1" data-testid={`word-example-${index}`}>
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex items-baseline gap-3 flex-wrap">
                     <span className="text-2xl font-chinese" data-testid={`text-word-example-word-${index}`}>{we.word}</span>
                     <span className="text-base text-muted-foreground" data-testid={`text-word-example-pinyin-${index}`}>{we.pinyin}</span>
                     <span className="text-base text-muted-foreground">—</span>
-                    <span className="text-base" data-testid={`text-word-example-definition-${index}`}>{we.definition}</span>
+                    <span className="text-base" data-testid={`text-word-example-definition-${index}`}>{we.meaning ?? we.definition}</span>
                   </div>
                   {we.chinese && (
                     <p className="text-base font-chinese pl-1" data-testid={`text-word-example-chinese-${index}`}>{we.chinese}</p>
