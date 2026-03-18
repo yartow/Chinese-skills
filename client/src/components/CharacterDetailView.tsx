@@ -66,7 +66,7 @@ export default function CharacterDetailView({
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto p-6 space-y-8">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <Button
             variant="ghost"
             onClick={onBack}
