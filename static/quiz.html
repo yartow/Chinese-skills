@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HSK Quiz</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:       #1a1a2e;
+    --ink-soft:  #4a4a6a;
+    --ink-mute:  #8888aa;
+    --paper:     #faf9f6;
+    --paper-2:   #f2f0eb;
+    --red:       #c0392b;
+    --red-soft:  #fdf0ee;
+    --green:     #1a6b3c;
+    --green-soft:#eef7f2;
+    --gold:      #b8860b;
+    --gold-soft: #fdf8ec;
+    --border:    rgba(26,26,46,0.12);
+    --radius:    12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .logo {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .logo span { color: var(--red); }
+  .streak {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ink-mute);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .streak strong { color: var(--gold); font-size: 1rem; }
+
+  /* ── Level selector ── */
+  .level-bar {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+  .level-bar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+    color: var(--ink-soft);
+  }
+  .level-bar input[type=checkbox] { display: none; }
+  .level-bar input:checked + span { color: var(--ink); }
+  .level-bar label:has(input:checked) {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .level-badge {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+    display: inline-block;
+  }
+  label:has(input:checked) .level-badge { opacity: 1; background: var(--red); }
+
+  /* ── Card ── */
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-top {
+    padding: 2rem 2rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hsk-tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--paper-2);
+    color: var(--ink-mute);
+    margin-bottom: 1.5rem;
+  }
+
+  .sentence-display {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 2rem;
+    line-height: 1.6;
+    color: var(--ink);
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  .blank {
+    display: inline-block;
+    width: 2.2rem;
+    height: 2.4rem;
+    border-bottom: 3px solid var(--red);
+    vertical-align: bottom;
+    text-align: center;
+    line-height: 2.4rem;
+    color: var(--red);
+    font-weight: 700;
+  }
+
+  .translation {
+    font-size: 0.9rem;
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+
+  /* ── Input area ── */
+  .card-bottom {
+    padding: 1.5rem 2rem;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  #answer-input {
+    flex: 1;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 1.6rem;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s;
+    max-width: 120px;
+  }
+  #answer-input:focus { border-color: var(--ink); }
+  #answer-input.correct { border-color: var(--green); background: var(--green-soft); }
+  #answer-input.wrong   { border-color: var(--red);   background: var(--red-soft); }
+
+  .hint-text {
+    font-size: 0.8rem;
+    color: var(--ink-mute);
+    flex: 1;
+  }
+  .hint-text strong { color: var(--ink-soft); }
+
+  .btn {
+    padding: 0.6rem 1.4rem;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1.5px solid transparent;
+  }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--ink-soft);
+    border-color: var(--border);
+  }
+  .btn-secondary:hover { background: var(--paper-2); }
+
+  /* ── Feedback panel ── */
+  .feedback {
+    width: 100%;
+    max-width: 640px;
+    padding: 1.25rem 1.5rem;
+    border-radius: var(--radius);
+    border: 1.5px solid;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    display: none;
+    animation: slideIn 0.2s ease;
+  }
+  .feedback.correct {
+    background: var(--green-soft);
+    border-color: rgba(26,107,60,0.25);
+    color: var(--green);
+    display: block;
+  }
+  .feedback.wrong {
+    background: var(--red-soft);
+    border-color: rgba(192,57,43,0.25);
+    color: var(--red);
+    display: block;
+  }
+  .feedback-header {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .feedback-body { color: var(--ink-soft); }
+
+  /* ── Correct answer reveal ── */
+  .answer-reveal {
+    margin-top: 0.5rem;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+
+  /* ── Next button row ── */
+  .next-row {
+    width: 100%;
+    max-width: 640px;
+    display: none;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+  .next-row.visible { display: flex; }
+
+  /* ── Loading skeleton ── */
+  .loading {
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+    padding: 3rem;
+    color: var(--ink-mute);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Score bar ── */
+  .score-row {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .score-pill {
+    flex: 1;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background: var(--paper-2);
+    text-align: center;
+  }
+  .score-pill .num { font-size: 1.4rem; font-weight: 500; }
+  .score-pill .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); }
+  .score-pill.green .num { color: var(--green); }
+  .score-pill.red   .num { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">汉语 <span>Quiz</span></div>
+  <div class="streak">Streak <strong id="streak-count">0</strong></div>
+</header>
+
+<!-- Level selector -->
+<div class="level-bar" id="level-bar">
+  <label><input type="checkbox" value="1" checked><span><span class="level-badge"></span> HSK 1</span></label>
+  <label><input type="checkbox" value="2" checked><span><span class="level-badge"></span> HSK 2</span></label>
+  <label><input type="checkbox" value="3" checked><span><span class="level-badge"></span> HSK 3</span></label>
+  <label><input type="checkbox" value="4"><span><span class="level-badge"></span> HSK 4</span></label>
+  <label><input type="checkbox" value="5"><span><span class="level-badge"></span> HSK 5</span></label>
+  <label><input type="checkbox" value="6"><span><span class="level-badge"></span> HSK 6</span></label>
+</div>
+
+<!-- Score row -->
+<div class="score-row">
+  <div class="score-pill green"><div class="num" id="correct-count">0</div><div class="lbl">Correct</div></div>
+  <div class="score-pill red"><div class="num" id="wrong-count">0</div><div class="lbl">Wrong</div></div>
+  <div class="score-pill"><div class="num" id="total-count">0</div><div class="lbl">Total</div></div>
+</div>
+
+<!-- Question card -->
+<div id="loading" class="loading">Loading question…</div>
+
+<div class="card" id="question-card" style="display:none">
+  <div class="card-top">
+    <div class="hsk-tag" id="hsk-tag">HSK 1</div>
+    <div class="sentence-display" id="sentence-display"></div>
+    <div class="translation" id="translation"></div>
+  </div>
+  <div class="card-bottom">
+    <div class="input-row">
+      <input type="text" id="answer-input" placeholder="？" maxlength="2" autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="hint-text" id="hint-text"></div>
+      <button class="btn btn-primary" id="submit-btn" onclick="submitAnswer()">Check</button>
+    </div>
+  </div>
+</div>
+
+<!-- Feedback -->
+<div class="feedback" id="feedback">
+  <div class="feedback-header" id="feedback-header"></div>
+  <div class="feedback-body" id="feedback-body"></div>
+  <div class="answer-reveal" id="answer-reveal"></div>
+</div>
+
+<!-- Next -->
+<div class="next-row" id="next-row">
+  <button class="btn btn-secondary" onclick="loadQuestion()">Next question →</button>
+</div>
+
+<script>
+let currentQ = null;
+let scores = { correct: 0, wrong: 0, streak: 0 };
+
+function getSelectedLevels() {
+  return [...document.querySelectorAll('#level-bar input:checked')]
+    .map(el => el.value).join(',');
+}
+
+async function loadQuestion() {
+  // Reset UI
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('question-card').style.display = 'none';
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('next-row').className = 'next-row';
+  document.getElementById('answer-input').value = '';
+  document.getElementById('answer-input').className = '';
+  document.getElementById('submit-btn').disabled = false;
+
+  const levels = getSelectedLevels();
+  if (!levels) {
+    document.getElementById('loading').textContent = 'Please select at least one HSK level.';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/question?levels=${levels}`);
+    const data = await res.json();
+    if (data.error) { throw new Error(data.error); }
+
+    currentQ = data;
+
+    // Render sentence with blank
+    const sentenceEl = document.getElementById('sentence-display');
+    sentenceEl.innerHTML = data.blanked.replace('＿',
+      '<span class="blank">＿</span>');
+
+    document.getElementById('translation').textContent = '"' + data.translation + '"';
+    document.getElementById('hsk-tag').textContent = 'HSK ' + data.hskLevel;
+
+    // Hint: show pinyin if HSK 3+, hide for HSK 1-2 to make it harder
+    const hint = document.getElementById('hint-text');
+    if (data.hskLevel <= 2) {
+      hint.innerHTML = `<strong>${data.pinyin}</strong> &nbsp;·&nbsp; ${data.definition.split('|')[0].trim()}`;
+    } else {
+      hint.innerHTML = `Type the missing character`;
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('question-card').style.display = 'block';
+    document.getElementById('answer-input').focus();
+
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Error loading question. Is the server running?';
+    console.error(err);
+  }
+}
+
+async function submitAnswer() {
+  if (!currentQ) return;
+  const answer = document.getElementById('answer-input').value.trim();
+  if (!answer) return;
+
+  document.getElementById('submit-btn').disabled = true;
+
+  const res = await fetch('/api/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      character:   currentQ.character,
+      answer:      answer,
+      blanked:     currentQ.blanked,
+      translation: currentQ.translation,
+      definition:  currentQ.definition,
+      pinyin:      currentQ.pinyin,
+    })
+  });
+
+  const data = await res.json();
+
+  // Update input style
+  const input = document.getElementById('answer-input');
+  input.className = data.correct ? 'correct' : 'wrong';
+
+  // Update scores
+  if (data.correct) {
+    scores.correct++;
+    scores.streak++;
+  } else {
+    scores.wrong++;
+    scores.streak = 0;
+  }
+  scores.total = scores.correct + scores.wrong;
+  document.getElementById('correct-count').textContent = scores.correct;
+  document.getElementById('wrong-count').textContent = scores.wrong;
+  document.getElementById('total-count').textContent = scores.total;
+  document.getElementById('streak-count').textContent = scores.streak;
+
+  // Show feedback
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback ' + (data.correct ? 'correct' : 'wrong');
+
+  document.getElementById('feedback-header').textContent =
+    data.correct ? '✓ Correct!' : '✗ Not quite';
+
+  document.getElementById('feedback-body').textContent = data.feedback;
+
+  if (!data.correct) {
+    document.getElementById('answer-reveal').innerHTML =
+      `Correct answer: <strong>${data.correctAnswer}</strong> — ${data.fullSentence}`;
+  } else {
+    document.getElementById('answer-reveal').textContent = '';
+  }
+
+  document.getElementById('next-row').className = 'next-row visible';
+}
+
+// Enter key submits
+document.getElementById('answer-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('submit-btn').disabled) {
+      loadQuestion();
+    } else {
+      submitAnswer();
+    }
+  }
+});
+
+// Reload when levels change
+document.querySelectorAll('#level-bar input').forEach(cb => {
+  cb.addEventListener('change', loadQuestion);
+});
+
+// Start
+loadQuestion();
+</script>
+</body>
+</html>
