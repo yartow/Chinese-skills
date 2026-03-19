@@ -75,21 +75,25 @@ function ensureHanziLoaded(onDone: (ok: boolean) => void) {
   script.src = "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/hanzilookup.min.js";
   script.onerror = fail;
   script.onload = () => {
-    // Load the mmah data file (better recognition algorithm)
-    window.HanziLookup.init(
-      "mmah",
-      "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/mmah.json",
-      (ok) => {
-        if (ok) {
-          hanziReady = true;
-          hanziLoading = false;
-          hanziCallbacks.forEach((cb) => cb(true));
-          hanziCallbacks.length = 0;
-        } else {
-          fail();
+    try {
+      // Load the mmah data file (better recognition algorithm)
+      window.HanziLookup.init(
+        "mmah",
+        "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/mmah.json",
+        (ok) => {
+          if (ok) {
+            hanziReady = true;
+            hanziLoading = false;
+            hanziCallbacks.forEach((cb) => cb(true));
+            hanziCallbacks.length = 0;
+          } else {
+            fail();
+          }
         }
-      }
-    );
+      );
+    } catch {
+      fail();
+    }
   };
   document.head.appendChild(script);
 }
@@ -250,10 +254,10 @@ export default function HandwritingQuiz() {
   // Normalize CSS offsetX/Y → logical canvas coords (0..CANVAS_SIZE).
   // ctx.scale(dpr, dpr) already handles retina; we just account for responsive scaling.
   const normMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const w = e.currentTarget.offsetWidth;
+    const rect = e.currentTarget.getBoundingClientRect();
     return {
-      x: (e.nativeEvent.offsetX / w) * CANVAS_SIZE,
-      y: (e.nativeEvent.offsetY / w) * CANVAS_SIZE,
+      x: (e.nativeEvent.offsetX / rect.width) * CANVAS_SIZE,
+      y: (e.nativeEvent.offsetY / rect.height) * CANVAS_SIZE,
     };
   };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
