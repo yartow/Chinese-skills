@@ -246,19 +246,9 @@ export default function SettingsPanel({
           )}
         </div>
 
-        <div className="rounded-md border bg-muted/40 p-3 space-y-1.5">
-          <p className="text-xs font-medium text-foreground">Sync data to the published app</p>
+        <div className="rounded-md border bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Character data (word examples, sentences, lessons) only exists in this development environment. To copy it to the live published app:
-          </p>
-          <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside leading-relaxed">
-            <li>Click <strong>Export to Excel</strong> above to download the full dataset.</li>
-            <li>Open the <strong>published app URL</strong> and log in.</li>
-            <li>Go to <strong>Settings → Admin</strong> and click <strong>Import from Excel</strong>.</li>
-            <li>Select the downloaded file — all 3000 characters will be updated.</li>
-          </ol>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            The published app automatically keeps its database schema in sync on every deploy, so the import will always work after a fresh deployment.
+            You can export the full set of Chinese characters, edit them and even add new characters by importing them back into the application. Only the changes you have made will be added to the database.
           </p>
         </div>
       </div>
