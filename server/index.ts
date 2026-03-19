@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { execSync } from "child_process";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -47,6 +48,18 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // In production, sync the database schema before starting so any new columns
+  // added during development are present in the production database.
+  if (process.env.NODE_ENV === "production") {
+    try {
+      log("Syncing database schema…");
+      execSync("npm run db:push", { stdio: "pipe" });
+      log("Database schema sync complete.");
+    } catch (err) {
+      log("Database schema sync warning: " + String(err));
+    }
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
