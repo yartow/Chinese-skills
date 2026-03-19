@@ -53,10 +53,11 @@ app.use((req, res, next) => {
   if (process.env.NODE_ENV === "production") {
     try {
       log("Syncing database schema…");
-      execSync("npm run db:push", { stdio: "pipe" });
+      execSync("npm run db:push", { stdio: "inherit" });
       log("Database schema sync complete.");
     } catch (err) {
-      log("Database schema sync warning: " + String(err));
+      log("Database schema sync FAILED — aborting startup: " + String(err));
+      process.exit(1);
     }
   }
 
