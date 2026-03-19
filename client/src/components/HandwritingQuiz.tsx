@@ -70,16 +70,16 @@ function ensureHanziLoaded(onDone: (ok: boolean) => void) {
     hanziCallbacks.length = 0;
   };
 
-  // Load the JS library
+  // Load the JS library from local public folder
   const script = document.createElement("script");
-  script.src = "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/hanzilookup.min.js";
+  script.src = "/hanzilookup.min.js";
   script.onerror = fail;
   script.onload = () => {
     try {
-      // Load the mmah data file (better recognition algorithm)
+      // Load the mmah data file from local public folder
       window.HanziLookup.init(
         "mmah",
-        "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/mmah.json",
+        "/mmah.json",
         (ok) => {
           if (ok) {
             hanziReady = true;
@@ -415,7 +415,10 @@ export default function HandwritingQuiz() {
             <div className="font-serif text-2xl leading-relaxed tracking-wide text-foreground">
               {question.blanked.replace("＿", "＿")}
             </div>
-            <div className="text-sm text-muted-foreground italic">"{question.translation}"</div>
+            {/* Translation only shown after answer is submitted */}
+            {result && (
+              <div className="text-sm text-muted-foreground italic">"{question.translation}"</div>
+            )}
 
             {/* Hint */}
             <div className="text-sm text-muted-foreground">

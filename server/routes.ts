@@ -555,13 +555,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "No characters found for selected levels" });
       }
 
+      // CJK unicode range — English translations containing these are likely spoilers
+      const CJK_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+
       // Pick the first character from the already-randomised pool that has a usable example
       let chosen = null;
       let chosenExample = null;
 
       for (const char of pool) {
         const examples = char.examples as { chinese: string; english: string }[];
-        const valid = examples?.filter((e) => e.chinese?.includes(char.simplified));
+        const valid = examples?.filter((e) => {
+          if (!e.chinese?.includes(char.simplified)) return false;
+          // Chinese sentence must be at least 5 characters
+          if (e.chinese.length < 5) return false;
+          // The blanked form must leave content on both sides of the blank
+          const blanked = e.chinese.replace(char.simplified, "＿");
+          const parts = blanked.split("＿");
+          if (parts.length < 2 || !parts[0] || !parts[1]) return false;
+          // English translation must not contain CJK characters (would reveal the answer)
+          if (CJK_REGEX.test(e.english)) return false;
+          return true;
+        });
         if (valid && valid.length > 0) {
           chosen = char;
           chosenExample = valid[Math.floor(Math.random() * valid.length)];

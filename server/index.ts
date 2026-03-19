@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { execSync } from "child_process";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { ensureDataSeeded } from "./autoSeed";
 
 const app = express();
 
@@ -60,6 +61,9 @@ app.use((req, res, next) => {
       process.exit(1);
     }
   }
+
+  // Seed database if empty (supports fresh clones and new deployments)
+  await ensureDataSeeded(log);
 
   const server = await registerRoutes(app);
 

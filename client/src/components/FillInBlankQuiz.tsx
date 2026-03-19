@@ -221,10 +221,12 @@ export default function FillInBlankQuiz() {
                 {renderBlanked(question.blanked)}
               </div>
 
-              {/* Translation */}
-              <div className="text-sm text-muted-foreground italic">
-                "{question.translation}"
-              </div>
+              {/* Translation — only shown after submitting to avoid spoilers */}
+              {result && (
+                <div className="text-sm text-muted-foreground italic">
+                  "{question.translation}"
+                </div>
+              )}
 
               {/* Hint — show pinyin for HSK 1-2, hide for 3+ */}
               {question.hskLevel <= 2 && (
