@@ -547,12 +547,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
-      // Pull a random character from the requested levels
-      // We fetch a modest pool and pick randomly to avoid loading all 3000
-      const POOL_SIZE = 50;
+      // Pull a pool of characters from page 0 and pick one at random
+      const POOL_SIZE = 200;
       const result = await storage.getFilteredCharacters(
         req.user.claims.sub,
-        Math.floor(Math.random() * 20), // random page within the filtered set
+        0,
         POOL_SIZE,
         { hskLevels }
       );
