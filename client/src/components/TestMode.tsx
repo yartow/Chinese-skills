@@ -283,8 +283,11 @@ export default function TestMode({ onStartTest }: TestModeProps) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === "n" || e.key === "N") && document.activeElement !== inputRef.current) {
+      // When showing an incorrect result for radical, 'n' always advances — even if
+      // the input is still focused (it already captured the wrong answer).
+      if (e.key === "n" || e.key === "N") {
         if (testType === "radical" && showResult === "incorrect") {
+          e.preventDefault();
           handleNext();
         }
       }

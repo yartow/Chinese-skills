@@ -9,6 +9,7 @@ interface QuizQuestion {
   characterIndex: number;
   character: string;
   traditional: string;
+  traditionalVariants: string[] | null;
   pinyin: string;
   pinyin2: string | null;
   definition: string[];
@@ -52,17 +53,27 @@ const CANVAS_SIZE = 280; // logical px — scaled for device pixel ratio
 
 let hanziReady = false;
 let hanziLoading = false;
-const hanziCallbacks: Array<() => void> = [];
+let hanziFailed = false;
+const hanziCallbacks: Array<(ok: boolean) => void> = [];
 
-function ensureHanziLoaded(onReady: () => void) {
-  if (hanziReady) { onReady(); return; }
-  hanziCallbacks.push(onReady);
+function ensureHanziLoaded(onDone: (ok: boolean) => void) {
+  if (hanziReady) { onDone(true); return; }
+  if (hanziFailed) { onDone(false); return; }
+  hanziCallbacks.push(onDone);
   if (hanziLoading) return;
   hanziLoading = true;
+
+  const fail = () => {
+    hanziLoading = false;
+    hanziFailed = true;
+    hanziCallbacks.forEach((cb) => cb(false));
+    hanziCallbacks.length = 0;
+  };
 
   // Load the JS library
   const script = document.createElement("script");
   script.src = "https://cdn.jsdelivr.net/npm/hanzilookup@1.0.0/dist/hanzilookup.min.js";
+  script.onerror = fail;
   script.onload = () => {
     // Load the mmah data file (better recognition algorithm)
     window.HanziLookup.init(
@@ -71,8 +82,11 @@ function ensureHanziLoaded(onReady: () => void) {
       (ok) => {
         if (ok) {
           hanziReady = true;
-          hanziCallbacks.forEach((cb) => cb());
+          hanziLoading = false;
+          hanziCallbacks.forEach((cb) => cb(true));
           hanziCallbacks.length = 0;
+        } else {
+          fail();
         }
       }
     );
@@ -103,26 +117,27 @@ function useDrawingCanvas(canvasRef: React.RefObject<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx.scale(dpr, dpr) is already applied, so all coordinates are in logical px (0..CANVAS_SIZE)
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
     // Grid lines
     ctx.strokeStyle = "rgba(0,0,0,0.06)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height);
-    ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.moveTo(CANVAS_SIZE / 2, 0); ctx.lineTo(CANVAS_SIZE / 2, CANVAS_SIZE);
+    ctx.moveTo(0, CANVAS_SIZE / 2); ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE / 2);
     ctx.stroke();
 
     // Diagonal guides
     ctx.strokeStyle = "rgba(0,0,0,0.04)";
     ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(canvas.width, canvas.height);
-    ctx.moveTo(canvas.width, 0); ctx.lineTo(0, canvas.height);
+    ctx.moveTo(0, 0); ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE);
+    ctx.moveTo(CANVAS_SIZE, 0); ctx.lineTo(0, CANVAS_SIZE);
     ctx.stroke();
 
     // Draw all completed strokes
     ctx.strokeStyle = "#1a1a2e";
-    ctx.lineWidth = Math.max(3, canvas.width / 70);
+    ctx.lineWidth = Math.max(3, CANVAS_SIZE / 70);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const stroke of strokesRef.current) {
@@ -193,6 +208,7 @@ export default function HandwritingQuiz() {
   const [result, setResult] = useState<"correct" | "wrong" | null>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [hanziReady, setHanziReady] = useState(false);
+  const [hanziError, setHanziError] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { startStroke, continueStroke, endStroke, clearCanvas, getStrokesForLookup, hasStrokes, redraw } =
@@ -200,7 +216,10 @@ export default function HandwritingQuiz() {
 
   // ── Load HanziLookup ──
   useEffect(() => {
-    ensureHanziLoaded(() => setHanziReady(true));
+    ensureHanziLoaded((ok) => {
+      if (ok) setHanziReady(true);
+      else setHanziError(true);
+    });
   }, []);
 
   // ── Setup canvas DPR scaling ──
@@ -228,36 +247,44 @@ export default function HandwritingQuiz() {
   });
 
   // ── Mouse events ──
+  // Normalize CSS offsetX/Y → logical canvas coords (0..CANVAS_SIZE).
+  // ctx.scale(dpr, dpr) already handles retina; we just account for responsive scaling.
+  const normMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const w = e.currentTarget.offsetWidth;
+    return {
+      x: (e.nativeEvent.offsetX / w) * CANVAS_SIZE,
+      y: (e.nativeEvent.offsetY / w) * CANVAS_SIZE,
+    };
+  };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result) return;
     e.preventDefault();
-    startStroke({ x: e.nativeEvent.offsetX * (window.devicePixelRatio || 1), y: e.nativeEvent.offsetY * (window.devicePixelRatio || 1) });
+    startStroke(normMouse(e));
   };
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result) return;
     if (e.buttons !== 1) return;
-    continueStroke({ x: e.nativeEvent.offsetX * (window.devicePixelRatio || 1), y: e.nativeEvent.offsetY * (window.devicePixelRatio || 1) });
+    continueStroke(normMouse(e));
   };
   const handleMouseUp = () => { if (!result) { endStroke(); recognize(); } };
 
   // ── Touch events (mobile + Wacom) ──
+  // Normalize touch clientX/Y → logical canvas coords (0..CANVAS_SIZE).
+  const normTouch = (t: React.Touch, rect: DOMRect) => ({
+    x: ((t.clientX - rect.left) / rect.width) * CANVAS_SIZE,
+    y: ((t.clientY - rect.top) / rect.height) * CANVAS_SIZE,
+  });
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return;
     e.preventDefault();
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const t = e.touches[0];
-    const dpr = window.devicePixelRatio || 1;
-    startStroke({ x: (t.clientX - rect.left) * dpr, y: (t.clientY - rect.top) * dpr });
+    const rect = e.currentTarget.getBoundingClientRect();
+    startStroke(normTouch(e.touches[0], rect));
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return;
     e.preventDefault();
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const t = e.touches[0];
-    const dpr = window.devicePixelRatio || 1;
-    continueStroke({ x: (t.clientX - rect.left) * dpr, y: (t.clientY - rect.top) * dpr });
+    const rect = e.currentTarget.getBoundingClientRect();
+    continueStroke(normTouch(e.touches[0], rect));
   };
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return;
@@ -288,7 +315,11 @@ export default function HandwritingQuiz() {
   // ── Check if candidate matches ──
   function selectCandidate(char: string) {
     if (!question || result) return;
-    const isCorrect = char === question.character || char === question.traditional;
+    const variants = question.traditionalVariants ?? [];
+    const isCorrect =
+      char === question.character ||
+      char === question.traditional ||
+      variants.includes(char);
     setResult(isCorrect ? "correct" : "wrong");
     setScores((s) => ({
       correct: s.correct + (isCorrect ? 1 : 0),
@@ -396,7 +427,9 @@ export default function HandwritingQuiz() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {!hanziReady
+            {hanziError
+              ? "Recognition engine failed to load"
+              : !hanziReady
               ? "Loading recognition engine…"
               : result
               ? result === "correct" ? "✓ Correct!" : "✗ Wrong — try again or skip"
@@ -429,9 +462,29 @@ export default function HandwritingQuiz() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
-          {!hanziReady && (
+          {!hanziReady && !hanziError && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {hanziError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/90">
+              <p className="text-sm text-destructive text-center px-4">Recognition engine failed to load</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  // Reset module-level flags so ensureHanziLoaded retries
+                  hanziFailed = false;
+                  setHanziError(false);
+                  ensureHanziLoaded((ok) => {
+                    if (ok) setHanziReady(true);
+                    else setHanziError(true);
+                  });
+                }}
+              >
+                Retry
+              </Button>
             </div>
           )}
         </div>

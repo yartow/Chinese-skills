@@ -547,25 +547,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
-      // Pull a pool of characters from page 0 and pick one at random
+      // Sample randomly across the full set for the requested HSK levels (ORDER BY RANDOM())
       const POOL_SIZE = 200;
-      const result = await storage.getFilteredCharacters(
-        req.user.claims.sub,
-        0,
-        POOL_SIZE,
-        { hskLevels }
-      );
+      const pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
 
-      if (result.characters.length === 0) {
+      if (pool.length === 0) {
         return res.status(404).json({ message: "No characters found for selected levels" });
       }
 
-      // Pick a random character from the pool that has a usable example
+      // Pick the first character from the already-randomised pool that has a usable example
       let chosen = null;
       let chosenExample = null;
 
-      const shuffled = result.characters.sort(() => Math.random() - 0.5);
-      for (const char of shuffled) {
+      for (const char of pool) {
         const examples = char.examples as { chinese: string; english: string }[];
         const valid = examples?.filter((e) => e.chinese?.includes(char.simplified));
         if (valid && valid.length > 0) {
@@ -585,6 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         characterIndex: chosen.index,
         character: chosen.simplified,
         traditional: chosen.traditional,
+        traditionalVariants: Array.isArray(chosen.traditionalVariants) ? chosen.traditionalVariants : null,
         pinyin: chosen.pinyin,
         pinyin2: chosen.pinyin2 ?? null,
         definition: Array.isArray(chosen.definition) ? chosen.definition : [chosen.definition],

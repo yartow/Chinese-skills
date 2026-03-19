@@ -80,6 +80,7 @@ export interface IStorage {
   getCharactersByLessonRange(lessonStart: number, lessonEnd: number): Promise<ChineseCharacter[]>;
   getBrowseCharacters(): Promise<{ index: number; simplified: string; traditional: string; pinyin: string; hskLevel: number; lesson: number | null }[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
+  getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 }
 
@@ -494,6 +495,36 @@ export class DatabaseStorage implements IStorage {
       characters: characters as ChineseCharacter[],
       total
     };
+  }
+
+  async getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]> {
+    const results = await db
+      .select({
+        index: chineseCharacters.index,
+        simplified: chineseCharacters.simplified,
+        traditional: chineseCharacters.traditional,
+        traditionalVariants: chineseCharacters.traditionalVariants,
+        pinyin: chineseCharacters.pinyin,
+        pinyin2: chineseCharacters.pinyin2,
+        pinyin3: chineseCharacters.pinyin3,
+        numberedPinyin: chineseCharacters.numberedPinyin,
+        numberedPinyin2: chineseCharacters.numberedPinyin2,
+        numberedPinyin3: chineseCharacters.numberedPinyin3,
+        radicalIndex: chineseCharacters.radicalIndex,
+        definition: chineseCharacters.definition,
+        examples: chineseCharacters.examples,
+        wordExamples: chineseCharacters.wordExamples,
+        hskLevel: chineseCharacters.hskLevel,
+        lesson: chineseCharacters.lesson,
+        radical: radicals.simplified,
+        radicalPinyin: radicals.pinyin,
+      })
+      .from(chineseCharacters)
+      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .where(inArray(chineseCharacters.hskLevel, hskLevels))
+      .orderBy(sql`RANDOM()`)
+      .limit(count);
+    return results as ChineseCharacter[];
   }
 
   async searchCharacters(searchTerm: string, limit: number = 50): Promise<ChineseCharacter[]> {
