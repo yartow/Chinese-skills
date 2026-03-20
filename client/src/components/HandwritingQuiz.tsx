@@ -185,16 +185,19 @@ export default function HandwritingQuiz() {
   }, [engineReady, getStrokesForLookup]);
 
   // ── Touch/mouse handlers ──
-  const dpr = () => window.devicePixelRatio || 1;
+  // NOTE: offsetX/offsetY are already in logical (CSS) pixels.
+  // The canvas context is scaled by DPR in the useEffect above, so we must
+  // NOT multiply by DPR here — doing so would double-scale and cause the
+  // drawn line to appear far from the cursor.
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result) return;
     e.preventDefault();
-    startStroke({ x: e.nativeEvent.offsetX * dpr(), y: e.nativeEvent.offsetY * dpr() });
+    startStroke({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
   };
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result || e.buttons !== 1) return;
-    continueStroke({ x: e.nativeEvent.offsetX * dpr(), y: e.nativeEvent.offsetY * dpr() });
+    continueStroke({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
   };
   const handleMouseUp = () => { if (!result) { endStroke(); recognize(); } };
 
@@ -202,13 +205,13 @@ export default function HandwritingQuiz() {
     if (result) return; e.preventDefault();
     const rect = canvasRef.current!.getBoundingClientRect();
     const t = e.touches[0];
-    startStroke({ x: (t.clientX - rect.left) * dpr(), y: (t.clientY - rect.top) * dpr() });
+    startStroke({ x: t.clientX - rect.left, y: t.clientY - rect.top });
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault();
     const rect = canvasRef.current!.getBoundingClientRect();
     const t = e.touches[0];
-    continueStroke({ x: (t.clientX - rect.left) * dpr(), y: (t.clientY - rect.top) * dpr() });
+    continueStroke({ x: t.clientX - rect.left, y: t.clientY - rect.top });
   };
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault(); endStroke(); recognize();
