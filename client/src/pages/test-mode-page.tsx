@@ -31,13 +31,14 @@ export default function TestModePage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="choice">
+          {/* forceMount keeps each quiz mounted across tab switches, preserving local state */}
+          <TabsContent value="choice" forceMount className="data-[state=inactive]:hidden">
             <MultipleChoiceQuiz />
           </TabsContent>
-          <TabsContent value="fill">
+          <TabsContent value="fill" forceMount className="data-[state=inactive]:hidden">
             <FillInBlankQuiz />
           </TabsContent>
-          <TabsContent value="write">
+          <TabsContent value="write" forceMount className="data-[state=inactive]:hidden">
             <HandwritingQuiz />
           </TabsContent>
         </Tabs>

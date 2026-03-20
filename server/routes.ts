@@ -568,6 +568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!e.chinese?.includes(char.simplified)) return false;
           // Chinese sentence must be at least 5 characters
           if (e.chinese.length < 5) return false;
+          // Character must appear exactly once — multiple occurrences would leave one visible
+          if (e.chinese.split(char.simplified).length !== 2) return false;
           // The blanked form must leave content on both sides of the blank
           const blanked = e.chinese.replace(char.simplified, "＿");
           const parts = blanked.split("＿");
@@ -626,28 +628,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid parameters" });
       }
 
-      // Fetch a pool of candidates from the same HSK level range
-      // Use multiple pages to get enough variety
+      // Accumulate candidates across pages until we have ≥3 same-level distractors
+      // (or exhaust pages). Starting from page 0 avoids the stale-randomPage problem
+      // where a high random offset could land beyond the available character count.
       const POOL_SIZE = 80;
-      const randomPage = Math.floor(Math.random() * 10);
-      const result = await storage.getFilteredCharacters(
-        req.user.claims.sub,
-        randomPage,
-        POOL_SIZE,
-        { hskLevels }
-      );
+      const pool: Awaited<ReturnType<typeof storage.getFilteredCharacters>>["characters"] = [];
+      for (let page = 0; page <= 10; page++) {
+        const result = await storage.getFilteredCharacters(
+          req.user.claims.sub,
+          page,
+          POOL_SIZE,
+          { hskLevels }
+        );
+        if (result.characters.length === 0) break;
+        pool.push(...result.characters.filter((c) => c.index !== correctIndex));
+        const sameLevelSoFar = pool.filter((c) => c.hskLevel === hskLevel);
+        if (sameLevelSoFar.length >= 3) break;
+      }
 
-      // Exclude the correct character and shuffle
-      const pool = result.characters
-        .filter((c) => c.index !== correctIndex)
-        .sort(() => Math.random() - 0.5);
+      // Shuffle the accumulated pool
+      pool.sort(() => Math.random() - 0.5);
 
       // Pick 3 distractors — prefer same HSK level for more meaningful difficulty,
-      // fall back to any level if not enough candidates
+      // fill remainder from any level if not enough same-level candidates
       const sameLevelPool = pool.filter((c) => c.hskLevel === hskLevel);
-      const distractors = sameLevelPool.length >= 3
-        ? sameLevelPool.slice(0, 3)
-        : pool.slice(0, 3);
+      let distractors = sameLevelPool.slice(0, 3);
+      if (distractors.length < 3) {
+        const chosen = new Set(distractors.map((c) => c.index));
+        const extras = pool.filter((c) => !chosen.has(c.index)).slice(0, 3 - distractors.length);
+        distractors = [...distractors, ...extras];
+      }
 
       const choices = distractors.map((c) => ({
         character: c.simplified,

@@ -15,7 +15,9 @@ interface CheckResult {
   feedback: string;
 }
 
-async function checkAnswer(payload: {
+// API payload includes question snapshot fields (for onSuccess closure safety)
+// but only the server-relevant fields are forwarded to checkAnswer()
+interface CheckPayload {
   character: string;
   answer: string;
   blanked: string;
@@ -23,7 +25,13 @@ async function checkAnswer(payload: {
   definition: string[];
   pinyin: string;
   hskLevel: number;
-}): Promise<CheckResult> {
+  // snapshot — not sent to server, used only in onSuccess
+  characterIndex: number;
+  traditional: string;
+  sentence: string;
+}
+
+async function checkAnswer(payload: Omit<CheckPayload, "characterIndex" | "traditional" | "sentence">): Promise<CheckResult> {
   const res = await fetch("/api/quiz/check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -48,10 +56,12 @@ export default function FillInBlankQuiz() {
   });
 
   const checkMutation = useMutation({
-    mutationFn: checkAnswer,
+    mutationFn: ({ characterIndex, traditional, sentence, ...apiPayload }: CheckPayload) =>
+      checkAnswer(apiPayload),
     onSuccess: (data, vars) => {
+      // Use vars (the snapshot captured at submission time) — not question! which may have changed
       setResult(data);
-      const lvl = question!.hskLevel;
+      const lvl = vars.hskLevel;
       setScores((s) => {
         const prev = s.byLevel[lvl] ?? { correct: 0, total: 0 };
         return {
@@ -65,17 +75,17 @@ export default function FillInBlankQuiz() {
         };
       });
       if (data.correct) {
-        saveProgress(question!.characterIndex, "reading");
+        saveProgress(vars.characterIndex, "reading");
       } else {
         setWrongAnswers((w) => [...w, {
-          character: question!.character,
-          traditional: question!.traditional,
-          pinyin: question!.pinyin,
+          character: vars.character,
+          traditional: vars.traditional,
+          pinyin: vars.pinyin,
           userAnswer: vars.answer,
-          sentence: question!.sentence,
-          blanked: question!.blanked,
-          translation: question!.translation,
-          hskLevel: question!.hskLevel,
+          sentence: vars.sentence,
+          blanked: vars.blanked,
+          translation: vars.translation,
+          hskLevel: vars.hskLevel,
           mode: "fill" as const,
         }]);
       }
@@ -93,7 +103,8 @@ export default function FillInBlankQuiz() {
   }
 
   function handleSubmit() {
-    if (!question || !answer.trim()) return;
+    if (!question || !answer.trim() || checkMutation.isPending) return;
+    // Capture question snapshot now so onSuccess uses the question that was actually submitted
     checkMutation.mutate({
       character: question.character,
       answer: answer.trim(),
@@ -102,6 +113,9 @@ export default function FillInBlankQuiz() {
       definition: question.definition,
       pinyin: question.pinyin,
       hskLevel: question.hskLevel,
+      characterIndex: question.characterIndex,
+      traditional: question.traditional,
+      sentence: question.sentence,
     });
   }
 

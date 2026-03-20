@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen } from "lucide-react";
 import QuizShell from "./QuizShell";
@@ -51,8 +51,12 @@ export default function MultipleChoiceQuiz() {
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
 
+  // Request sequencing: ignore stale async results when a newer load is in flight
+  const requestIdRef = useRef(0);
+
   // ── Load question + choices together ──
   async function loadQuestion(levels: number[]) {
+    const thisId = ++requestIdRef.current;
     setIsLoading(true);
     setIsError(false);
     setSelected(null);
@@ -60,30 +64,33 @@ export default function MultipleChoiceQuiz() {
     setQuestion(null);
     try {
       const q = await fetchQuestion(levels);
+      if (thisId !== requestIdRef.current) return; // stale — a newer request is active
       const distractors = await fetchChoices(q.characterIndex, q.hskLevel, levels);
+      if (thisId !== requestIdRef.current) return;
       const correct: Choice = { character: q.character, traditional: q.traditional };
       setChoices(shuffle([correct, ...distractors]).slice(0, 4));
       setQuestion(q);
     } catch {
+      if (thisId !== requestIdRef.current) return;
       setIsError(true);
     } finally {
-      setIsLoading(false);
+      if (thisId === requestIdRef.current) setIsLoading(false);
     }
   }
 
   useEffect(() => { loadQuestion(selectedLevels); }, []);
 
+  // N key = next (only after answering)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "n" || e.key === "N") {
-        // Only if not typing in an input field
+      if ((e.key === "n" || e.key === "N") && selected !== null) {
         if (document.activeElement?.tagName === "INPUT") return;
         handleNext();
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [result]); // re-register when result changes so handleNext has fresh state
+  }, [selected]);
 
   // ── Handle choice selection ──
   function handleSelect(char: string) {
@@ -147,7 +154,14 @@ export default function MultipleChoiceQuiz() {
       <QuizShell
         scores={scores}
         selectedLevels={selectedLevels}
-        onToggleLevel={(level) => { toggleLevel(level); loadQuestion(selectedLevels.includes(level) && selectedLevels.length > 1 ? selectedLevels.filter(l => l !== level) : [...selectedLevels, level].sort()); }}
+        onToggleLevel={(level) => {
+          // Compute the next levels once so toggleLevel and loadQuestion use the same set
+          const nextLevels = selectedLevels.includes(level)
+            ? (selectedLevels.length > 1 ? selectedLevels.filter((l) => l !== level) : selectedLevels)
+            : [...selectedLevels, level].sort();
+          toggleLevel(level);
+          loadQuestion(nextLevels);
+        }}
         wrongAnswers={wrongAnswers}
       />
 

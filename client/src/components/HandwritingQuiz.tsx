@@ -196,34 +196,39 @@ export default function HandwritingQuiz() {
     } catch { setRecognizing(false); }
   }, [engineReady, getStrokesForLookup]);
 
-  // ── Touch/mouse handlers ──
-  // NOTE: offsetX/offsetY are already in logical (CSS) pixels.
-  // The canvas context is scaled by DPR in the useEffect above, so we must
-  // NOT multiply by DPR here — doing so would double-scale and cause the
-  // drawn line to appear far from the cursor.
+  // ── Coordinate normalization ──
+  // The canvas internal drawing space is CANVAS_SIZE × CANVAS_SIZE (logical pixels).
+  // The canvas element is styled responsively (CSS width may differ from CANVAS_SIZE).
+  // We must map from CSS/client coordinates into CANVAS_SIZE space.
+  // Do NOT multiply by DPR — the ctx.scale(dpr,dpr) in the setup effect already handles that.
+  function toCanvasPoint(clientX: number, clientY: number): Point {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) / rect.width) * CANVAS_SIZE,
+      y: ((clientY - rect.top) / rect.height) * CANVAS_SIZE,
+    };
+  }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result) return;
     e.preventDefault();
-    startStroke({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
+    startStroke(toCanvasPoint(e.clientX, e.clientY));
   };
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (result || e.buttons !== 1) return;
-    continueStroke({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
+    continueStroke(toCanvasPoint(e.clientX, e.clientY));
   };
   const handleMouseUp = () => { if (!result) { endStroke(); recognize(); } };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault();
-    const rect = canvasRef.current!.getBoundingClientRect();
     const t = e.touches[0];
-    startStroke({ x: t.clientX - rect.left, y: t.clientY - rect.top });
+    startStroke(toCanvasPoint(t.clientX, t.clientY));
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault();
-    const rect = canvasRef.current!.getBoundingClientRect();
     const t = e.touches[0];
-    continueStroke({ x: t.clientX - rect.left, y: t.clientY - rect.top });
+    continueStroke(toCanvasPoint(t.clientX, t.clientY));
   };
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault(); endStroke(); recognize();
@@ -231,7 +236,10 @@ export default function HandwritingQuiz() {
 
   function selectCandidate(char: string) {
     if (!question || result) return;
-    const isCorrect = char === question.character || char === question.traditional;
+    const isCorrect =
+      char === question.character ||
+      char === question.traditional ||
+      (Array.isArray(question.traditionalVariants) && question.traditionalVariants.includes(char));
     setResult(isCorrect ? "correct" : "wrong");
     const lvl = question.hskLevel;
     setScores((s) => {
