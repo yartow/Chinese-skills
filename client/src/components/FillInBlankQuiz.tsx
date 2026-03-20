@@ -1,50 +1,18 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, ChevronRight, BookOpen } from "lucide-react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface QuizQuestion {
-  characterIndex: number;
-  character: string;
-  traditional: string;
-  pinyin: string;
-  pinyin2: string | null;
-  definition: string[];
-  hskLevel: number;
-  sentence: string;
-  blanked: string;
-  translation: string;
-}
+import QuizShell from "./QuizShell";
+import {
+  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
+  type QuizQuestion, type WrongAnswer, type QuizScores,
+} from "./quizTypes";
 
 interface CheckResult {
   correct: boolean;
   correctAnswer: string;
   fullSentence: string;
   feedback: string;
-}
-
-// ── HSK level colours (matches your existing app's red theme) ─────────────────
-
-const HSK_COLORS: Record<number, string> = {
-  1: "bg-red-100 text-red-700 border-red-200",
-  2: "bg-orange-100 text-orange-700 border-orange-200",
-  3: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  4: "bg-green-100 text-green-700 border-green-200",
-  5: "bg-blue-100 text-blue-700 border-blue-200",
-  6: "bg-purple-100 text-purple-700 border-purple-200",
-};
-
-const ALL_LEVELS = [1, 2, 3, 4, 5, 6];
-
-// ── API helpers ───────────────────────────────────────────────────────────────
-
-async function fetchQuestion(levels: number[]): Promise<QuizQuestion> {
-  const res = await fetch(`/api/quiz/question?levels=${levels.join(",")}`);
-  if (!res.ok) throw new Error("Failed to load question");
-  return res.json();
 }
 
 async function checkAnswer(payload: {
@@ -65,46 +33,58 @@ async function checkAnswer(payload: {
   return res.json();
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export default function FillInBlankQuiz() {
   const [selectedLevels, setSelectedLevels] = useState<number[]>([1, 2, 3]);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
-  const [scores, setScores] = useState({ correct: 0, wrong: 0, streak: 0 });
+  const [scores, setScores] = useState<QuizScores>({ ...EMPTY_SCORES, byLevel: {} });
+  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
 
-  // ── Fetch question ──
-  const {
-    data: question,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: ["quiz-question", selectedLevels],
+  const { data: question, isLoading, isError, refetch } = useQuery({
+    queryKey: ["quiz-fill", selectedLevels],
     queryFn: () => fetchQuestion(selectedLevels),
-    // Don't auto-refetch — only when user clicks Next
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
-  // ── Check answer ──
   const checkMutation = useMutation({
     mutationFn: checkAnswer,
-    onSuccess: (data) => {
+    onSuccess: (data, vars) => {
       setResult(data);
-      setScores((s) => ({
-        correct: s.correct + (data.correct ? 1 : 0),
-        wrong: s.wrong + (data.correct ? 0 : 1),
-        streak: data.correct ? s.streak + 1 : 0,
-      }));
+      const lvl = question!.hskLevel;
+      setScores((s) => {
+        const prev = s.byLevel[lvl] ?? { correct: 0, total: 0 };
+        return {
+          correct: s.correct + (data.correct ? 1 : 0),
+          wrong: s.wrong + (data.correct ? 0 : 1),
+          streak: data.correct ? s.streak + 1 : 0,
+          byLevel: {
+            ...s.byLevel,
+            [lvl]: { correct: prev.correct + (data.correct ? 1 : 0), total: prev.total + 1 },
+          },
+        };
+      });
+      if (data.correct) {
+        saveProgress(question!.characterIndex, "reading");
+      } else {
+        setWrongAnswers((w) => [...w, {
+          character: question!.character,
+          traditional: question!.traditional,
+          pinyin: question!.pinyin,
+          userAnswer: vars.answer,
+          sentence: question!.sentence,
+          blanked: question!.blanked,
+          translation: question!.translation,
+          hskLevel: question!.hskLevel,
+          mode: "fill" as const,
+        }]);
+      }
     },
   });
 
-  // ── Handlers ──
   function toggleLevel(level: number) {
     setSelectedLevels((prev) => {
       if (prev.includes(level)) {
-        // Don't allow deselecting all
         if (prev.length === 1) return prev;
         return prev.filter((l) => l !== level);
       }
@@ -138,9 +118,8 @@ export default function FillInBlankQuiz() {
     }
   }
 
-  // ── Render blanked sentence with styled blank ──
-  function renderBlanked(blanked: string) {
-    const parts = blanked.split("＿");
+  function renderBlanked(q: QuizQuestion) {
+    const parts = q.blanked.split("＿");
     return (
       <span>
         {parts[0]}
@@ -152,60 +131,29 @@ export default function FillInBlankQuiz() {
     );
   }
 
-  // ── UI ──
+  const hint = question ? getHint(question) : null;
+
   return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6">
+    <div className="space-y-6">
+      <QuizShell
+        scores={scores}
+        selectedLevels={selectedLevels}
+        onToggleLevel={(level) => { toggleLevel(level); setResult(null); setAnswer(""); }}
+        wrongAnswers={wrongAnswers}
+      />
 
-      {/* Score bar */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Correct", value: scores.correct, color: "text-green-600" },
-          { label: "Wrong",   value: scores.wrong,   color: "text-red-600" },
-          { label: "Streak",  value: scores.streak,  color: "text-orange-500" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="bg-muted rounded-lg p-3 text-center">
-            <div className={`text-2xl font-semibold ${color}`}>{value}</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide mt-0.5">{label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Level selector */}
-      <div className="flex flex-wrap gap-2">
-        {ALL_LEVELS.map((level) => (
-          <button
-            key={level}
-            onClick={() => { toggleLevel(level); setResult(null); setAnswer(""); }}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all
-              ${selectedLevels.includes(level)
-                ? HSK_COLORS[level] + " border-current"
-                : "bg-background text-muted-foreground border-border hover:border-foreground"
-              }`}
-          >
-            HSK {level}
-          </button>
-        ))}
-      </div>
-
-      {/* Question card */}
       <div className="border rounded-xl overflow-hidden bg-card">
-
-        {/* Card top */}
         <div className="p-6 border-b space-y-4">
-          {isLoading && (
-            <div className="text-center text-muted-foreground py-8 text-sm">
-              Loading question…
-            </div>
-          )}
+          {isLoading && <div className="text-center text-muted-foreground py-8 text-sm">Loading question…</div>}
           {isError && (
             <div className="text-center text-destructive py-8 text-sm">
-              Failed to load question.{" "}
+              Failed to load.{" "}
               <button onClick={() => refetch()} className="underline">Try again</button>
             </div>
           )}
           {question && !isLoading && (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${HSK_COLORS[question.hskLevel]}`}>
                   HSK {question.hskLevel}
                 </span>
@@ -216,31 +164,24 @@ export default function FillInBlankQuiz() {
                 )}
               </div>
 
-              {/* Sentence */}
               <div className="font-serif text-3xl leading-relaxed tracking-wide">
-                {renderBlanked(question.blanked)}
+                {renderBlanked(question)}
               </div>
 
-              {/* Translation — only shown after submitting to avoid spoilers */}
               {result && (
-                <div className="text-sm text-muted-foreground italic">
-                  "{question.translation}"
-                </div>
+                <div className="text-sm text-muted-foreground italic">"{question.translation}"</div>
               )}
 
-              {/* Hint — show pinyin for HSK 1-2, hide for 3+ */}
-              {question.hskLevel <= 2 && (
+              {hint && (hint.pinyin || hint.definition) && (
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{question.pinyin}</span>
-                  {" · "}
-                  {question.definition[0]}
+                  {hint.pinyin && <span className="font-medium text-foreground">{question.pinyin}</span>}
+                  {hint.definition && <span> · {question.definition[0]}</span>}
                 </div>
               )}
             </>
           )}
         </div>
 
-        {/* Card bottom — input */}
         {question && !isLoading && (
           <div className="p-4 flex items-center gap-3">
             <input
@@ -253,7 +194,7 @@ export default function FillInBlankQuiz() {
               maxLength={2}
               className={`w-24 text-center text-2xl font-serif border rounded-lg p-2 outline-none transition-colors
                 ${result?.correct === true  ? "border-green-500 bg-green-50 text-green-700" : ""}
-                ${result?.correct === false ? "border-red-500 bg-red-50 text-red-700"     : ""}
+                ${result?.correct === false ? "border-red-500 bg-red-50 text-red-700" : ""}
                 ${!result ? "border-border focus:border-foreground bg-background" : ""}
               `}
               autoComplete="off"
@@ -261,11 +202,9 @@ export default function FillInBlankQuiz() {
               spellCheck={false}
               autoFocus
             />
-
             <div className="flex-1 text-sm text-muted-foreground">
-              {!result && question.hskLevel >= 3 && "Enter the missing character"}
+              {!result && !hint?.pinyin && "Enter the missing character"}
             </div>
-
             {!result ? (
               <Button
                 onClick={handleSubmit}
@@ -283,18 +222,15 @@ export default function FillInBlankQuiz() {
         )}
       </div>
 
-      {/* Feedback panel */}
       {result && (
         <div className={`rounded-xl border p-4 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200
-          ${result.correct
-            ? "bg-green-50 border-green-200 text-green-800"
-            : "bg-red-50 border-red-200 text-red-800"
-          }`}
+          ${result.correct ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
         >
           <div className="flex items-center gap-2 font-semibold">
             {result.correct
               ? <><CheckCircle className="w-4 h-4" /> Correct!</>
-              : <><XCircle className="w-4 h-4" /> Not quite — the answer is <span className="font-serif text-lg">{result.correctAnswer}</span></>
+              : <><XCircle className="w-4 h-4" /> Not quite — the answer is{" "}
+                  <span className="font-serif text-lg">{result.correctAnswer}</span></>
             }
           </div>
           <p className="text-sm leading-relaxed opacity-90">{result.feedback}</p>
@@ -304,7 +240,6 @@ export default function FillInBlankQuiz() {
         </div>
       )}
 
-      {/* Empty state nudge */}
       {!isLoading && !isError && !question && (
         <div className="text-center text-muted-foreground flex flex-col items-center gap-2 py-8">
           <BookOpen className="w-8 h-8 opacity-30" />

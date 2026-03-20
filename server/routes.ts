@@ -608,6 +608,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/quiz/choices?correctIndex=5&hskLevel=2&levels=1,2,3
+  // Returns 3 distractor characters (wrong answers) for multiple choice questions.
+  // Picks characters from the same HSK levels, excluding the correct answer.
+  app.get('/api/quiz/choices', isAuthenticated, async (req: any, res) => {
+    try {
+      const correctIndex = parseInt(req.query.correctIndex as string);
+      const hskLevel = parseInt(req.query.hskLevel as string);
+      const levelsParam = (req.query.levels as string) || "1,2,3";
+
+      const hskLevels = levelsParam
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 6);
+
+      if (isNaN(correctIndex) || isNaN(hskLevel)) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      // Fetch a pool of candidates from the same HSK level range
+      // Use multiple pages to get enough variety
+      const POOL_SIZE = 80;
+      const randomPage = Math.floor(Math.random() * 10);
+      const result = await storage.getFilteredCharacters(
+        req.user.claims.sub,
+        randomPage,
+        POOL_SIZE,
+        { hskLevels }
+      );
+
+      // Exclude the correct character and shuffle
+      const pool = result.characters
+        .filter((c) => c.index !== correctIndex)
+        .sort(() => Math.random() - 0.5);
+
+      // Pick 3 distractors — prefer same HSK level for more meaningful difficulty,
+      // fall back to any level if not enough candidates
+      const sameLevelPool = pool.filter((c) => c.hskLevel === hskLevel);
+      const distractors = sameLevelPool.length >= 3
+        ? sameLevelPool.slice(0, 3)
+        : pool.slice(0, 3);
+
+      const choices = distractors.map((c) => ({
+        character: c.simplified,
+        traditional: c.traditional,
+      }));
+
+      res.json(choices);
+    } catch (error) {
+      console.error("Error fetching choices:", error);
+      res.status(500).json({ message: "Failed to fetch choices" });
+    }
+  });
+
+
   // POST /api/quiz/check
   // Checks the user's answer and returns AI-generated feedback via Claude
   app.post('/api/quiz/check', isAuthenticated, async (req: any, res) => {
