@@ -73,6 +73,18 @@ export default function MultipleChoiceQuiz() {
 
   useEffect(() => { loadQuestion(selectedLevels); }, []);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "n" || e.key === "N") {
+        // Only if not typing in an input field
+        if (document.activeElement?.tagName === "INPUT") return;
+        handleNext();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [result]); // re-register when result changes so handleNext has fresh state
+
   // ── Handle choice selection ──
   function handleSelect(char: string) {
     if (!question || selected !== null) return;

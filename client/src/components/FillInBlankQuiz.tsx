@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen } from "lucide-react";
@@ -117,6 +117,18 @@ export default function FillInBlankQuiz() {
       else handleSubmit();
     }
   }
+
+  // N key = next question (only after answering, not while typing)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.key === "n" || e.key === "N") && result) {
+        if (document.activeElement?.tagName === "INPUT") return;
+        handleNext();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [result]);
 
   function renderBlanked(q: QuizQuestion) {
     const parts = q.blanked.split("＿");

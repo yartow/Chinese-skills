@@ -162,6 +162,18 @@ export default function HandwritingQuiz() {
     redraw();
   }, [redraw]);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "n" || e.key === "N") {
+        // Only if not typing in an input field
+        if (document.activeElement?.tagName === "INPUT") return;
+        handleNext();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [result]); // re-register when result changes so handleNext has fresh state
+    
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-write", selectedLevels],
     queryFn: () => fetchQuestion(selectedLevels),
