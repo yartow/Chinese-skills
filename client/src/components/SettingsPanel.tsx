@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle, Download, Upload } from "lucide-react";
 
@@ -9,18 +10,22 @@ interface SettingsPanelProps {
   currentLevel: number;
   dailyCharCount: number;
   standardModePageSize?: number;
+  useAiFeedback?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
+  onUseAiFeedbackChange?: (value: boolean) => void;
 }
 
 export default function SettingsPanel({
   currentLevel,
   dailyCharCount,
   standardModePageSize = 20,
+  useAiFeedback = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
+  onUseAiFeedbackChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -194,6 +199,23 @@ export default function SettingsPanel({
             onChange={(e) => setTempPageSize(e.target.value)}
             onBlur={handlePageSizeBlur}
             data-testid="input-standard-page-size"
+          />
+        </div>
+      )}
+
+      {onUseAiFeedbackChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-feedback-toggle" className="text-sm">Fresh AI feedback in quiz</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Always generate a new explanation via Claude when you submit an answer. When off, cached explanations are used (faster, no extra API cost).
+            </p>
+          </div>
+          <Switch
+            id="ai-feedback-toggle"
+            checked={useAiFeedback}
+            onCheckedChange={onUseAiFeedbackChange}
+            data-testid="toggle-ai-feedback"
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, BookOpen } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
@@ -131,6 +131,11 @@ export default function MultipleChoiceQuiz() {
   }
 
   function handleNext() {
+    loadQuestion(selectedLevels);
+  }
+
+  function handleSkip() {
+    setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
     loadQuestion(selectedLevels);
   }
 
@@ -272,14 +277,19 @@ export default function MultipleChoiceQuiz() {
         )}
       </div>
 
-      {/* Next button */}
-      {isAnswered && (
-        <div className="flex justify-end">
+      {/* Skip / Next button */}
+      <div className="flex justify-end gap-2">
+        {!isAnswered && (
+          <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1 text-muted-foreground">
+            <SkipForward className="w-4 h-4" /> Skip
+          </Button>
+        )}
+        {isAnswered && (
           <Button onClick={handleNext} variant="outline" className="gap-1">
             Next <ChevronRight className="w-4 h-4" />
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Empty state */}
       {!isLoading && !isError && !question && (

@@ -672,8 +672,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Helper: build the character-in-context explanation prompt (result-independent)
+  async function generateCharacterFeedback(
+    character: string, pinyin: string, definition: string | string[],
+    blanked: string, translation: string, hskLevel: number
+  ): Promise<string> {
+    const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
+    const prompt = `A student is studying HSK ${hskLevel}. In this fill-in-the-blank:
+
+Sentence: ${blanked}
+English: ${translation}
+Answer: ${character} (${pinyin}) — ${defStr}
+
+Write 2 sentences for a language learner:
+1. Explain why ${character} fits this context.
+2. Give one memory tip or usage note about ${character}.
+Be concise and encouraging.`;
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    });
+    return (response.content[0] as { text: string }).text.trim();
+  }
+
+  // POST /api/quiz/prefetch
+  // Pre-generates and caches feedback for a question when it loads.
+  // Fire-and-forget from the client — no need to await the response.
+  app.post('/api/quiz/prefetch', isAuthenticated, async (req: any, res) => {
+    // Respond immediately so the client doesn't wait
+    res.status(202).json({ queued: true });
+    try {
+      const { character, blanked, translation, definition, pinyin, hskLevel } = req.body;
+      if (!character || !blanked) return;
+
+      // Skip if already cached
+      const existing = await storage.getFeedbackCache(blanked, character);
+      if (existing) return;
+
+      const feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+      await storage.setFeedbackCache(blanked, character, feedback);
+    } catch (err) {
+      console.error("Prefetch error (non-fatal):", err);
+    }
+  });
+
   // POST /api/quiz/check
-  // Checks the user's answer and returns AI-generated feedback via Claude
+  // Checks the user's answer and returns AI-generated feedback via Claude.
+  // Uses the feedback cache if available; generates and caches otherwise.
+  // If the user has useAiFeedback=true in settings, always generates fresh feedback.
   app.post('/api/quiz/check', isAuthenticated, async (req: any, res) => {
     try {
       const { character, answer, blanked, translation, definition, pinyin, hskLevel } = req.body;
@@ -685,27 +733,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isCorrect = answer.trim() === character;
       const fullSentence = blanked.replace("＿", character);
 
-      // Generate feedback with Claude
-      const prompt = `A student is studying for HSK ${hskLevel}. They saw this fill-in-the-blank:
+      // Check user's AI feedback preference
+      const userId = req.user.claims.sub;
+      const userSettingsRow = await storage.getUserSettings(userId);
+      const useAiFeedback = userSettingsRow?.useAiFeedback ?? false;
 
-Sentence: ${blanked}
-English: ${translation}
-Correct answer: ${character} (${pinyin}) — ${Array.isArray(definition) ? definition.join(" | ") : definition}
-Student answered: "${answer.trim()}"
-Result: ${isCorrect ? "CORRECT" : "WRONG"}
+      let feedback: string;
 
-Write 2-3 sentences of feedback in English:
-- If CORRECT: explain why ${character} fits this context, give one memory tip or usage note
-- If WRONG: gently explain the error, clarify what ${character} means here, and if "${answer.trim()}" is a real character briefly say what it means
-Keep it concise and encouraging for a language learner.`;
-
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 200,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const feedback = (response.content[0] as { text: string }).text.trim();
+      if (!useAiFeedback) {
+        // Try cache first
+        const cached = await storage.getFeedbackCache(blanked, character);
+        if (cached) {
+          feedback = cached;
+        } else {
+          // Generate and cache for next time
+          feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+          storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
+        }
+      } else {
+        // Always generate fresh
+        feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+        // Still cache so other users benefit
+        storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
+      }
 
       res.json({
         correct: isCorrect,

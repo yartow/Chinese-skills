@@ -35,6 +35,7 @@ export interface QuizScores {
   correct: number;
   wrong: number;
   streak: number;
+  skipped: number;
   byLevel: Record<number, LevelStats>;
 }
 
@@ -42,6 +43,7 @@ export const EMPTY_SCORES: QuizScores = {
   correct: 0,
   wrong: 0,
   streak: 0,
+  skipped: 0,
   byLevel: {},
 };
 
@@ -95,4 +97,20 @@ export async function fetchQuestion(levels: number[]): Promise<QuizQuestion> {
   const res = await fetch(`/api/quiz/question?levels=${levels.join(",")}`);
   if (!res.ok) throw new Error("Failed to load question");
   return res.json();
+}
+
+// Fire-and-forget prefetch to warm the feedback cache for a question
+export function prefetchFeedback(q: QuizQuestion): void {
+  fetch("/api/quiz/prefetch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      character: q.character,
+      blanked: q.blanked,
+      translation: q.translation,
+      definition: q.definition,
+      pinyin: q.pinyin,
+      hskLevel: q.hskLevel,
+    }),
+  }).catch(() => {});
 }

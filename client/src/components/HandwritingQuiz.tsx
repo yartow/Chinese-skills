@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
@@ -275,6 +275,11 @@ export default function HandwritingQuiz() {
     setResult(null); setCandidates([]); clearCanvas(); refetch();
   }
 
+  function handleSkip() {
+    setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
+    setResult(null); setCandidates([]); clearCanvas(); refetch();
+  }
+
   function toggleLevel(level: number) {
     setSelectedLevels((prev) => {
       if (prev.includes(level)) { if (prev.length === 1) return prev; return prev.filter((l) => l !== level); }
@@ -340,14 +345,21 @@ export default function HandwritingQuiz() {
               : result === "wrong" ? "✗ Wrong — see answer below"
               : "Draw the missing character"}
           </p>
-          <Button
-            variant="outline" size="sm"
-            onClick={() => { clearCanvas(); setCandidates([]); }}
-            disabled={!!result}
-            className="gap-1.5 text-xs"
-          >
-            <Eraser className="w-3.5 h-3.5" /> Erase
-          </Button>
+          <div className="flex gap-2">
+            {!result && (
+              <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1.5 text-xs text-muted-foreground">
+                <SkipForward className="w-3.5 h-3.5" /> Skip
+              </Button>
+            )}
+            <Button
+              variant="outline" size="sm"
+              onClick={() => { clearCanvas(); setCandidates([]); }}
+              disabled={!!result}
+              className="gap-1.5 text-xs"
+            >
+              <Eraser className="w-3.5 h-3.5" /> Erase
+            </Button>
+          </div>
         </div>
 
         <div className="relative mx-auto rounded-xl border-2 border-border overflow-hidden bg-white"

@@ -306,9 +306,11 @@ export default function Home() {
                   currentLevel={currentLevel}
                   dailyCharCount={dailyCharCount}
                   standardModePageSize={settings?.standardModePageSize}
+                  useAiFeedback={settings?.useAiFeedback ?? false}
                   onLevelChange={handleLevelChange}
                   onDailyCharCountChange={handleDailyCharCountChange}
                   onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
+                  onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
                 />
               </Card>
             )}

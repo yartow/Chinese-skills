@@ -23,11 +23,12 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
     <div className="space-y-4">
 
       {/* ── Score bar ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-2">
         {[
           { label: "Correct", value: scores.correct, color: "text-green-600" },
           { label: "Wrong",   value: scores.wrong,   color: "text-red-600"   },
           { label: "Streak",  value: scores.streak,  color: "text-orange-500"},
+          { label: "Skipped", value: scores.skipped, color: "text-blue-500"  },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-muted rounded-lg p-3 text-center">
             <div className={`text-2xl font-semibold ${color}`}>{value}</div>

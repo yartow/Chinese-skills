@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -48,6 +48,7 @@ export const userSettings = pgTable("user_settings", {
   dailyCharCount: integer("daily_char_count").notNull().default(5),
   standardModePageSize: integer("standard_mode_page_size").notNull().default(20),
   preferTraditional: boolean("prefer_traditional").notNull().default(true),
+  useAiFeedback: boolean("use_ai_feedback").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -134,3 +135,15 @@ export const insertWordProgressSchema = createInsertSchema(wordProgress).omit({
 
 export type InsertWordProgress = z.infer<typeof insertWordProgressSchema>;
 export type WordProgress = typeof wordProgress.$inferSelect;
+
+// Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
+// so the same explanation can be reused without calling the AI again.
+export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
+  id: serial("id").primaryKey(),
+  blanked: text("blanked").notNull(),
+  character: varchar("character", { length: 4 }).notNull(),
+  feedback: text("feedback").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_feedback_blanked_char").on(table.blanked, table.character),
+]);

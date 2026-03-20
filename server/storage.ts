@@ -5,6 +5,7 @@ import {
   characterProgress,
   chineseCharacters,
   radicals,
+  quizFeedbackCache,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -82,6 +83,10 @@ export interface IStorage {
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
   getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
+
+  // Quiz feedback cache operations
+  getFeedbackCache(blanked: string, character: string): Promise<string | null>;
+  setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -606,6 +611,23 @@ export class DatabaseStorage implements IStorage {
       }
     });
     return count;
+  }
+
+  // Quiz feedback cache
+  async getFeedbackCache(blanked: string, character: string): Promise<string | null> {
+    const [row] = await db
+      .select({ feedback: quizFeedbackCache.feedback })
+      .from(quizFeedbackCache)
+      .where(and(eq(quizFeedbackCache.blanked, blanked), eq(quizFeedbackCache.character, character)))
+      .limit(1);
+    return row?.feedback ?? null;
+  }
+
+  async setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void> {
+    await db
+      .insert(quizFeedbackCache)
+      .values({ blanked, character, feedback })
+      .onConflictDoNothing();
   }
 }
 

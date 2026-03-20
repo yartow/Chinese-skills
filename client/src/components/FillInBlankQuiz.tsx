@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, BookOpen } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
-  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
+  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type QuizQuestion, type WrongAnswer, type QuizScores,
 } from "./quizTypes";
 
@@ -15,8 +15,7 @@ interface CheckResult {
   feedback: string;
 }
 
-// API payload includes question snapshot fields (for onSuccess closure safety)
-// but only the server-relevant fields are forwarded to checkAnswer()
+// Mutation vars include a question snapshot so onSuccess is never stale
 interface CheckPayload {
   character: string;
   answer: string;
@@ -25,7 +24,7 @@ interface CheckPayload {
   definition: string[];
   pinyin: string;
   hskLevel: number;
-  // snapshot — not sent to server, used only in onSuccess
+  // snapshot fields — not sent to server
   characterIndex: number;
   traditional: string;
   sentence: string;
@@ -55,11 +54,15 @@ export default function FillInBlankQuiz() {
     refetchOnWindowFocus: false,
   });
 
+  // Pre-warm the feedback cache as soon as the question loads
+  useEffect(() => {
+    if (question) prefetchFeedback(question);
+  }, [question?.blanked, question?.character]);
+
   const checkMutation = useMutation({
     mutationFn: ({ characterIndex, traditional, sentence, ...apiPayload }: CheckPayload) =>
       checkAnswer(apiPayload),
     onSuccess: (data, vars) => {
-      // Use vars (the snapshot captured at submission time) — not question! which may have changed
       setResult(data);
       const lvl = vars.hskLevel;
       setScores((s) => {
@@ -68,6 +71,7 @@ export default function FillInBlankQuiz() {
           correct: s.correct + (data.correct ? 1 : 0),
           wrong: s.wrong + (data.correct ? 0 : 1),
           streak: data.correct ? s.streak + 1 : 0,
+          skipped: s.skipped,
           byLevel: {
             ...s.byLevel,
             [lvl]: { correct: prev.correct + (data.correct ? 1 : 0), total: prev.total + 1 },
@@ -104,7 +108,6 @@ export default function FillInBlankQuiz() {
 
   function handleSubmit() {
     if (!question || !answer.trim() || checkMutation.isPending) return;
-    // Capture question snapshot now so onSuccess uses the question that was actually submitted
     checkMutation.mutate({
       character: question.character,
       answer: answer.trim(),
@@ -125,6 +128,13 @@ export default function FillInBlankQuiz() {
     refetch();
   }
 
+  function handleSkip() {
+    setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
+    setAnswer("");
+    setResult(null);
+    refetch();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       if (result) handleNext();
@@ -132,11 +142,12 @@ export default function FillInBlankQuiz() {
     }
   }
 
-  // N key = next question (only after answering, not while typing)
+  // N key = next question (only after answering, not while typing in an active input)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.key === "n" || e.key === "N") && result) {
-        if (document.activeElement?.tagName === "INPUT") return;
+        const el = document.activeElement as HTMLInputElement | null;
+        if (el?.tagName === "INPUT" && !el.disabled) return;
         handleNext();
       }
     }
@@ -216,7 +227,6 @@ export default function FillInBlankQuiz() {
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={!!result}
-              placeholder="Type character…"
               maxLength={2}
               className={`w-24 text-center text-2xl font-serif border rounded-lg p-2 outline-none transition-colors
                 ${result?.correct === true  ? "border-green-500 bg-green-50 text-green-700" : ""}
@@ -228,17 +238,25 @@ export default function FillInBlankQuiz() {
               spellCheck={false}
               autoFocus
             />
-            <div className="flex-1 text-sm text-muted-foreground">
-              {!result && !hint?.pinyin && "Enter the missing character"}
-            </div>
+            <div className="flex-1" />
             {!result ? (
-              <Button
-                onClick={handleSubmit}
-                disabled={!answer.trim() || checkMutation.isPending}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {checkMutation.isPending ? "Checking…" : "Check"}
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSkip}
+                  className="gap-1 text-muted-foreground"
+                >
+                  <SkipForward className="w-4 h-4" /> Skip
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!answer.trim() || checkMutation.isPending}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {checkMutation.isPending ? "Checking…" : "Check"}
+                </Button>
+              </>
             ) : (
               <Button onClick={handleNext} variant="outline" className="gap-1">
                 Next <ChevronRight className="w-4 h-4" />
