@@ -186,7 +186,7 @@ export default function HandwritingQuiz() {
     try {
       const analyzed = new window.HanziLookup.AnalyzedCharacter(strokes);
       const matcher = new window.HanziLookup.Matcher("mmah");
-      matcher.match(analyzed, 8, (matches) => {
+      matcher.match(analyzed, 16, (matches) => {
         setCandidates(matches.map((m) => m.character));
         setRecognizing(false);
       });
@@ -418,6 +418,7 @@ export default function HandwritingQuiz() {
                 </button>
               ))}
             </div>
+
           </div>
         )}
       </div>
