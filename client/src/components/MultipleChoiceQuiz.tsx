@@ -106,6 +106,7 @@ export default function MultipleChoiceQuiz() {
         correct: s.correct + (isCorrect ? 1 : 0),
         wrong: s.wrong + (isCorrect ? 0 : 1),
         streak: isCorrect ? s.streak + 1 : 0,
+        skipped: s.skipped,
         byLevel: {
           ...s.byLevel,
           [lvl]: { correct: prev.correct + (isCorrect ? 1 : 0), total: prev.total + 1 },

@@ -32,6 +32,12 @@ let hanziLoading = false;
 let hanziFailed = false;
 const hanziCallbacks: Array<(ok: boolean) => void> = [];
 
+function resetHanziForRetry() {
+  hanziFailed = false;
+  hanziLoading = false;
+  hanziCallbacks.length = 0;
+}
+
 function ensureHanziLoaded(onDone: (ok: boolean) => void) {
   if (hanziReady) { onDone(true); return; }
   if (hanziFailed) { onDone(false); return; }
@@ -142,6 +148,7 @@ export default function HandwritingQuiz() {
   const [recognizing, setRecognizing] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { startStroke, continueStroke, endStroke, clearCanvas, getStrokesForLookup, redraw } =
@@ -162,18 +169,6 @@ export default function HandwritingQuiz() {
     redraw();
   }, [redraw]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "n" || e.key === "N") {
-        // Only if not typing in an input field
-        if (document.activeElement?.tagName === "INPUT") return;
-        handleNext();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [result]); // re-register when result changes so handleNext has fresh state
-    
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-write", selectedLevels],
     queryFn: () => fetchQuestion(selectedLevels),
@@ -271,9 +266,30 @@ export default function HandwritingQuiz() {
     }
   }
 
-  function handleNext() {
+  const handleNext = useCallback(() => {
     setResult(null); setCandidates([]); clearCanvas(); refetch();
-  }
+  }, [clearCanvas, refetch]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "n" || e.key === "N") {
+        if (document.activeElement?.tagName === "INPUT") return;
+        handleNext();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [handleNext]);
+
+  const handleRetry = useCallback(() => {
+    setIsRetrying(true);
+    setEngineError(false);
+    resetHanziForRetry();
+    ensureHanziLoaded((ok) => {
+      if (ok) setEngineReady(true); else setEngineError(true);
+      setIsRetrying(false);
+    });
+  }, []);
 
   function handleSkip() {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
@@ -380,10 +396,9 @@ export default function HandwritingQuiz() {
           {engineError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/90">
               <p className="text-sm text-destructive text-center px-4">Recognition engine failed to load</p>
-              <Button size="sm" variant="outline" onClick={() => {
-                hanziFailed = false; setEngineError(false);
-                ensureHanziLoaded((ok) => { if (ok) setEngineReady(true); else setEngineError(true); });
-              }}>Retry</Button>
+              <Button size="sm" variant="outline" onClick={handleRetry} disabled={isRetrying}>
+                {isRetrying ? <Loader2 className="w-4 h-4 animate-spin" /> : "Retry"}
+              </Button>
             </div>
           )}
         </div>

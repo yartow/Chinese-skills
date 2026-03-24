@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, jsonb, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -145,5 +145,5 @@ export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
   feedback: text("feedback").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
-  index("idx_feedback_blanked_char").on(table.blanked, table.character),
+  uniqueIndex("idx_feedback_blanked_char").on(table.blanked, table.character),
 ]);
