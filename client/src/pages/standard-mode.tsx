@@ -332,6 +332,7 @@ export default function StandardMode() {
                     key={char.index}
                     character={isTraditional ? char.traditional : char.simplified}
                     index={char.index}
+                    hskLevel={char.hskLevel}
                     reading={progress?.reading ?? false}
                     writing={progress?.writing ?? false}
                     radical={progress?.radical ?? false}

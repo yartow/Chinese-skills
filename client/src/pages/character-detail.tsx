@@ -93,6 +93,7 @@ export default function CharacterDetail() {
     <CharacterDetailView
       character={formattedCharacter}
       index={character.index}
+      hskLevel={character.hskLevel}
       progress={progress || { reading: false, writing: false, radical: false }}
       onBack={handleBack}
       isTraditional={isTraditional}

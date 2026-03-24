@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 interface CharacterCardProps {
   character: string;
   index: number;
+  hskLevel?: number;
   reading: boolean;
   writing: boolean;
   radical: boolean;
@@ -18,6 +19,7 @@ interface CharacterCardProps {
 export default function CharacterCard({
   character,
   index,
+  hskLevel,
   reading,
   writing,
   radical,
@@ -42,6 +44,14 @@ export default function CharacterCard({
       >
         #{index}
       </span>
+      {hskLevel !== undefined && (
+        <span
+          className="absolute top-2 right-3 text-xs text-muted-foreground font-medium select-none"
+          data-testid={`text-hsk-${index}`}
+        >
+          HSK {hskLevel}
+        </span>
+      )}
       <div className="text-8xl font-chinese text-center" data-testid={`text-character-${character}`}>
         {character}
       </div>

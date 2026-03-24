@@ -33,6 +33,7 @@ interface CharacterDetailViewProps {
     wordExamples?: WordExample[];
   };
   index?: number;
+  hskLevel?: number;
   progress: {
     reading: boolean;
     writing: boolean;
@@ -51,6 +52,7 @@ interface CharacterDetailViewProps {
 export default function CharacterDetailView({
   character,
   index,
+  hskLevel,
   progress,
   onBack,
   isTraditional,
@@ -154,6 +156,12 @@ export default function CharacterDetailView({
         </div>
 
         <Card className="p-6 space-y-6">
+          {hskLevel !== undefined && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">HSK Level</h3>
+              <p className="text-2xl font-semibold" data-testid="text-hsk-level">HSK {hskLevel}</p>
+            </div>
+          )}
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Pinyin</h3>
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
