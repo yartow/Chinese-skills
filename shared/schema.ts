@@ -160,16 +160,3 @@ export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
 }, (table) => [
   uniqueIndex("idx_feedback_blanked_char").on(table.blanked, table.character),
 ]);
-
-// Generated sentences cache — stores AI-generated example sentences per character
-// so sentences are reused instead of generating a new one on every quiz question.
-export const generatedSentences = pgTable("generated_sentences", {
-  id: serial("id").primaryKey(),
-  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index),
-  sentence: text("sentence").notNull(),
-  blanked: text("blanked").notNull(),
-  translation: text("translation").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_generated_sentences_character").on(table.characterIndex),
-]);
