@@ -32,6 +32,7 @@ interface CharacterDetailViewProps {
     examples: ExampleSentence[];
     wordExamples?: WordExample[];
   };
+  index?: number;
   progress: {
     reading: boolean;
     writing: boolean;
@@ -49,6 +50,7 @@ interface CharacterDetailViewProps {
 
 export default function CharacterDetailView({
   character,
+  index,
   progress,
   onBack,
   isTraditional,
@@ -104,8 +106,18 @@ export default function CharacterDetailView({
         </div>
 
         <div className="text-center space-y-6">
-          <div className="text-[12rem] font-chinese leading-none" data-testid="text-character-large">
-            {displayChar}
+          <div className="relative inline-block">
+            <div className="text-[12rem] font-chinese leading-none" data-testid="text-character-large">
+              {displayChar}
+            </div>
+            {index !== undefined && (
+              <span
+                className="absolute top-2 right-0 translate-x-full pl-2 text-sm text-muted-foreground font-mono"
+                data-testid="text-character-index"
+              >
+                #{index}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-center gap-4">
             <button

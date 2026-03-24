@@ -382,6 +382,7 @@ export default function Home() {
                       <CharacterCard
                         key={char.index}
                         character={isTraditional ? char.traditional : char.simplified}
+                        index={char.index}
                         reading={progress?.reading ?? false}
                         writing={progress?.writing ?? false}
                         radical={progress?.radical ?? false}
