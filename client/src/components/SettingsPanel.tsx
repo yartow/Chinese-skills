@@ -207,6 +207,23 @@ export default function SettingsPanel({
         </div>
       )}
 
+      {onUseAiSentencesChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Use Claude to generate a unique example sentence for each character. Each sentence is generated once and reused. When off, pre-stored corpus sentences are used.
+            </p>
+          </div>
+          <Switch
+            id="ai-sentences-toggle"
+            checked={useAiSentences}
+            onCheckedChange={onUseAiSentencesChange}
+            data-testid="toggle-ai-sentences"
+          />
+        </div>
+      )}
+
       {onUseAiFeedbackChange && (
         <div className="flex items-start justify-between gap-4 py-1">
           <div className="space-y-0.5">

@@ -533,8 +533,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+
   // GET /api/quiz/question?levels=1,2,3
-  // Returns a random fill-in-the-blank question from the requested HSK levels
+  // Returns a random fill-in-the-blank question from the requested HSK levels.
+  // When the user has useAiSentences=true, checks the generated_sentences cache first,
+  // generates with Claude if not cached, then stores for reuse.
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -548,6 +551,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
+      // Check user's AI sentence preference
+      const userSettingsRow = await storage.getUserSettings(userId);
+      const useAiSentences = userSettingsRow?.useAiSentences ?? false;
+
       // Sample randomly across the full set for the requested HSK levels (ORDER BY RANDOM())
       const POOL_SIZE = 200;
       const pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
@@ -559,14 +566,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // CJK unicode range — English translations containing these are likely spoilers
       const CJK_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
 
-      // Check if user wants AI-generated sentences
-      const userSettings = await storage.getUserSettings(userId);
-      const useAiSentences = userSettings?.useAiSentences ?? false;
-
+      // AI sentence mode: check cache first, generate if needed, fall through on failure
       if (useAiSentences) {
         const chosen = pool[0];
 
-        // Use a previously generated sentence if available; otherwise generate a new one
         const stored = await storage.getGeneratedSentences(chosen.index);
         let aiSentence: { sentence: string; blanked: string; translation: string } | null = null;
 
@@ -578,7 +581,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               chosen.simplified, chosen.traditional, chosen.pinyin,
               chosen.definition, chosen.hskLevel
             );
-            // Validate the generated sentence before using and storing it
             const { sentence, blanked, translation } = generated;
             const parts = blanked.split("＿");
             const isValid =

@@ -5,6 +5,7 @@ import {
   characterProgress,
   chineseCharacters,
   radicals,
+  generatedSentences,
   quizFeedbackCache,
   generatedSentences,
   type User,
@@ -85,13 +86,13 @@ export interface IStorage {
   getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 
-  // Quiz feedback cache operations
-  getFeedbackCache(blanked: string, character: string): Promise<string | null>;
-  setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void>;
-
   // Generated sentences cache operations
   getGeneratedSentences(characterIndex: number): Promise<{ sentence: string; blanked: string; translation: string }[]>;
   saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void>;
+
+  // Quiz feedback cache operations
+  getFeedbackCache(blanked: string, character: string): Promise<string | null>;
+  setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {

@@ -137,6 +137,18 @@ export const insertWordProgressSchema = createInsertSchema(wordProgress).omit({
 export type InsertWordProgress = z.infer<typeof insertWordProgressSchema>;
 export type WordProgress = typeof wordProgress.$inferSelect;
 
+// AI-generated quiz sentences — one sentence per character, generated on demand
+export const generatedSentences = pgTable("generated_sentences", {
+  id: serial("id").primaryKey(),
+  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index),
+  sentence: text("sentence").notNull(),
+  blanked: text("blanked").notNull(),
+  translation: text("translation").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_generated_sentences_character").on(table.characterIndex),
+]);
+
 // Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
 // so the same explanation can be reused without calling the AI again.
 export const quizFeedbackCache = pgTable("quiz_feedback_cache", {

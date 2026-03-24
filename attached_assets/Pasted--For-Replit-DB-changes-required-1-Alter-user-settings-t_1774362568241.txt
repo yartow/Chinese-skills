@@ -1,0 +1,37 @@
+  ---
+  For Replit — DB changes required
+
+  1. Alter user_settings table:
+  ALTER TABLE user_settings ADD COLUMN use_ai_sentences BOOLEAN NOT NULL DEFAULT false;
+
+  2. Create new generated_sentences table:
+  CREATE TABLE generated_sentences (
+    id SERIAL PRIMARY KEY,
+    character_index INTEGER NOT NULL REFERENCES chinese_characters(index),
+    sentence TEXT NOT NULL,
+    blanked TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+  CREATE INDEX idx_generated_sentences_character ON generated_sentences(character_index);
+
+  ---
+  Code changes made
+
+  ┌─────────────────────────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │                  File                   │                                                   Change                                                   │
+  ├─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ shared/schema.ts                        │ Added useAiSentences to userSettings; added generatedSentences table                                       │
+  ├─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ server/storage.ts                       │ Added getGeneratedSentences / saveGeneratedSentence to interface + implementation                          │
+  ├─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ server/routes.ts                        │ Added generateExampleSentence() helper; modified /api/quiz/question to use AI sentences when setting is on │
+  ├─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ client/src/components/SettingsPanel.tsx │ Added "AI-generated quiz sentences" toggle                                                                 │
+  ├─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ client/src/pages/home-connected.tsx     │ Wired up new setting + handler                                                                             │
+  └─────────────────────────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  How it works: When the setting is off (default) — existing pre-stored sentences are used, no API cost. When on — the server checks generated_sentences first; if a sentence exists it's reused instantly; if not, Claude generates one, stores
+  it, and serves it. Each character is only ever generated once.
+
