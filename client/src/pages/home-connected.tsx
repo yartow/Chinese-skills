@@ -307,10 +307,12 @@ export default function Home() {
                   dailyCharCount={dailyCharCount}
                   standardModePageSize={settings?.standardModePageSize}
                   useAiFeedback={settings?.useAiFeedback ?? false}
+                  useAiSentences={settings?.useAiSentences ?? false}
                   onLevelChange={handleLevelChange}
                   onDailyCharCountChange={handleDailyCharCountChange}
                   onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
                   onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
+                  onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
                 />
               </Card>
             )}

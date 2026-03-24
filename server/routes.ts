@@ -537,6 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Returns a random fill-in-the-blank question from the requested HSK levels
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const levelsParam = (req.query.levels as string) || "1,2,3";
       const hskLevels = levelsParam
         .split(",")
@@ -558,7 +559,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // CJK unicode range — English translations containing these are likely spoilers
       const CJK_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
 
-      // Pick the first character from the already-randomised pool that has a usable example
+      // Check if user wants AI-generated sentences
+      const userSettings = await storage.getUserSettings(userId);
+      const useAiSentences = userSettings?.useAiSentences ?? false;
+
+      if (useAiSentences) {
+        const chosen = pool[0];
+
+        // Use a previously generated sentence if available; otherwise generate a new one
+        const stored = await storage.getGeneratedSentences(chosen.index);
+        let aiSentence: { sentence: string; blanked: string; translation: string } | null = null;
+
+        if (stored.length > 0) {
+          aiSentence = stored[Math.floor(Math.random() * stored.length)];
+        } else {
+          try {
+            const generated = await generateExampleSentence(
+              chosen.simplified, chosen.traditional, chosen.pinyin,
+              chosen.definition, chosen.hskLevel
+            );
+            // Validate the generated sentence before using and storing it
+            const { sentence, blanked, translation } = generated;
+            const parts = blanked.split("＿");
+            const isValid =
+              sentence.includes(chosen.simplified) &&
+              sentence.split(chosen.simplified).length === 2 &&
+              sentence.length >= 5 &&
+              !CJK_REGEX.test(translation) &&
+              parts.length === 2 && parts[0] && parts[1];
+
+            if (isValid) {
+              await storage.saveGeneratedSentence(chosen.index, sentence, blanked, translation);
+              aiSentence = generated;
+            }
+          } catch {
+            // AI generation failed — fall through to pre-stored examples below
+          }
+        }
+
+        if (aiSentence) {
+          return res.json({
+            characterIndex: chosen.index,
+            character: chosen.simplified,
+            traditional: chosen.traditional,
+            traditionalVariants: Array.isArray(chosen.traditionalVariants) ? chosen.traditionalVariants : null,
+            pinyin: chosen.pinyin,
+            pinyin2: chosen.pinyin2 ?? null,
+            definition: Array.isArray(chosen.definition) ? chosen.definition : [chosen.definition],
+            hskLevel: chosen.hskLevel,
+            sentence: aiSentence.sentence,
+            blanked: aiSentence.blanked,
+            translation: aiSentence.translation,
+          });
+        }
+        // Fall through to pre-stored examples if AI path failed
+      }
+
+      // Pre-stored examples path (default, or fallback when AI fails)
       let chosen = null;
       let chosenExample = null;
 
@@ -673,6 +730,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Helper: build the character-in-context explanation prompt (result-independent)
+  async function generateExampleSentence(
+    character: string, traditional: string, pinyin: string,
+    definition: string | string[], hskLevel: number
+  ): Promise<{ sentence: string; blanked: string; translation: string }> {
+    const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
+    const prompt = `Create one example sentence in Mandarin Chinese for an HSK ${hskLevel} student.
+
+Character: ${character} (traditional: ${traditional}, pinyin: ${pinyin})
+Meaning: ${defStr}
+
+Requirements:
+- The sentence must contain ${character} exactly once
+- The sentence must be at least 5 characters long
+- ${character} must have other Chinese characters on both sides (not at the very start or end)
+- The English translation must not contain any Chinese characters
+
+Reply with JSON only, no extra text:
+{"sentence": "...", "translation": "..."}`;
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const parsed = JSON.parse((response.content[0] as { text: string }).text.trim());
+    const blanked = parsed.sentence.replace(character, "＿");
+    return { sentence: parsed.sentence, blanked, translation: parsed.translation };
+  }
+
   async function generateCharacterFeedback(
     character: string, pinyin: string, definition: string | string[],
     blanked: string, translation: string, hskLevel: number

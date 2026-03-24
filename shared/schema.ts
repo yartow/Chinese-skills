@@ -49,6 +49,7 @@ export const userSettings = pgTable("user_settings", {
   standardModePageSize: integer("standard_mode_page_size").notNull().default(20),
   preferTraditional: boolean("prefer_traditional").notNull().default(true),
   useAiFeedback: boolean("use_ai_feedback").notNull().default(false),
+  useAiSentences: boolean("use_ai_sentences").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -146,4 +147,17 @@ export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   uniqueIndex("idx_feedback_blanked_char").on(table.blanked, table.character),
+]);
+
+// Generated sentences cache — stores AI-generated example sentences per character
+// so sentences are reused instead of generating a new one on every quiz question.
+export const generatedSentences = pgTable("generated_sentences", {
+  id: serial("id").primaryKey(),
+  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index),
+  sentence: text("sentence").notNull(),
+  blanked: text("blanked").notNull(),
+  translation: text("translation").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_generated_sentences_character").on(table.characterIndex),
 ]);

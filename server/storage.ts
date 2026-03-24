@@ -6,6 +6,7 @@ import {
   chineseCharacters,
   radicals,
   quizFeedbackCache,
+  generatedSentences,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -87,6 +88,10 @@ export interface IStorage {
   // Quiz feedback cache operations
   getFeedbackCache(blanked: string, character: string): Promise<string | null>;
   setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void>;
+
+  // Generated sentences cache operations
+  getGeneratedSentences(characterIndex: number): Promise<{ sentence: string; blanked: string; translation: string }[]>;
+  saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -628,6 +633,22 @@ export class DatabaseStorage implements IStorage {
       .insert(quizFeedbackCache)
       .values({ blanked, character, feedback })
       .onConflictDoNothing();
+  }
+
+  // Generated sentences cache
+  async getGeneratedSentences(characterIndex: number): Promise<{ sentence: string; blanked: string; translation: string }[]> {
+    return db
+      .select({
+        sentence: generatedSentences.sentence,
+        blanked: generatedSentences.blanked,
+        translation: generatedSentences.translation,
+      })
+      .from(generatedSentences)
+      .where(eq(generatedSentences.characterIndex, characterIndex));
+  }
+
+  async saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void> {
+    await db.insert(generatedSentences).values({ characterIndex, sentence, blanked, translation });
   }
 }
 

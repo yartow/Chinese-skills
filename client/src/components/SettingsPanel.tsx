@@ -11,10 +11,12 @@ interface SettingsPanelProps {
   dailyCharCount: number;
   standardModePageSize?: number;
   useAiFeedback?: boolean;
+  useAiSentences?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
   onUseAiFeedbackChange?: (value: boolean) => void;
+  onUseAiSentencesChange?: (value: boolean) => void;
 }
 
 export default function SettingsPanel({
@@ -22,10 +24,12 @@ export default function SettingsPanel({
   dailyCharCount,
   standardModePageSize = 20,
   useAiFeedback = false,
+  useAiSentences = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
   onUseAiFeedbackChange,
+  onUseAiSentencesChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -216,6 +220,23 @@ export default function SettingsPanel({
             checked={useAiFeedback}
             onCheckedChange={onUseAiFeedbackChange}
             data-testid="toggle-ai-feedback"
+          />
+        </div>
+      )}
+
+      {onUseAiSentencesChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Use Claude to generate example sentences for quiz questions. Generated sentences are stored and reused, so the API is only called once per character.
+            </p>
+          </div>
+          <Switch
+            id="ai-sentences-toggle"
+            checked={useAiSentences}
+            onCheckedChange={onUseAiSentencesChange}
+            data-testid="toggle-ai-sentences"
           />
         </div>
       )}
