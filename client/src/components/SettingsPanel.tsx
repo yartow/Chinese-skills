@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle, Download, Upload } from "lucide-react";
 
@@ -9,18 +10,22 @@ interface SettingsPanelProps {
   currentLevel: number;
   dailyCharCount: number;
   standardModePageSize?: number;
+  useAiFeedback?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
+  onUseAiFeedbackChange?: (value: boolean) => void;
 }
 
 export default function SettingsPanel({
   currentLevel,
   dailyCharCount,
   standardModePageSize = 20,
+  useAiFeedback = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
+  onUseAiFeedbackChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -198,6 +203,23 @@ export default function SettingsPanel({
         </div>
       )}
 
+      {onUseAiFeedbackChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-feedback-toggle" className="text-sm">Fresh AI feedback in quiz</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Always generate a new explanation via Claude when you submit an answer. When off, cached explanations are used (faster, no extra API cost).
+            </p>
+          </div>
+          <Switch
+            id="ai-feedback-toggle"
+            checked={useAiFeedback}
+            onCheckedChange={onUseAiFeedbackChange}
+            data-testid="toggle-ai-feedback"
+          />
+        </div>
+      )}
+
       <div className="space-y-3 pt-2 border-t">
         <Label className="text-sm font-semibold">Admin</Label>
 
@@ -246,19 +268,9 @@ export default function SettingsPanel({
           )}
         </div>
 
-        <div className="rounded-md border bg-muted/40 p-3 space-y-1.5">
-          <p className="text-xs font-medium text-foreground">Sync data to the published app</p>
+        <div className="rounded-md border bg-muted/40 p-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Character data (word examples, sentences, lessons) only exists in this development environment. To copy it to the live published app:
-          </p>
-          <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside leading-relaxed">
-            <li>Click <strong>Export to Excel</strong> above to download the full dataset.</li>
-            <li>Open the <strong>published app URL</strong> and log in.</li>
-            <li>Go to <strong>Settings → Admin</strong> and click <strong>Import from Excel</strong>.</li>
-            <li>Select the downloaded file — all 3000 characters will be updated.</li>
-          </ol>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            The published app automatically keeps its database schema in sync on every deploy, so the import will always work after a fresh deployment.
+            You can export the full set of Chinese characters, edit them and even add new characters by importing them back into the application. Only the changes you have made will be added to the database.
           </p>
         </div>
       </div>

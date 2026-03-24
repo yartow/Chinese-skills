@@ -555,13 +555,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "No characters found for selected levels" });
       }
 
+      // CJK unicode range — English translations containing these are likely spoilers
+      const CJK_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+
       // Pick the first character from the already-randomised pool that has a usable example
       let chosen = null;
       let chosenExample = null;
 
       for (const char of pool) {
         const examples = char.examples as { chinese: string; english: string }[];
-        const valid = examples?.filter((e) => e.chinese?.includes(char.simplified));
+        const valid = examples?.filter((e) => {
+          if (!e.chinese?.includes(char.simplified)) return false;
+          // Chinese sentence must be at least 5 characters
+          if (e.chinese.length < 5) return false;
+          // Character must appear exactly once — multiple occurrences would leave one visible
+          if (e.chinese.split(char.simplified).length !== 2) return false;
+          // The blanked form must leave content on both sides of the blank
+          const blanked = e.chinese.replace(char.simplified, "＿");
+          const parts = blanked.split("＿");
+          if (parts.length < 2 || !parts[0] || !parts[1]) return false;
+          // English translation must not contain CJK characters (would reveal the answer)
+          if (CJK_REGEX.test(e.english)) return false;
+          return true;
+        });
         if (valid && valid.length > 0) {
           chosen = char;
           chosenExample = valid[Math.floor(Math.random() * valid.length)];
@@ -594,8 +610,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/quiz/choices?correctIndex=5&hskLevel=2&levels=1,2,3
+  // Returns 3 distractor characters (wrong answers) for multiple choice questions.
+  // Picks characters from the same HSK levels, excluding the correct answer.
+  app.get('/api/quiz/choices', isAuthenticated, async (req: any, res) => {
+    try {
+      const correctIndex = parseInt(req.query.correctIndex as string);
+      const hskLevel = parseInt(req.query.hskLevel as string);
+      const levelsParam = (req.query.levels as string) || "1,2,3";
+
+      const hskLevels = levelsParam
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 6);
+
+      if (isNaN(correctIndex) || isNaN(hskLevel)) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      // Accumulate candidates across pages until we have ≥3 same-level distractors
+      // (or exhaust pages). Starting from page 0 avoids the stale-randomPage problem
+      // where a high random offset could land beyond the available character count.
+      const POOL_SIZE = 80;
+      const pool: Awaited<ReturnType<typeof storage.getFilteredCharacters>>["characters"] = [];
+      for (let page = 0; page <= 10; page++) {
+        const result = await storage.getFilteredCharacters(
+          req.user.claims.sub,
+          page,
+          POOL_SIZE,
+          { hskLevels }
+        );
+        if (result.characters.length === 0) break;
+        pool.push(...result.characters.filter((c) => c.index !== correctIndex));
+        const sameLevelSoFar = pool.filter((c) => c.hskLevel === hskLevel);
+        if (sameLevelSoFar.length >= 3) break;
+      }
+
+      // Shuffle the accumulated pool
+      pool.sort(() => Math.random() - 0.5);
+
+      // Pick 3 distractors — prefer same HSK level for more meaningful difficulty,
+      // fill remainder from any level if not enough same-level candidates
+      const sameLevelPool = pool.filter((c) => c.hskLevel === hskLevel);
+      let distractors = sameLevelPool.slice(0, 3);
+      if (distractors.length < 3) {
+        const chosen = new Set(distractors.map((c) => c.index));
+        const extras = pool.filter((c) => !chosen.has(c.index)).slice(0, 3 - distractors.length);
+        distractors = [...distractors, ...extras];
+      }
+
+      const choices = distractors.map((c) => ({
+        character: c.simplified,
+        traditional: c.traditional,
+      }));
+
+      res.json(choices);
+    } catch (error) {
+      console.error("Error fetching choices:", error);
+      res.status(500).json({ message: "Failed to fetch choices" });
+    }
+  });
+
+
+  // Helper: build the character-in-context explanation prompt (result-independent)
+  async function generateCharacterFeedback(
+    character: string, pinyin: string, definition: string | string[],
+    blanked: string, translation: string, hskLevel: number
+  ): Promise<string> {
+    const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
+    const prompt = `A student is studying HSK ${hskLevel}. In this fill-in-the-blank:
+
+Sentence: ${blanked}
+English: ${translation}
+Answer: ${character} (${pinyin}) — ${defStr}
+
+Write 2 sentences for a language learner:
+1. Explain why ${character} fits this context.
+2. Give one memory tip or usage note about ${character}.
+Be concise and encouraging.`;
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    });
+    return (response.content[0] as { text: string }).text.trim();
+  }
+
+  // POST /api/quiz/prefetch
+  // Pre-generates and caches feedback for a question when it loads.
+  // Fire-and-forget from the client — no need to await the response.
+  app.post('/api/quiz/prefetch', isAuthenticated, async (req: any, res) => {
+    // Respond immediately so the client doesn't wait
+    res.status(202).json({ queued: true });
+    try {
+      const { character, blanked, translation, definition, pinyin, hskLevel } = req.body;
+      if (!character || !blanked) return;
+
+      // Skip if already cached
+      const existing = await storage.getFeedbackCache(blanked, character);
+      if (existing) return;
+
+      const feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+      await storage.setFeedbackCache(blanked, character, feedback);
+    } catch (err) {
+      console.error("Prefetch error (non-fatal):", err);
+    }
+  });
+
   // POST /api/quiz/check
-  // Checks the user's answer and returns AI-generated feedback via Claude
+  // Checks the user's answer and returns AI-generated feedback via Claude.
+  // Uses the feedback cache if available; generates and caches otherwise.
+  // If the user has useAiFeedback=true in settings, always generates fresh feedback.
   app.post('/api/quiz/check', isAuthenticated, async (req: any, res) => {
     try {
       const { character, answer, blanked, translation, definition, pinyin, hskLevel } = req.body;
@@ -607,27 +733,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isCorrect = answer.trim() === character;
       const fullSentence = blanked.replace("＿", character);
 
-      // Generate feedback with Claude
-      const prompt = `A student is studying for HSK ${hskLevel}. They saw this fill-in-the-blank:
+      // Check user's AI feedback preference
+      const userId = req.user.claims.sub;
+      const userSettingsRow = await storage.getUserSettings(userId);
+      const useAiFeedback = userSettingsRow?.useAiFeedback ?? false;
 
-Sentence: ${blanked}
-English: ${translation}
-Correct answer: ${character} (${pinyin}) — ${Array.isArray(definition) ? definition.join(" | ") : definition}
-Student answered: "${answer.trim()}"
-Result: ${isCorrect ? "CORRECT" : "WRONG"}
+      let feedback: string;
 
-Write 2-3 sentences of feedback in English:
-- If CORRECT: explain why ${character} fits this context, give one memory tip or usage note
-- If WRONG: gently explain the error, clarify what ${character} means here, and if "${answer.trim()}" is a real character briefly say what it means
-Keep it concise and encouraging for a language learner.`;
-
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 200,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const feedback = (response.content[0] as { text: string }).text.trim();
+      if (!useAiFeedback) {
+        // Try cache first
+        const cached = await storage.getFeedbackCache(blanked, character);
+        if (cached) {
+          feedback = cached;
+        } else {
+          // Generate and cache for next time
+          feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+          storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
+        }
+      } else {
+        // Always generate fresh
+        feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+        // Still cache so other users benefit
+        storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
+      }
 
       res.json({
         correct: isCorrect,

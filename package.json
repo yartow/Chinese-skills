@@ -59,6 +59,8 @@
     "express-session": "^1.18.1",
     "framer-motion": "^11.13.1",
     "hanzi-writer": "^3.7.3",
+    "hanzi-writer-data": "^2.0.1",
+    "hanzilookup-js": "^1.0.3",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",
     "memoizee": "^0.4.17",

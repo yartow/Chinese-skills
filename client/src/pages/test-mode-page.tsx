@@ -1,7 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
-import { PenLine, Type } from "lucide-react";
+import { ListChecks, Type, PenLine } from "lucide-react";
 
 export default function TestModePage() {
   return (
@@ -14,23 +15,30 @@ export default function TestModePage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
-        <Tabs defaultValue="fill">
+        <Tabs defaultValue="choice">
           <TabsList className="w-full mb-6">
-            <TabsTrigger value="fill" className="flex-1 gap-2">
-              <Type className="w-4 h-4" />
-              Fill in the blank
+            <TabsTrigger value="choice" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <ListChecks className="w-4 h-4 shrink-0" />
+              <span>Multiple choice</span>
             </TabsTrigger>
-            <TabsTrigger value="write" className="flex-1 gap-2">
-              <PenLine className="w-4 h-4" />
-              Write the character
+            <TabsTrigger value="fill" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <Type className="w-4 h-4 shrink-0" />
+              <span>Fill in blank</span>
+            </TabsTrigger>
+            <TabsTrigger value="write" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <PenLine className="w-4 h-4 shrink-0" />
+              <span>Handwriting</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="fill">
+          {/* forceMount keeps each quiz mounted across tab switches, preserving local state */}
+          <TabsContent value="choice" forceMount className="data-[state=inactive]:hidden">
+            <MultipleChoiceQuiz />
+          </TabsContent>
+          <TabsContent value="fill" forceMount className="data-[state=inactive]:hidden">
             <FillInBlankQuiz />
           </TabsContent>
-
-          <TabsContent value="write">
+          <TabsContent value="write" forceMount className="data-[state=inactive]:hidden">
             <HandwritingQuiz />
           </TabsContent>
         </Tabs>
