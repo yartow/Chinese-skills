@@ -114,6 +114,7 @@ export default function HomePage({ onCharacterClick, onLogout }: HomePageProps) 
               <CharacterCard
                 key={char.id}
                 character={isTraditional ? char.traditional : char.simplified}
+                index={char.id}
                 reading={char.reading}
                 writing={char.writing}
                 radical={char.radical}

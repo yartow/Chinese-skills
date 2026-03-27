@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
-  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
+  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type QuizQuestion, type WrongAnswer, type QuizScores,
 } from "./quizTypes";
 
@@ -79,6 +79,8 @@ export default function MultipleChoiceQuiz() {
   }
 
   useEffect(() => { loadQuestion(selectedLevels); }, []);
+
+  useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
 
   // N key = next (only after answering)
   useEffect(() => {

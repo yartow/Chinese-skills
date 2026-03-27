@@ -5,7 +5,9 @@ import {
   characterProgress,
   chineseCharacters,
   radicals,
+  generatedSentences,
   quizFeedbackCache,
+  generatedSentences,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -83,6 +85,10 @@ export interface IStorage {
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
   getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
+
+  // Generated sentences cache operations
+  getGeneratedSentences(characterIndex: number): Promise<{ sentence: string; blanked: string; translation: string }[]>;
+  saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void>;
 
   // Quiz feedback cache operations
   getFeedbackCache(blanked: string, character: string): Promise<string | null>;
@@ -628,6 +634,22 @@ export class DatabaseStorage implements IStorage {
       .insert(quizFeedbackCache)
       .values({ blanked, character, feedback })
       .onConflictDoNothing();
+  }
+
+  // Generated sentences cache
+  async getGeneratedSentences(characterIndex: number): Promise<{ sentence: string; blanked: string; translation: string }[]> {
+    return db
+      .select({
+        sentence: generatedSentences.sentence,
+        blanked: generatedSentences.blanked,
+        translation: generatedSentences.translation,
+      })
+      .from(generatedSentences)
+      .where(eq(generatedSentences.characterIndex, characterIndex));
+  }
+
+  async saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void> {
+    await db.insert(generatedSentences).values({ characterIndex, sentence, blanked, translation });
   }
 }
 

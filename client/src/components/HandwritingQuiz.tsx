@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
-  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion,
+  HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type WrongAnswer, type QuizScores,
 } from "./quizTypes";
 
@@ -176,6 +176,8 @@ export default function HandwritingQuiz() {
     refetchOnWindowFocus: false,
   });
 
+  useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
+
   const recognize = useCallback(() => {
     if (!engineReady || !window.HanziLookup) return;
     const strokes = getStrokesForLookup();
@@ -184,7 +186,7 @@ export default function HandwritingQuiz() {
     try {
       const analyzed = new window.HanziLookup.AnalyzedCharacter(strokes);
       const matcher = new window.HanziLookup.Matcher("mmah");
-      matcher.match(analyzed, 8, (matches) => {
+      matcher.match(analyzed, 16, (matches) => {
         setCandidates(matches.map((m) => m.character));
         setRecognizing(false);
       });
@@ -416,6 +418,7 @@ export default function HandwritingQuiz() {
                 </button>
               ))}
             </div>
+
           </div>
         )}
       </div>
