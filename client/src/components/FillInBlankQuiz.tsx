@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
@@ -46,18 +46,40 @@ export default function FillInBlankQuiz() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [scores, setScores] = useState<QuizScores>({ ...EMPTY_SCORES, byLevel: {} });
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
+  // Track recently seen character indices to avoid repeats (keep last 50)
+  const seenIndices = useRef<number[]>([]);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-fill", selectedLevels],
-    queryFn: () => fetchQuestion(selectedLevels),
+    queryFn: () => fetchQuestion(selectedLevels, seenIndices.current),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: 1000,
   });
 
-  // Pre-warm the feedback cache as soon as the question loads
+  // Pre-warm the feedback cache and track seen indices when a question loads
   useEffect(() => {
-    if (question) prefetchFeedback(question);
-  }, [question?.blanked, question?.character]);
+    if (question) {
+      prefetchFeedback(question);
+      seenIndices.current = [
+        ...seenIndices.current.filter((i) => i !== question.characterIndex),
+        question.characterIndex,
+      ].slice(-50);
+    }
+  }, [question?.characterIndex]);
+
+  // Auto-retry after a short delay if an error persists past React Query retries
+  useEffect(() => {
+    if (isError) {
+      autoRetryTimer.current = setTimeout(() => refetch(), 3000);
+    }
+    return () => {
+      if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current);
+    };
+  }, [isError]);
+
 
   const checkMutation = useMutation({
     mutationFn: ({ characterIndex, traditional, sentence, ...apiPayload }: CheckPayload) =>
@@ -97,6 +119,7 @@ export default function FillInBlankQuiz() {
   });
 
   function toggleLevel(level: number) {
+    seenIndices.current = [];
     setSelectedLevels((prev) => {
       if (prev.includes(level)) {
         if (prev.length === 1) return prev;
@@ -184,8 +207,8 @@ export default function FillInBlankQuiz() {
           {isLoading && <div className="text-center text-muted-foreground py-8 text-sm">Loading question…</div>}
           {isError && (
             <div className="text-center text-destructive py-8 text-sm">
-              Failed to load.{" "}
-              <button onClick={() => refetch()} className="underline">Try again</button>
+              Failed to load question. Retrying…{" "}
+              <button onClick={() => refetch()} className="underline">Retry now</button>
             </div>
           )}
           {question && !isLoading && (

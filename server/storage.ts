@@ -18,7 +18,7 @@ import {
   type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql } from "drizzle-orm";
 
 export interface CharacterFilters {
   hskLevels?: number[];
@@ -88,7 +88,7 @@ export interface IStorage {
   getCharactersByLessonRange(lessonStart: number, lessonEnd: number): Promise<ChineseCharacter[]>;
   getBrowseCharacters(): Promise<{ index: number; simplified: string; traditional: string; pinyin: string; hskLevel: number; lesson: number | null }[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
-  getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
+  getRandomCharactersForQuiz(hskLevels: number[], count: number, excludeIndices?: number[]): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 
   // Generated sentences cache operations
@@ -537,7 +537,13 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]> {
+  async getRandomCharactersForQuiz(hskLevels: number[], count: number, excludeIndices: number[] = []): Promise<ChineseCharacter[]> {
+    const conditions: any[] = [inArray(chineseCharacters.hskLevel, hskLevels)];
+
+    if (excludeIndices.length > 0) {
+      conditions.push(notInArray(chineseCharacters.index, excludeIndices));
+    }
+
     const results = await db
       .select({
         index: chineseCharacters.index,
@@ -561,7 +567,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(chineseCharacters)
       .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
-      .where(inArray(chineseCharacters.hskLevel, hskLevels))
+      .where(and(...conditions))
       .orderBy(sql`RANDOM()`)
       .limit(count);
     return results as ChineseCharacter[];

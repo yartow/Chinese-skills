@@ -92,9 +92,10 @@ export async function saveProgress(
   }
 }
 
-// Fetch a question from the API
-export async function fetchQuestion(levels: number[]): Promise<QuizQuestion> {
-  const res = await fetch(`/api/quiz/question?levels=${levels.join(",")}`);
+// Fetch a question from the API; pass excludeIndices to avoid recently-seen repeats
+export async function fetchQuestion(levels: number[], excludeIndices: number[] = []): Promise<QuizQuestion> {
+  const excludeParam = excludeIndices.length > 0 ? `&exclude=${excludeIndices.join(",")}` : "";
+  const res = await fetch(`/api/quiz/question?levels=${levels.join(",")}${excludeParam}`);
   if (!res.ok) throw new Error("Failed to load question");
   return res.json();
 }
