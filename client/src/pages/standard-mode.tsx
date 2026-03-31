@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -148,45 +148,14 @@ export default function StandardMode() {
     enabled: characters.length > 0,
   });
 
+  // Per-character debounce timers — rapid clicks accumulate into one API call
+  const debounceMap = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
-    onMutate: async (newProgress) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/progress/batch"] });
-      
-      // Snapshot the previous value
-      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/batch", characterIndices.join(',')]);
-      
-      // Optimistically update to the new value
-      queryClient.setQueryData<CharacterProgress[]>(
-        ["/api/progress/batch", characterIndices.join(',')],
-        (old = []) => {
-          const existingIndex = old.findIndex(p => p.characterIndex === newProgress.characterIndex);
-          if (existingIndex >= 0) {
-            // Update existing progress
-            const updated = [...old];
-            updated[existingIndex] = { ...updated[existingIndex], ...newProgress };
-            return updated;
-          } else {
-            // Add new progress entry
-            return [...old, newProgress as CharacterProgress];
-          }
-        }
-      );
-      
-      // Return context with snapshot for rollback
-      return { previousProgress };
-    },
-    onError: (err, newProgress, context) => {
-      // Rollback on error
-      if (context?.previousProgress) {
-        queryClient.setQueryData(["/api/progress/batch", characterIndices.join(',')], context.previousProgress);
-      }
-    },
     onSettled: () => {
-      // Always refetch after success or error
-      queryClient.invalidateQueries({ predicate: (query) => 
+      queryClient.invalidateQueries({ predicate: (query) =>
         query.queryKey[0] === "/api/progress/batch" ||
         query.queryKey[0] === "/api/progress/range" ||
         (query.queryKey[0] === "/api/progress" && typeof query.queryKey[1] === "number")
@@ -194,19 +163,39 @@ export default function StandardMode() {
     },
   });
 
-  const handleToggleStar = (characterIndex: number, type: "reading" | "writing" | "radical") => {
-    const progress = progressList.find((p: CharacterProgress) => p.characterIndex === characterIndex) || {
-      reading: false,
-      writing: false,
-      radical: false,
+  const handleToggleStar = (charIndex: number, type: "reading" | "writing" | "radical") => {
+    // Read from the live cache (not the render closure) so rapid clicks stack correctly
+    const cacheKey = ["/api/progress/batch", characterIndices.join(',')];
+    const currentList = queryClient.getQueryData<CharacterProgress[]>(cacheKey) || [];
+    const current = currentList.find((p: CharacterProgress) => p.characterIndex === charIndex) || {
+      reading: false, writing: false, radical: false,
     };
 
-    updateProgressMutation.mutate({
-      characterIndex,
-      reading: type === "reading" ? !progress.reading : progress.reading,
-      writing: type === "writing" ? !progress.writing : progress.writing,
-      radical: type === "radical" ? !progress.radical : progress.radical,
+    const next = {
+      characterIndex: charIndex,
+      reading: type === "reading" ? !current.reading : current.reading,
+      writing: type === "writing" ? !current.writing : current.writing,
+      radical: type === "radical" ? !current.radical : current.radical,
+    };
+
+    // Immediately update the cache so the UI responds without waiting for the server
+    queryClient.setQueryData<CharacterProgress[]>(cacheKey, (old = []) => {
+      const idx = old.findIndex((p: CharacterProgress) => p.characterIndex === charIndex);
+      if (idx >= 0) {
+        const updated = [...old];
+        updated[idx] = { ...updated[idx], ...next };
+        return updated;
+      }
+      return [...old, next as CharacterProgress];
     });
+
+    // Debounce the API call per character — cancel previous timer and reschedule
+    const existing = debounceMap.current.get(charIndex);
+    if (existing) clearTimeout(existing);
+    debounceMap.current.set(charIndex, setTimeout(() => {
+      debounceMap.current.delete(charIndex);
+      updateProgressMutation.mutate(next);
+    }, 400));
   };
 
   const handleToggleHskLevel = (level: number) => {

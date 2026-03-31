@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
+import { useState, useEffect, useRef } from "react";
 import CharacterDetailView from "@/components/CharacterDetailView";
 import type { ChineseCharacter, UserSettings, CharacterProgress } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -21,20 +22,34 @@ export default function CharacterDetail() {
     queryKey: ["/api/progress", characterIndex],
   });
 
+  // Local progress state — updates instantly on click so the UI never lags
+  const [localProgress, setLocalProgress] = useState({ reading: false, writing: false, radical: false });
+  // Debounce ref — rapid clicks accumulate into one API call after 400 ms of inactivity
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync from server whenever the server state changes and no edit is pending
+  useEffect(() => {
+    if (!debounceRef.current) {
+      setLocalProgress({
+        reading: progress?.reading ?? false,
+        writing: progress?.writing ?? false,
+        radical: progress?.radical ?? false,
+      });
+    }
+  }, [progress?.reading, progress?.writing, progress?.radical]);
+
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
     onSuccess: () => {
-      // Invalidate the current character's progress
       queryClient.invalidateQueries({ queryKey: ["/api/progress", characterIndex] });
-      // Invalidate all progress queries so Daily Mode and Standard Mode show updated state
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress/batch"] });
     },
   });
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (newSettings: Partial<UserSettings>) => 
+    mutationFn: (newSettings: Partial<UserSettings>) =>
       apiRequest("PATCH", "/api/settings", newSettings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
@@ -42,19 +57,21 @@ export default function CharacterDetail() {
   });
 
   const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
-    const currentProgress = progress || { reading: false, writing: false, radical: false };
-    updateProgressMutation.mutate({
-      characterIndex,
-      reading: type === "reading" ? !currentProgress.reading : currentProgress.reading,
-      writing: type === "writing" ? !currentProgress.writing : currentProgress.writing,
-      radical: type === "radical" ? !currentProgress.radical : currentProgress.radical,
+    // Use functional updater so every rapid click sees the latest local state
+    setLocalProgress(prev => {
+      const next = { ...prev, [type]: !prev[type] };
+      // Cancel any pending API call and reschedule with the latest accumulated state
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        updateProgressMutation.mutate({ characterIndex, ...next });
+      }, 400);
+      return next;
     });
   };
 
   const handleToggleScript = () => {
-    updateSettingsMutation.mutate({
-      preferTraditional: !isTraditional,
-    });
+    updateSettingsMutation.mutate({ preferTraditional: !isTraditional });
   };
 
   const isTraditional = settings?.preferTraditional ?? false;
@@ -84,18 +101,13 @@ export default function CharacterDetail() {
       : [],
   };
 
-  const handleBack = () => {
-    // Use browser's history to go back to previous page
-    window.history.back();
-  };
-
   return (
     <CharacterDetailView
       character={formattedCharacter}
       index={character.index}
       hskLevel={character.hskLevel}
-      progress={progress || { reading: false, writing: false, radical: false }}
-      onBack={handleBack}
+      progress={localProgress}
+      onBack={() => window.history.back()}
       isTraditional={isTraditional}
       onToggleScript={handleToggleScript}
       onToggleReading={() => handleToggleProgress("reading")}

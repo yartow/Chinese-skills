@@ -67,45 +67,14 @@ export default function Home() {
     },
   });
 
-  // Update character progress mutation with optimistic updates
+  // Per-character debounce timers — rapid clicks accumulate into one API call
+  const debounceMap = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Update character progress mutation
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
-    onMutate: async (newProgress) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/progress/range", currentLevel, dailyCharCount] });
-      
-      // Snapshot the previous value
-      const previousProgress = queryClient.getQueryData<CharacterProgress[]>(["/api/progress/range", currentLevel, dailyCharCount]);
-      
-      // Optimistically update to the new value
-      queryClient.setQueryData<CharacterProgress[]>(
-        ["/api/progress/range", currentLevel, dailyCharCount],
-        (old = []) => {
-          const existingIndex = old.findIndex(p => p.characterIndex === newProgress.characterIndex);
-          if (existingIndex >= 0) {
-            // Update existing progress
-            const updated = [...old];
-            updated[existingIndex] = { ...updated[existingIndex], ...newProgress };
-            return updated;
-          } else {
-            // Add new progress entry
-            return [...old, newProgress as CharacterProgress];
-          }
-        }
-      );
-      
-      // Return context with snapshot for rollback
-      return { previousProgress };
-    },
-    onError: (err, newProgress, context) => {
-      // Rollback on error
-      if (context?.previousProgress) {
-        queryClient.setQueryData(["/api/progress/range", currentLevel, dailyCharCount], context.previousProgress);
-      }
-    },
     onSettled: () => {
-      // Always refetch after success or error
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });
     },
@@ -149,19 +118,43 @@ export default function Home() {
     updateSettingsMutation.mutate({ preferTraditional: traditional });
   };
 
-  const handleToggleStar = (characterIndex: number, type: "reading" | "writing" | "radical") => {
-    const progress = progressList.find(p => p.characterIndex === characterIndex) || {
-      reading: false,
-      writing: false,
-      radical: false,
+  const handleToggleStar = (charIndex: number, type: "reading" | "writing" | "radical") => {
+    // Read from the live cache (not the render closure) so rapid clicks stack correctly
+    const currentList = queryClient.getQueryData<CharacterProgress[]>(
+      ["/api/progress/range", currentLevel, dailyCharCount]
+    ) || [];
+    const current = currentList.find(p => p.characterIndex === charIndex) || {
+      reading: false, writing: false, radical: false,
     };
 
-    updateProgressMutation.mutate({
-      characterIndex,
-      reading: type === "reading" ? !progress.reading : progress.reading,
-      writing: type === "writing" ? !progress.writing : progress.writing,
-      radical: type === "radical" ? !progress.radical : progress.radical,
-    });
+    const next = {
+      characterIndex: charIndex,
+      reading: type === "reading" ? !current.reading : current.reading,
+      writing: type === "writing" ? !current.writing : current.writing,
+      radical: type === "radical" ? !current.radical : current.radical,
+    };
+
+    // Immediately update the cache so the UI responds without waiting for the server
+    queryClient.setQueryData<CharacterProgress[]>(
+      ["/api/progress/range", currentLevel, dailyCharCount],
+      (old = []) => {
+        const idx = old.findIndex(p => p.characterIndex === charIndex);
+        if (idx >= 0) {
+          const updated = [...old];
+          updated[idx] = { ...updated[idx], ...next };
+          return updated;
+        }
+        return [...old, next as CharacterProgress];
+      }
+    );
+
+    // Debounce the API call per character — cancel previous timer and reschedule
+    const existing = debounceMap.current.get(charIndex);
+    if (existing) clearTimeout(existing);
+    debounceMap.current.set(charIndex, setTimeout(() => {
+      debounceMap.current.delete(charIndex);
+      updateProgressMutation.mutate(next);
+    }, 400));
   };
 
   const handleLogout = () => {
