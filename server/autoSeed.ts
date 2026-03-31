@@ -39,9 +39,9 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
   const charData = JSON.parse(fs.readFileSync(charSeedPath, "utf-8"));
   const [charCount] = await db.select({ value: count() }).from(chineseCharacters);
 
-  if (charCount.value === 0) {
-    // Fresh database — insert all characters
-    log(`Characters table is empty — seeding ${charData.length} characters in batches…`);
+  if (charCount.value < charData.length) {
+    // Fresh or partially-seeded database — insert all characters
+    log(`Characters table has ${charCount.value}/${charData.length} entries — seeding missing characters in batches…`);
     for (let i = 0; i < charData.length; i += 100) {
       const batch = charData.slice(i, i + 100);
       await db.insert(chineseCharacters).values(batch).onConflictDoNothing();
@@ -86,6 +86,7 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
             examples: sql`excluded.examples`,
             hskLevel: sql`excluded.hsk_level`,
             wordExamples: sql`excluded.word_examples`,
+            lesson: sql`excluded.lesson`,
           },
         });
       updated += batch.length;
