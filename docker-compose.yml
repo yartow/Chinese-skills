@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chinese_learning
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      # Points to the postgres service above.
+      # To use your existing Neon cloud database instead, replace this with
+      # your Neon connection string and remove the postgres service entirely.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/chinese_learning
+
+      # Change this to any long random string before running in production.
+      SESSION_SECRET: change-me-to-a-random-secret
+
+      # ── Replit Auth (OpenID Connect) ────────────────────────────────────────
+      # The app uses Replit's OAuth service for sign-in. To authenticate
+      # locally you must supply these values from your Replit account:
+      #
+      #   REPL_ID          – found in your Repl's .replit file or env
+      #   REPLIT_DOMAINS   – comma-separated list of allowed redirect origins,
+      #                      e.g. "localhost:5000"
+      #
+      # Omitting them disables authentication (the server will still start and
+      # serve character data, but protected endpoints will return 401).
+      #
+      # REPL_ID: your-repl-id-here
+      # REPLIT_DOMAINS: localhost:5000
+
+volumes:
+  postgres_data:

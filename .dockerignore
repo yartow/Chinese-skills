@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.gitignore
+*.log
+.env
+.env.*
+attached_assets
+tests
+*.spec.ts
+README.md
+.local
+migrations
