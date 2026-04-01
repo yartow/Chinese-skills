@@ -777,6 +777,10 @@ Reply with JSON only, no extra text:
     character: string, pinyin: string, definition: string | string[],
     blanked: string, translation: string, hskLevel: number
   ): Promise<string> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      const defStr = Array.isArray(definition) ? definition[0] : definition;
+      return `${character} (${pinyin}): ${defStr}`;
+    }
     const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
     const prompt = `A student is studying HSK ${hskLevel}. In this fill-in-the-blank:
 

@@ -163,26 +163,23 @@ export default function FillInBlankQuiz() {
     refetch();
   }
 
+  // Global Enter/N — also handles advancing after a result when the input is disabled.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.isComposing) return;
+      if ((e.key === "n" || e.key === "N") && result) handleNext();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [result]);
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.isComposing) return; // IME still open — Enter confirms the selection, not our submit
+    if (e.isComposing) return;
     if (e.key === "Enter") {
       if (result) handleNext();
       else handleSubmit();
     }
   }
-
-  // N key = next question (only after answering, not while typing in an active input)
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.key === "n" || e.key === "N") && result) {
-        const el = document.activeElement as HTMLInputElement | null;
-        if (el?.tagName === "INPUT" && !el.disabled) return;
-        handleNext();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [result]);
 
   function renderBlanked(q: QuizQuestion) {
     const parts = q.blanked.split("＿");
@@ -255,12 +252,6 @@ export default function FillInBlankQuiz() {
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
-              onCompositionEnd={(e) => {
-                // Read directly from the DOM element — React state is stale at this point.
-                const val = (e.target as HTMLInputElement).value;
-                setAnswer(val);
-                if (!result) submitValue(val);
-              }}
               disabled={!!result}
               maxLength={2}
               className={`w-24 text-center text-2xl font-serif border rounded-lg p-2 outline-none transition-colors
