@@ -1,6 +1,6 @@
 {
-  "name": "Chinese Character Learning",
-  "short_name": "汉字学习",
+  "name": "樂吃玩",
+  "short_name": "樂吃玩",
   "description": "Learn 3000 common Chinese characters with progress tracking, stroke order, and testing modes",
   "start_url": "/",
   "display": "standalone",
