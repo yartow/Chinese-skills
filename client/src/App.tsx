@@ -36,7 +36,7 @@ function Router() {
   return (
     <div className="min-h-screen flex flex-col">
       <nav className="border-b sticky top-0 z-50 bg-background">
-        <div className="max-w-7xl mx-auto p-4 flex items-center justify-center gap-2">
+        <div className="max-w-7xl mx-auto p-4 flex items-center justify-center gap-1 sm:gap-2">
           <Button
             variant={location === "/" ? "default" : "ghost"}
             onClick={() => setLocation("/")}

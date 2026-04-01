@@ -39,7 +39,7 @@ export default function Saved() {
             <Card key={item.id} className="p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-1 space-y-1">
-                  <p className="text-lg font-chinese">{item.chinese}</p>
+                  <p className="text-lg font-chinese break-all">{item.chinese}</p>
                   {item.pinyin && (
                     <p className="text-sm text-muted-foreground">{item.pinyin}</p>
                   )}

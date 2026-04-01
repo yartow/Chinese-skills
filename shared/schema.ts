@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, jsonb, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, unique, jsonb, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -152,6 +152,7 @@ export const savedItems = pgTable("saved_items", {
 ]);
 
 export type SavedItem = typeof savedItems.$inferSelect;
+
 // AI-generated quiz sentences — one sentence per character, generated on demand
 export const generatedSentences = pgTable("generated_sentences", {
   id: serial("id").primaryKey(),

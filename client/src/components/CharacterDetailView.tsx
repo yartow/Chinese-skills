@@ -217,14 +217,16 @@ export default function CharacterDetailView({
             <div className="space-y-4">
               {character.wordExamples.map((we, index) => (
                 <div key={index} className="space-y-1" data-testid={`word-example-${index}`}>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-2xl font-chinese" data-testid={`text-word-example-word-${index}`}>{we.word}</span>
-                    <span className="text-base text-muted-foreground" data-testid={`text-word-example-pinyin-${index}`}>{we.pinyin}</span>
-                    <span className="text-base text-muted-foreground">—</span>
-                    <span className="text-base" data-testid={`text-word-example-definition-${index}`}>{we.meaning ?? we.definition}</span>
+                  <div className="flex items-start gap-2">
+                    <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
+                      <span className="text-2xl font-chinese" data-testid={`text-word-example-word-${index}`}>{we.word}</span>
+                      <span className="text-base text-muted-foreground" data-testid={`text-word-example-pinyin-${index}`}>{we.pinyin}</span>
+                      <span className="text-base text-muted-foreground">—</span>
+                      <span className="text-base" data-testid={`text-word-example-definition-${index}`}>{we.meaning ?? we.definition}</span>
+                    </div>
                     <button
                       onClick={() => onToggleSave({ type: "word", chinese: we.word, pinyin: we.pinyin, english: we.meaning ?? we.definition ?? "" })}
-                      className="ml-auto shrink-0 p-1 rounded hover:bg-muted"
+                      className="shrink-0 p-1 rounded hover:bg-muted mt-1"
                       aria-label={savedChinese.has(we.word) ? "Unsave word" : "Save word"}
                     >
                       <Heart className={`w-4 h-4 ${savedChinese.has(we.word) ? "fill-red-500 text-red-500" : "text-muted-foreground"}`} />
