@@ -21,7 +21,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "5000:5000"
+      - "5002:5000"
     environment:
       # Points to the postgres service above.
       # To use your existing Neon cloud database instead, replace this with
@@ -37,13 +37,13 @@ services:
       #
       #   REPL_ID          – found in your Repl's .replit file or env
       #   REPLIT_DOMAINS   – comma-separated list of allowed redirect origins,
-      #                      e.g. "localhost:5000"
+      #                      e.g. "localhost:5002"
       #
       # Omitting them disables authentication (the server will still start and
       # serve character data, but protected endpoints will return 401).
       #
       # REPL_ID: your-repl-id-here
-      # REPLIT_DOMAINS: localhost:5000
+      # REPLIT_DOMAINS: localhost:5002
 
 volumes:
   postgres_data:
