@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle, Download, Upload } from "lucide-react";
 
@@ -9,18 +10,26 @@ interface SettingsPanelProps {
   currentLevel: number;
   dailyCharCount: number;
   standardModePageSize?: number;
+  useAiFeedback?: boolean;
+  useAiSentences?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
+  onUseAiFeedbackChange?: (value: boolean) => void;
+  onUseAiSentencesChange?: (value: boolean) => void;
 }
 
 export default function SettingsPanel({
   currentLevel,
   dailyCharCount,
   standardModePageSize = 20,
+  useAiFeedback = false,
+  useAiSentences = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
+  onUseAiFeedbackChange,
+  onUseAiSentencesChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -198,6 +207,57 @@ export default function SettingsPanel({
         </div>
       )}
 
+      {onUseAiSentencesChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Use Claude to generate a unique example sentence for each character. Each sentence is generated once and reused. When off, pre-stored corpus sentences are used.
+            </p>
+          </div>
+          <Switch
+            id="ai-sentences-toggle"
+            checked={useAiSentences}
+            onCheckedChange={onUseAiSentencesChange}
+            data-testid="toggle-ai-sentences"
+          />
+        </div>
+      )}
+
+      {onUseAiFeedbackChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-feedback-toggle" className="text-sm">Fresh AI feedback in quiz</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Always generate a new explanation via Claude when you submit an answer. When off, cached explanations are used (faster, no extra API cost).
+            </p>
+          </div>
+          <Switch
+            id="ai-feedback-toggle"
+            checked={useAiFeedback}
+            onCheckedChange={onUseAiFeedbackChange}
+            data-testid="toggle-ai-feedback"
+          />
+        </div>
+      )}
+
+      {onUseAiSentencesChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Use Claude to generate example sentences for quiz questions. Generated sentences are stored and reused, so the API is only called once per character.
+            </p>
+          </div>
+          <Switch
+            id="ai-sentences-toggle"
+            checked={useAiSentences}
+            onCheckedChange={onUseAiSentencesChange}
+            data-testid="toggle-ai-sentences"
+          />
+        </div>
+      )}
+
       <div className="space-y-3 pt-2 border-t">
         <Label className="text-sm font-semibold">Admin</Label>
 
@@ -244,6 +304,12 @@ export default function SettingsPanel({
               {importStatus.message}
             </p>
           )}
+        </div>
+
+        <div className="rounded-md border bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            You can export the full set of Chinese characters, edit them and even add new characters by importing them back into the application. Only the changes you have made will be added to the database.
+          </p>
         </div>
       </div>
     </div>

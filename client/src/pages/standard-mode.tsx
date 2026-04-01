@@ -3,9 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
-import { ArrowLeft, Filter } from "lucide-react";
+import { ArrowLeft, Filter, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -22,6 +23,7 @@ export default function StandardMode() {
   const [filterRadical, setFilterRadical] = useState(false);
   const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [jumpInput, setJumpInput] = useState("");
 
   // Parse URL query parameters on mount to restore filters
   useEffect(() => {
@@ -219,6 +221,15 @@ export default function StandardMode() {
   const hasNext = currentPage < totalPages - 1;
   const hasPrevious = currentPage > 0;
 
+  const handleJumpToIndex = () => {
+    const targetIndex = parseInt(jumpInput, 10);
+    if (isNaN(targetIndex) || targetIndex < 1) return;
+    const targetPage = Math.floor((targetIndex - 1) / pageSize);
+    const clampedPage = Math.min(Math.max(targetPage, 0), totalPages - 1);
+    setCurrentPage(clampedPage);
+    setJumpInput("");
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -263,26 +274,52 @@ export default function StandardMode() {
       <main className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">
-                Showing {characters.length} characters
-              </h2>
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-xl font-semibold">
+                  Showing {characters.length} characters
+                </h2>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                    disabled={!hasPrevious}
+                    data-testid="button-previous-page"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(p => p + 1)}
+                    disabled={!hasNext}
+                    data-testid="button-next-page"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-muted-foreground shrink-0">Go to index:</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={3000}
+                  placeholder="e.g. 500"
+                  value={jumpInput}
+                  onChange={(e) => setJumpInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleJumpToIndex()}
+                  className="w-28"
+                  data-testid="input-jump-to-index"
+                />
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-                  disabled={!hasPrevious}
-                  data-testid="button-previous-page"
+                  onClick={handleJumpToIndex}
+                  disabled={jumpInput === ""}
+                  data-testid="button-jump-to-index"
+                  className="gap-1"
                 >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => p + 1)}
-                  disabled={!hasNext}
-                  data-testid="button-next-page"
-                >
-                  Next
+                  Go
+                  <ArrowRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
@@ -294,6 +331,8 @@ export default function StandardMode() {
                   <CharacterCard
                     key={char.index}
                     character={isTraditional ? char.traditional : char.simplified}
+                    index={char.index}
+                    hskLevel={char.hskLevel}
                     reading={progress?.reading ?? false}
                     writing={progress?.writing ?? false}
                     radical={progress?.radical ?? false}

@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 
 interface CharacterCardProps {
   character: string;
+  index: number;
+  hskLevel?: number;
   reading: boolean;
   writing: boolean;
   radical: boolean;
@@ -16,6 +18,8 @@ interface CharacterCardProps {
 
 export default function CharacterCard({
   character,
+  index,
+  hskLevel,
   reading,
   writing,
   radical,
@@ -28,12 +32,26 @@ export default function CharacterCard({
   return (
     <Card
       className={cn(
-        "p-6 flex flex-col items-center gap-4 cursor-pointer hover-elevate transition-all",
+        "p-6 flex flex-col items-center gap-4 cursor-pointer hover-elevate transition-all relative",
         className
       )}
       onClick={onClick}
       data-testid={`card-character-${character}`}
     >
+      <span
+        className="absolute top-2 left-3 text-xs text-muted-foreground font-mono select-none"
+        data-testid={`text-index-${index}`}
+      >
+        #{index}
+      </span>
+      {hskLevel !== undefined && (
+        <span
+          className="absolute top-2 right-3 text-xs text-muted-foreground font-medium select-none"
+          data-testid={`text-hsk-${index}`}
+        >
+          HSK {hskLevel}
+        </span>
+      )}
       <div className="text-8xl font-chinese text-center" data-testid={`text-character-${character}`}>
         {character}
       </div>
