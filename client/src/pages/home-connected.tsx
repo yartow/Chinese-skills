@@ -306,9 +306,13 @@ export default function Home() {
                   currentLevel={currentLevel}
                   dailyCharCount={dailyCharCount}
                   standardModePageSize={settings?.standardModePageSize}
+                  useAiFeedback={settings?.useAiFeedback ?? false}
+                  useAiSentences={settings?.useAiSentences ?? false}
                   onLevelChange={handleLevelChange}
                   onDailyCharCountChange={handleDailyCharCountChange}
                   onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
+                  onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
+                  onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
                 />
               </Card>
             )}
@@ -378,6 +382,8 @@ export default function Home() {
                       <CharacterCard
                         key={char.index}
                         character={isTraditional ? char.traditional : char.simplified}
+                        index={char.index}
+                        hskLevel={char.hskLevel}
                         reading={progress?.reading ?? false}
                         writing={progress?.writing ?? false}
                         radical={progress?.radical ?? false}

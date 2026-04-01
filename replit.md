@@ -53,6 +53,18 @@ The application is built as a full-stack web application, utilizing React with T
 
 ## Recent Changes
 
+### March 19, 2026
+- **Fixed HanziLookup recognition engine**: Now fully self-hosted, no CDN dependency
+  - `client/public/hanzilookup.min.js` (25KB) — served locally (was using wrong npm package name)
+  - `client/public/mmah.json` (642KB) — generated from `hanzi-writer-data`'s 9,574 character stroke datasets using the HanziLookup sub-stroke analysis algorithm
+  - HandwritingQuiz.tsx updated to load from `/hanzilookup.min.js` and `/mmah.json`
+- **Fixed translation spoiler bug**: In both FillInBlankQuiz and HandwritingQuiz, the English translation of the example sentence is now hidden until after the user submits their answer (was previously visible before submission, revealing context that could hint at the character)
+- **Improved sentence quality filtering** in `/api/quiz/question`:
+  - Chinese sentences must be ≥5 characters
+  - Blanked sentence must have content on both sides of the blank (character can't be at start/end)
+  - English translations containing CJK characters are rejected (prevents spoilers)
+- **Auto-seed integrated**: `ensureDataSeeded()` is now called at server startup (seeds characters and radicals from bundled JSON if the DB is empty — supports fresh clones and new deployments)
+
 ### March 17, 2026 (Part 3)
 - **Fixed PWA service worker caching**: Rewrote `sw.js` with correct cache-busting strategy
   - HTML/navigation requests now use network-first so the browser always gets the latest JS bundle references

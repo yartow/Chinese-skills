@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, jsonb, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -48,6 +48,8 @@ export const userSettings = pgTable("user_settings", {
   dailyCharCount: integer("daily_char_count").notNull().default(5),
   standardModePageSize: integer("standard_mode_page_size").notNull().default(20),
   preferTraditional: boolean("prefer_traditional").notNull().default(true),
+  useAiFeedback: boolean("use_ai_feedback").notNull().default(false),
+  useAiSentences: boolean("use_ai_sentences").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -150,3 +152,26 @@ export const savedItems = pgTable("saved_items", {
 ]);
 
 export type SavedItem = typeof savedItems.$inferSelect;
+// AI-generated quiz sentences — one sentence per character, generated on demand
+export const generatedSentences = pgTable("generated_sentences", {
+  id: serial("id").primaryKey(),
+  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index),
+  sentence: text("sentence").notNull(),
+  blanked: text("blanked").notNull(),
+  translation: text("translation").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_generated_sentences_character").on(table.characterIndex),
+]);
+
+// Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
+// so the same explanation can be reused without calling the AI again.
+export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
+  id: serial("id").primaryKey(),
+  blanked: text("blanked").notNull(),
+  character: varchar("character", { length: 4 }).notNull(),
+  feedback: text("feedback").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("idx_feedback_blanked_char").on(table.blanked, table.character),
+]);

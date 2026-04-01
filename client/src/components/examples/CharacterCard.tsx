@@ -11,6 +11,7 @@ export default function CharacterCardExample() {
       <div className="w-64">
         <CharacterCard
           character="学"
+          index={1}
           reading={reading}
           writing={writing}
           radical={radical}

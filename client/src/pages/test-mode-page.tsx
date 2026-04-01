@@ -1,51 +1,56 @@
-import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
 import StrokeOrderQuiz from "@/components/StrokeOrderQuiz";
-
-const TABS = [
-  { id: "fill", label: "Fill in the Blank" },
-  { id: "handwriting", label: "Handwriting" },
-  { id: "stroke", label: "Stroke Order" },
-] as const;
-
-type TabId = typeof TABS[number]["id"];
-
-const DESCRIPTIONS: Record<TabId, string> = {
-  fill: "Fill in the missing character — press Enter to submit, Enter again for the next question.",
-  handwriting: "Draw the missing character freehand — tap your character from the recognized candidates.",
-  stroke: "Trace each stroke of the missing character in the correct order.",
-};
+import { ListChecks, Type, PenLine, PenTool } from "lucide-react";
 
 export default function TestModePage() {
-  const [activeTab, setActiveTab] = useState<TabId>("fill");
-
   return (
     <div className="py-6">
       <div className="max-w-2xl mx-auto px-4 mb-6">
         <h1 className="text-2xl font-semibold">Test Mode</h1>
-        <p className="text-muted-foreground text-sm mt-1">{DESCRIPTIONS[activeTab]}</p>
-
-        <div className="flex gap-1 mt-4 border-b">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
-                ${activeTab === tab.id
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <p className="text-muted-foreground text-sm mt-1">
+          Practice reading and writing Chinese characters.
+        </p>
       </div>
 
-      {activeTab === "fill" && <FillInBlankQuiz />}
-      {activeTab === "handwriting" && <HandwritingQuiz />}
-      {activeTab === "stroke" && <StrokeOrderQuiz />}
+      <div className="max-w-2xl mx-auto px-4">
+        <Tabs defaultValue="choice">
+          <TabsList className="w-full mb-6">
+            <TabsTrigger value="choice" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <ListChecks className="w-4 h-4 shrink-0" />
+              <span>Multiple choice</span>
+            </TabsTrigger>
+            <TabsTrigger value="fill" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <Type className="w-4 h-4 shrink-0" />
+              <span>Fill in blank</span>
+            </TabsTrigger>
+            <TabsTrigger value="write" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <PenLine className="w-4 h-4 shrink-0" />
+              <span>Handwriting</span>
+            </TabsTrigger>
+            <TabsTrigger value="stroke" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <PenTool className="w-4 h-4 shrink-0" />
+              <span>Stroke order</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* forceMount keeps each quiz mounted across tab switches, preserving local state */}
+          <TabsContent value="choice" forceMount className="data-[state=inactive]:hidden">
+            <MultipleChoiceQuiz />
+          </TabsContent>
+          <TabsContent value="fill" forceMount className="data-[state=inactive]:hidden">
+            <FillInBlankQuiz />
+          </TabsContent>
+          <TabsContent value="write" forceMount className="data-[state=inactive]:hidden">
+            <HandwritingQuiz />
+          </TabsContent>
+          <TabsContent value="stroke" forceMount className="data-[state=inactive]:hidden">
+            <StrokeOrderQuiz />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
