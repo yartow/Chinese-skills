@@ -129,11 +129,12 @@ export default function FillInBlankQuiz() {
     });
   }
 
-  function handleSubmit() {
-    if (!question || !answer.trim() || checkMutation.isPending) return;
+  // submitValue takes the value explicitly so it's never stale (safe to call from onChange)
+  function submitValue(val: string) {
+    if (!question || !val.trim() || checkMutation.isPending) return;
     checkMutation.mutate({
       character: question.character,
-      answer: answer.trim(),
+      answer: val.trim(),
       blanked: question.blanked,
       translation: question.translation,
       definition: question.definition,
@@ -143,6 +144,10 @@ export default function FillInBlankQuiz() {
       traditional: question.traditional,
       sentence: question.sentence,
     });
+  }
+
+  function handleSubmit() {
+    submitValue(answer);
   }
 
   function handleNext() {
@@ -159,6 +164,7 @@ export default function FillInBlankQuiz() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.isComposing) return; // IME still open — Enter confirms the selection, not our submit
     if (e.key === "Enter") {
       if (result) handleNext();
       else handleSubmit();
@@ -194,7 +200,7 @@ export default function FillInBlankQuiz() {
   const hint = question ? getHint(question) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto px-4 space-y-6">
       <QuizShell
         scores={scores}
         selectedLevels={selectedLevels}
@@ -249,6 +255,12 @@ export default function FillInBlankQuiz() {
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={handleKeyDown}
+              onCompositionEnd={(e) => {
+                // Read directly from the DOM element — React state is stale at this point.
+                const val = (e.target as HTMLInputElement).value;
+                setAnswer(val);
+                if (!result) submitValue(val);
+              }}
               disabled={!!result}
               maxLength={2}
               className={`w-24 text-center text-2xl font-serif border rounded-lg p-2 outline-none transition-colors

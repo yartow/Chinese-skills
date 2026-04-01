@@ -53,6 +53,7 @@ export default function MultipleChoiceQuiz() {
 
   // Request sequencing: ignore stale async results when a newer load is in flight
   const requestIdRef = useRef(0);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load question + choices together ──
   async function loadQuestion(levels: number[]) {
@@ -82,17 +83,34 @@ export default function MultipleChoiceQuiz() {
 
   useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
 
-  // N key = next (only after answering)
+  // Auto-retry after a short delay if loading fails
+  useEffect(() => {
+    if (isError) {
+      autoRetryTimer.current = setTimeout(() => loadQuestion(selectedLevels), 3000);
+    }
+    return () => { if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current); };
+  }, [isError]);
+
+  // Keyboard shortcuts: 1–4 select a choice, S skips, N advances after answering
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.key === "n" || e.key === "N") && selected !== null) {
-        if (document.activeElement?.tagName === "INPUT") return;
-        handleNext();
+      if (document.activeElement?.tagName === "INPUT") return;
+      if (e.key === "n" || e.key === "N") {
+        if (selected !== null) handleNext();
+        return;
+      }
+      if ((e.key === "s" || e.key === "S") && selected === null) {
+        handleSkip();
+        return;
+      }
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4 && selected === null && choices[num - 1]) {
+        handleSelect(choices[num - 1].character);
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [selected]);
+  }, [selected, choices]);
 
   // ── Handle choice selection ──
   function handleSelect(char: string) {
@@ -158,7 +176,7 @@ export default function MultipleChoiceQuiz() {
   // ── UI ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto px-4 space-y-6">
       <QuizShell
         scores={scores}
         selectedLevels={selectedLevels}
@@ -179,8 +197,8 @@ export default function MultipleChoiceQuiz() {
           {isLoading && <div className="text-center text-muted-foreground py-8 text-sm">Loading…</div>}
           {isError && (
             <div className="text-center text-destructive py-8 text-sm">
-              Failed to load.{" "}
-              <button onClick={() => loadQuestion(selectedLevels)} className="underline">Retry</button>
+              Failed to load. Retrying…{" "}
+              <button onClick={() => loadQuestion(selectedLevels)} className="underline">Retry now</button>
             </div>
           )}
           {question && !isLoading && (
@@ -263,7 +281,14 @@ export default function MultipleChoiceQuiz() {
                   onClick={() => handleSelect(choice.character)}
                   disabled={isAnswered}
                 >
-                  <div className="font-serif text-2xl">{choice.character}</div>
+                  <div className="relative">
+                    {!isAnswered && (
+                      <span className="absolute -top-1 -left-1 text-[10px] font-mono text-muted-foreground/60 leading-none select-none">
+                        {i + 1}
+                      </span>
+                    )}
+                    <div className="font-serif text-2xl">{choice.character}</div>
+                  </div>
                   {choice.character !== choice.traditional && (
                     <div className="font-serif text-base text-muted-foreground">{choice.traditional}</div>
                   )}
@@ -285,6 +310,7 @@ export default function MultipleChoiceQuiz() {
         {!isAnswered && (
           <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1 text-muted-foreground">
             <SkipForward className="w-4 h-4" /> Skip
+            <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
           </Button>
         )}
         {isAnswered && (
