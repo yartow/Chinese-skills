@@ -2,7 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
-import { ListChecks, Type, PenLine } from "lucide-react";
+import StrokeOrderQuiz from "@/components/StrokeOrderQuiz";
+import { ListChecks, Type, PenLine, PenTool } from "lucide-react";
 
 export default function TestModePage() {
   return (
@@ -29,6 +30,10 @@ export default function TestModePage() {
               <PenLine className="w-4 h-4 shrink-0" />
               <span>Handwriting</span>
             </TabsTrigger>
+            <TabsTrigger value="stroke" className="flex-1 gap-1.5 text-xs sm:text-sm">
+              <PenTool className="w-4 h-4 shrink-0" />
+              <span>Stroke order</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* forceMount keeps each quiz mounted across tab switches, preserving local state */}
@@ -40,6 +45,9 @@ export default function TestModePage() {
           </TabsContent>
           <TabsContent value="write" forceMount className="data-[state=inactive]:hidden">
             <HandwritingQuiz />
+          </TabsContent>
+          <TabsContent value="stroke" forceMount className="data-[state=inactive]:hidden">
+            <StrokeOrderQuiz />
           </TabsContent>
         </Tabs>
       </div>
