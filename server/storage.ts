@@ -5,9 +5,9 @@ import {
   characterProgress,
   chineseCharacters,
   radicals,
+  savedItems,
   generatedSentences,
   quizFeedbackCache,
-  generatedSentences,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -15,9 +15,10 @@ import {
   type CharacterProgress,
   type InsertCharacterProgress,
   type ChineseCharacter,
+  type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql } from "drizzle-orm";
 
 export interface CharacterFilters {
   hskLevels?: number[];
@@ -73,7 +74,11 @@ export interface IStorage {
   upsertCharacterProgress(progress: InsertCharacterProgress): Promise<CharacterProgress>;
   getMasteryStats(userId: string): Promise<MasteryStats>;
   getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number>;
-  
+
+  // Saved items operations
+  getSavedItems(userId: string): Promise<SavedItem[]>;
+  toggleSavedItem(userId: string, item: { type: string; chinese: string; pinyin: string; english: string }): Promise<{ saved: boolean }>;
+
   // Chinese characters operations
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
@@ -83,7 +88,7 @@ export interface IStorage {
   getCharactersByLessonRange(lessonStart: number, lessonEnd: number): Promise<ChineseCharacter[]>;
   getBrowseCharacters(): Promise<{ index: number; simplified: string; traditional: string; pinyin: string; hskLevel: number; lesson: number | null }[]>;
   getFilteredCharacters(userId: string, page: number, pageSize: number, filters: CharacterFilters): Promise<FilteredCharactersResult>;
-  getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]>;
+  getRandomCharactersForQuiz(hskLevels: number[], count: number, excludeIndices?: number[]): Promise<ChineseCharacter[]>;
   updateCharactersBatch(updates: CharacterUpdate[]): Promise<number>;
 
   // Generated sentences cache operations
@@ -251,6 +256,30 @@ export class DatabaseStorage implements IStorage {
     }
     
     return 3000;
+  }
+
+  // Saved items operations
+  async getSavedItems(userId: string): Promise<SavedItem[]> {
+    return db
+      .select()
+      .from(savedItems)
+      .where(eq(savedItems.userId, userId))
+      .orderBy(savedItems.savedAt);
+  }
+
+  async toggleSavedItem(userId: string, item: { type: string; chinese: string; pinyin: string; english: string }): Promise<{ saved: boolean }> {
+    const [existing] = await db
+      .select()
+      .from(savedItems)
+      .where(and(eq(savedItems.userId, userId), eq(savedItems.chinese, item.chinese)));
+
+    if (existing) {
+      await db.delete(savedItems).where(eq(savedItems.id, existing.id));
+      return { saved: false };
+    } else {
+      await db.insert(savedItems).values({ userId, ...item });
+      return { saved: true };
+    }
   }
 
   // Chinese characters operations
@@ -508,7 +537,13 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getRandomCharactersForQuiz(hskLevels: number[], count: number): Promise<ChineseCharacter[]> {
+  async getRandomCharactersForQuiz(hskLevels: number[], count: number, excludeIndices: number[] = []): Promise<ChineseCharacter[]> {
+    const conditions: any[] = [inArray(chineseCharacters.hskLevel, hskLevels)];
+
+    if (excludeIndices.length > 0) {
+      conditions.push(notInArray(chineseCharacters.index, excludeIndices));
+    }
+
     const results = await db
       .select({
         index: chineseCharacters.index,
@@ -532,7 +567,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(chineseCharacters)
       .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
-      .where(inArray(chineseCharacters.hskLevel, hskLevels))
+      .where(and(...conditions))
       .orderBy(sql`RANDOM()`)
       .limit(count);
     return results as ChineseCharacter[];

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { SkipForward, Eraser, Settings2 } from "lucide-react";
@@ -18,7 +17,7 @@ interface QuizQuestion {
   translation: string;
 }
 
-// ── HSK colours ───────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const HSK_COLORS: Record<number, string> = {
   1: "bg-red-100 text-red-700 border-red-200",
@@ -42,22 +41,19 @@ async function fetchQuestion(levels: number[], excludeIndices: number[]): Promis
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function HandwritingQuiz() {
+export default function StrokeOrderQuiz() {
   const [selectedLevels, setSelectedLevels] = useState<number[]>([1, 2, 3]);
   const [scores, setScores] = useState({ correct: 0, wrong: 0, streak: 0, skipped: 0 });
-  // leniency: 0.5 = strict, 1.0 = default, 2.0 = very lenient
   const [leniency, setLeniency] = useState(1.0);
   const [showSettings, setShowSettings] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [mistakesThisQuestion, setMistakesThisQuestion] = useState(0);
-  const [autoRetryAt, setAutoRetryAt] = useState<number | null>(null);
 
   const seenIndices = useRef<number[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const writerRef = useRef<any>(null);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Fetch question ──
   const {
     data: question,
     isLoading,
@@ -92,7 +88,7 @@ export default function HandwritingQuiz() {
     }
   }, [question?.characterIndex]);
 
-  // ── Init hanzi-writer quiz when question changes ──
+  // Init hanzi-writer quiz when question changes
   useEffect(() => {
     if (!question || !containerRef.current) return;
 
@@ -116,29 +112,21 @@ export default function HandwritingQuiz() {
         leniency,
         showHintAfterMisses: 3,
         highlightOnComplete: true,
-        onMistake: () => {
-          setMistakesThisQuestion((m) => m + 1);
-        },
-        onComplete: () => {
-          setCompleted(true);
-        },
+        onMistake: () => setMistakesThisQuestion((m) => m + 1),
+        onComplete: () => setCompleted(true),
       });
 
       writerRef.current.quiz();
     });
   }, [question?.characterIndex]);
 
-  // ── Re-apply leniency on change ──
-  // (leniency takes effect on next question; no need to restart mid-question)
-
-  // ── When completed, advance after a short delay ──
+  // Advance automatically when completed
   useEffect(() => {
     if (!completed) return;
     const t = setTimeout(() => handleNext(true), 1200);
     return () => clearTimeout(t);
   }, [completed]);
 
-  // ── Handlers ──
   function handleNext(wasCorrect: boolean) {
     setCompleted(false);
     setMistakesThisQuestion(0);
@@ -157,7 +145,6 @@ export default function HandwritingQuiz() {
 
   function handleErase() {
     if (!writerRef.current || !containerRef.current || !question) return;
-    // Restart the quiz for the current character
     containerRef.current.innerHTML = "";
     import("hanzi-writer").then((HanziWriter) => {
       if (!containerRef.current) return;
@@ -192,17 +179,16 @@ export default function HandwritingQuiz() {
     });
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
 
       {/* Score bar */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: "Correct",  value: scores.correct,  color: "text-green-600" },
-          { label: "Wrong",    value: scores.wrong,    color: "text-red-600" },
-          { label: "Streak",   value: scores.streak,   color: "text-orange-500" },
-          { label: "Skipped",  value: scores.skipped,  color: "text-blue-500" },
+          { label: "Correct", value: scores.correct, color: "text-green-600" },
+          { label: "Wrong",   value: scores.wrong,   color: "text-red-600" },
+          { label: "Streak",  value: scores.streak,  color: "text-orange-500" },
+          { label: "Skipped", value: scores.skipped, color: "text-blue-500" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-muted rounded-lg p-3 text-center">
             <div className={`text-2xl font-semibold ${color}`}>{value}</div>
@@ -280,7 +266,6 @@ export default function HandwritingQuiz() {
                   HSK {question.hskLevel}
                 </span>
               </div>
-
               <div className="font-serif text-3xl leading-relaxed tracking-wide">
                 {question.blanked.split("＿").map((part, i, arr) => (
                   <span key={i}>
@@ -291,9 +276,7 @@ export default function HandwritingQuiz() {
                   </span>
                 ))}
               </div>
-
               <div className="text-sm text-muted-foreground italic">"{question.translation}"</div>
-
               {question.hskLevel <= 2 && (
                 <div className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">{question.pinyin}</span>
@@ -309,7 +292,7 @@ export default function HandwritingQuiz() {
         {question && !isLoading && (
           <div className="p-4 space-y-3">
             <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Draw the missing character</span>
+              <span>Trace each stroke in order</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleSkip} className="gap-1">
                   <SkipForward className="w-3.5 h-3.5" /> Skip

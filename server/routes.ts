@@ -534,9 +534,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
 
-  // GET /api/quiz/question?levels=1,2,3
+  // GET /api/quiz/question?levels=1,2,3&exclude=42,17
   // Returns a random fill-in-the-blank question from the requested HSK levels.
-  // When the user has useAiSentences=true, checks the generated_sentences cache first,
+  // Optional exclude param prevents recently-seen characters from repeating.
+  // When useAiSentences=true, checks the generated_sentences cache first,
   // generates with Claude if not cached, then stores for reuse.
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
@@ -551,13 +552,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
+      // Parse indices to exclude (recently seen questions — prevents repeats)
+      const excludeParam = (req.query.exclude as string) || "";
+      const excludeIndices = excludeParam
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n >= 0);
+
       // Check user's AI sentence preference
       const userSettingsRow = await storage.getUserSettings(userId);
       const useAiSentences = userSettingsRow?.useAiSentences ?? false;
 
-      // Sample randomly across the full set for the requested HSK levels (ORDER BY RANDOM())
+      // Sample randomly across the full set (ORDER BY RANDOM()), excluding recently seen
       const POOL_SIZE = 200;
-      const pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+      let pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE, excludeIndices);
+      // If exclude list emptied the pool, retry without exclusions
+      if (pool.length === 0) {
+        pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+      }
 
       if (pool.length === 0) {
         return res.status(404).json({ message: "No characters found for selected levels" });
@@ -854,6 +866,33 @@ Be concise and encouraging.`;
     } catch (error) {
       console.error("Error checking quiz answer:", error);
       res.status(500).json({ message: "Failed to check answer" });
+    }
+  });
+
+  // Saved items routes
+  app.get('/api/saved', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await storage.getSavedItems(userId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching saved items:", error);
+      res.status(500).json({ message: "Failed to fetch saved items" });
+    }
+  });
+
+  app.post('/api/saved/toggle', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { type, chinese, pinyin, english } = req.body;
+      if (!type || !chinese || english === undefined) {
+        return res.status(400).json({ message: "Missing required fields: type, chinese, english" });
+      }
+      const result = await storage.toggleSavedItem(userId, { type, chinese, pinyin: pinyin ?? "", english });
+      res.json(result);
+    } catch (error) {
+      console.error("Error toggling saved item:", error);
+      res.status(500).json({ message: "Failed to toggle saved item" });
     }
   });
 
