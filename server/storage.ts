@@ -5,9 +5,9 @@ import {
   characterProgress,
   chineseCharacters,
   radicals,
+  savedItems,
   generatedSentences,
   quizFeedbackCache,
-  generatedSentences,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -15,6 +15,7 @@ import {
   type CharacterProgress,
   type InsertCharacterProgress,
   type ChineseCharacter,
+  type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, lt, inArray, or, isNull, like, sql } from "drizzle-orm";
@@ -73,7 +74,11 @@ export interface IStorage {
   upsertCharacterProgress(progress: InsertCharacterProgress): Promise<CharacterProgress>;
   getMasteryStats(userId: string): Promise<MasteryStats>;
   getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number>;
-  
+
+  // Saved items operations
+  getSavedItems(userId: string): Promise<SavedItem[]>;
+  toggleSavedItem(userId: string, item: { type: string; chinese: string; pinyin: string; english: string }): Promise<{ saved: boolean }>;
+
   // Chinese characters operations
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
@@ -251,6 +256,30 @@ export class DatabaseStorage implements IStorage {
     }
     
     return 3000;
+  }
+
+  // Saved items operations
+  async getSavedItems(userId: string): Promise<SavedItem[]> {
+    return db
+      .select()
+      .from(savedItems)
+      .where(eq(savedItems.userId, userId))
+      .orderBy(savedItems.savedAt);
+  }
+
+  async toggleSavedItem(userId: string, item: { type: string; chinese: string; pinyin: string; english: string }): Promise<{ saved: boolean }> {
+    const [existing] = await db
+      .select()
+      .from(savedItems)
+      .where(and(eq(savedItems.userId, userId), eq(savedItems.chinese, item.chinese)));
+
+    if (existing) {
+      await db.delete(savedItems).where(eq(savedItems.id, existing.id));
+      return { saved: false };
+    } else {
+      await db.insert(savedItems).values({ userId, ...item });
+      return { saved: true };
+    }
   }
 
   // Chinese characters operations
