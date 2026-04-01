@@ -534,9 +534,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
 
-  // GET /api/quiz/question?levels=1,2,3
+  // GET /api/quiz/question?levels=1,2,3&exclude=42,17
   // Returns a random fill-in-the-blank question from the requested HSK levels.
-  // When the user has useAiSentences=true, checks the generated_sentences cache first,
+  // Optional exclude param prevents recently-seen characters from repeating.
+  // When useAiSentences=true, checks the generated_sentences cache first,
   // generates with Claude if not cached, then stores for reuse.
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
@@ -551,13 +552,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
+      // Parse indices to exclude (recently seen questions — prevents repeats)
+      const excludeParam = (req.query.exclude as string) || "";
+      const excludeIndices = excludeParam
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n >= 0);
+
       // Check user's AI sentence preference
       const userSettingsRow = await storage.getUserSettings(userId);
       const useAiSentences = userSettingsRow?.useAiSentences ?? false;
 
-      // Sample randomly across the full set for the requested HSK levels (ORDER BY RANDOM())
+      // Sample randomly across the full set (ORDER BY RANDOM()), excluding recently seen
       const POOL_SIZE = 200;
-      const pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+      let pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE, excludeIndices);
+      // If exclude list emptied the pool, retry without exclusions
+      if (pool.length === 0) {
+        pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+      }
 
       if (pool.length === 0) {
         return res.status(404).json({ message: "No characters found for selected levels" });
