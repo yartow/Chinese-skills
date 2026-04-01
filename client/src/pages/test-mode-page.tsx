@@ -1,12 +1,21 @@
 import { useState } from "react";
+import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
-import { Type, PenLine } from "lucide-react";
+import StrokeOrderQuiz from "@/components/StrokeOrderQuiz";
+import { ListChecks, Type, PenLine, Brush } from "lucide-react";
 
-type QuizTab = "fill" | "handwriting";
+type QuizTab = "choice" | "fill" | "handwriting" | "stroke";
+
+const TABS: { id: QuizTab; label: string; Icon: React.ElementType }[] = [
+  { id: "choice",      label: "Multiple choice", Icon: ListChecks },
+  { id: "fill",        label: "Fill in blank",   Icon: Type       },
+  { id: "handwriting", label: "Handwriting",      Icon: PenLine    },
+  { id: "stroke",      label: "Stroke order",     Icon: Brush      },
+];
 
 export default function TestModePage() {
-  const [activeTab, setActiveTab] = useState<QuizTab>("fill");
+  const [activeTab, setActiveTab] = useState<QuizTab>("choice");
 
   return (
     <div className="py-6">
@@ -17,34 +26,28 @@ export default function TestModePage() {
         </p>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mt-4 border-b">
-          <button
-            onClick={() => setActiveTab("fill")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors
-              ${activeTab === "fill"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <Type className="w-3.5 h-3.5" />
-            Fill in blank
-          </button>
-          <button
-            onClick={() => setActiveTab("handwriting")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors
-              ${activeTab === "handwriting"
-                ? "border-red-600 text-red-600"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <PenLine className="w-3.5 h-3.5" />
-            Handwriting
-          </button>
+        <div className="flex gap-1 mt-4 border-b overflow-x-auto">
+          {TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors
+                ${activeTab === id
+                  ? "border-red-600 text-red-600"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {activeTab === "fill" && <FillInBlankQuiz />}
+      {activeTab === "choice"      && <MultipleChoiceQuiz />}
+      {activeTab === "fill"        && <FillInBlankQuiz />}
       {activeTab === "handwriting" && <HandwritingQuiz />}
+      {activeTab === "stroke"      && <StrokeOrderQuiz />}
     </div>
   );
 }
