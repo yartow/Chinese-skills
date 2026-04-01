@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import CharacterDetailView from "@/components/CharacterDetailView";
-import type { ChineseCharacter, UserSettings, CharacterProgress } from "@shared/schema";
+import type { ChineseCharacter, UserSettings, CharacterProgress, SavedItem } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function CharacterDetail() {
@@ -19,6 +19,18 @@ export default function CharacterDetail() {
 
   const { data: progress } = useQuery<CharacterProgress>({
     queryKey: ["/api/progress", characterIndex],
+  });
+
+  const { data: savedItems } = useQuery<SavedItem[]>({
+    queryKey: ["/api/saved"],
+  });
+
+  const toggleSaveMutation = useMutation({
+    mutationFn: (item: { type: string; chinese: string; pinyin: string; english: string }) =>
+      apiRequest("POST", "/api/saved/toggle", item),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/saved"] });
+    },
   });
 
   const updateProgressMutation = useMutation({
@@ -58,6 +70,7 @@ export default function CharacterDetail() {
   };
 
   const isTraditional = settings?.preferTraditional ?? false;
+  const savedChinese = new Set((savedItems ?? []).map((i) => i.chinese));
 
   if (characterLoading || !character) {
     return (
@@ -93,6 +106,8 @@ export default function CharacterDetail() {
     <CharacterDetailView
       character={formattedCharacter}
       progress={progress || { reading: false, writing: false, radical: false }}
+      savedChinese={savedChinese}
+      onToggleSave={(item) => toggleSaveMutation.mutate(item)}
       onBack={handleBack}
       isTraditional={isTraditional}
       onToggleScript={handleToggleScript}

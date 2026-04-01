@@ -647,6 +647,33 @@ Keep it concise and encouraging for a language learner.`;
     }
   });
 
+  // Saved items routes
+  app.get('/api/saved', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await storage.getSavedItems(userId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching saved items:", error);
+      res.status(500).json({ message: "Failed to fetch saved items" });
+    }
+  });
+
+  app.post('/api/saved/toggle', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { type, chinese, pinyin, english } = req.body;
+      if (!type || !chinese || english === undefined) {
+        return res.status(400).json({ message: "Missing required fields: type, chinese, english" });
+      }
+      const result = await storage.toggleSavedItem(userId, { type, chinese, pinyin: pinyin ?? "", english });
+      res.json(result);
+    } catch (error) {
+      console.error("Error toggling saved item:", error);
+      res.status(500).json({ message: "Failed to toggle saved item" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

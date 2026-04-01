@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -134,3 +134,19 @@ export const insertWordProgressSchema = createInsertSchema(wordProgress).omit({
 
 export type InsertWordProgress = z.infer<typeof insertWordProgressSchema>;
 export type WordProgress = typeof wordProgress.$inferSelect;
+
+// Saved items table - words and sentences bookmarked by the user
+export const savedItems = pgTable("saved_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 10 }).notNull(), // 'word' | 'sentence'
+  chinese: text("chinese").notNull(),
+  pinyin: varchar("pinyin").notNull().default(""),
+  english: text("english").notNull(),
+  savedAt: timestamp("saved_at").defaultNow(),
+}, (table) => [
+  index("idx_user_saved").on(table.userId),
+  unique("uq_user_saved_chinese").on(table.userId, table.chinese),
+]);
+
+export type SavedItem = typeof savedItems.$inferSelect;
