@@ -35,7 +35,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold font-chinese">汉字学习</h1>
+          <img src="/logo.png" alt="樂吃玩 — Learn Chinese with Andrew" className="h-20 w-auto mx-auto" />
           <p className="text-xl text-muted-foreground">Chinese Character Learning</p>
         </div>
 

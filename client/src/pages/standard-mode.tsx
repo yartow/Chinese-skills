@@ -16,36 +16,33 @@ interface FilteredCharactersResponse {
 }
 
 export default function StandardMode() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
 
-  // Initialize all filter state directly from the URL so that navigating back
-  // from a character detail page restores exactly the same view.
+  // Read directly from window.location.search so the value is always the real
+  // browser URL at mount time — Wouter's location value may lag behind on
+  // popstate (back-navigation) in some rendering cycles.
   const [currentPage, setCurrentPage] = useState(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
+    const params = new URLSearchParams(window.location.search);
     return parseInt(params.get('page') || '0');
   });
   const [filterReading, setFilterReading] = useState(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    return params.get('filterReading') === 'true';
+    return new URLSearchParams(window.location.search).get('filterReading') === 'true';
   });
   const [filterWriting, setFilterWriting] = useState(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    return params.get('filterWriting') === 'true';
+    return new URLSearchParams(window.location.search).get('filterWriting') === 'true';
   });
   const [filterRadical, setFilterRadical] = useState(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    return params.get('filterRadical') === 'true';
+    return new URLSearchParams(window.location.search).get('filterRadical') === 'true';
   });
   const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    const hskLevelsStr = params.get('hskLevels');
+    const hskLevelsStr = new URLSearchParams(window.location.search).get('hskLevels');
     return hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
   });
   const [showFilters, setShowFilters] = useState(false);
   const [jumpInput, setJumpInput] = useState("");
 
-  // Used to skip the page-reset on the very first render (filters haven't changed,
-  // they were just restored from the URL above).
+  // Skip the page-reset effect on first render — filters were restored from
+  // the URL, they haven't actually "changed".
   const isFirstRender = useRef(true);
 
   const { data: settings } = useQuery<UserSettings>({
@@ -55,34 +52,26 @@ export default function StandardMode() {
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
 
-  // Update URL when filters change
+  // Keep the URL in sync with filter/page state.
+  // Use replaceState (replace: true) so filter changes never push extra entries
+  // onto the history stack — pressing back from a character detail page always
+  // returns to standard mode with exactly the right URL.
   useEffect(() => {
     const params = new URLSearchParams();
-    
-    if (currentPage > 0) {
-      params.set('page', String(currentPage));
-    }
-    if (filterReading) {
-      params.set('filterReading', 'true');
-    }
-    if (filterWriting) {
-      params.set('filterWriting', 'true');
-    }
-    if (filterRadical) {
-      params.set('filterRadical', 'true');
-    }
-    if (selectedHskLevels.length > 0) {
-      params.set('hskLevels', selectedHskLevels.join(','));
-    }
+    if (currentPage > 0) params.set('page', String(currentPage));
+    if (filterReading) params.set('filterReading', 'true');
+    if (filterWriting) params.set('filterWriting', 'true');
+    if (filterRadical) params.set('filterRadical', 'true');
+    if (selectedHskLevels.length > 0) params.set('hskLevels', selectedHskLevels.join(','));
 
     const queryString = params.toString();
-    const newLocation = queryString ? `/standard?${queryString}` : '/standard';
-    
-    // Only update if location actually changed to avoid unnecessary updates
-    if (location !== newLocation) {
-      setLocation(newLocation);
+    const newPath = queryString ? `/standard?${queryString}` : '/standard';
+    const currentPath = window.location.pathname + window.location.search;
+
+    if (currentPath !== newPath) {
+      setLocation(newPath, { replace: true });
     }
-  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, location, setLocation]);
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels]);
 
   // Reset to first page when filters change — but not on the initial render,
   // because the filters were already restored from the URL.
