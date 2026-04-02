@@ -1,0 +1,60 @@
+<<<<<<< replic_local
+  const [, setLocation] = useLocation();
+
+  // Read directly from window.location.search so the value is always the real
+  // browser URL at mount time — Wouter's location value may lag behind on
+  // popstate (back-navigation) in some rendering cycles.
+  const [currentPage, setCurrentPage] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return parseInt(params.get('page') || '0');
+  });
+  const [filterReading, setFilterReading] = useState(() => {
+    return new URLSearchParams(window.location.search).get('filterReading') === 'true';
+  });
+  const [filterWriting, setFilterWriting] = useState(() => {
+    return new URLSearchParams(window.location.search).get('filterWriting') === 'true';
+  });
+  const [filterRadical, setFilterRadical] = useState(() => {
+    return new URLSearchParams(window.location.search).get('filterRadical') === 'true';
+  });
+  const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>(() => {
+    const hskLevelsStr = new URLSearchParams(window.location.search).get('hskLevels');
+    return hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [jumpInput, setJumpInput] = useState("");
+
+  // Skip the page-reset effect on first render — filters were restored from
+  // the URL, they haven't actually "changed".
+=======
+  const [location, setLocation] = useLocation();
+
+  // Initialize all filter state directly from the URL so that navigating back
+  // from a character detail page restores exactly the same view.
+  const [currentPage, setCurrentPage] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return parseInt(params.get('page') || '0');
+  });
+  const [filterReading, setFilterReading] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterReading') === 'true';
+  });
+  const [filterWriting, setFilterWriting] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterWriting') === 'true';
+  });
+  const [filterRadical, setFilterRadical] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterRadical') === 'true';
+  });
+  const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const hskLevelsStr = params.get('hskLevels');
+    return hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [jumpInput, setJumpInput] = useState("");
+
+  // Used to skip the page-reset on the very first render (filters haven't changed,
+  // they were just restored from the URL above).
+>>>>>>> main
