@@ -18,7 +18,8 @@ import {
   type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, alias } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 // Aliased radical joins — rs = simplified radical, rt = traditional radical
 const radicalsSimp = alias(radicals, "rs");
