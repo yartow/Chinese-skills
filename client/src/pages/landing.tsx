@@ -11,7 +11,7 @@ export default function Landing() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-4xl w-full space-y-8">
         <div className="text-center space-y-4">
-          <h1 className="text-6xl font-bold font-chinese">汉字学习</h1>
+          <img src="/logo.png" alt="樂吃玩 — Learn Chinese with Andrew" className="h-28 w-auto mx-auto" />
           <p className="text-3xl text-muted-foreground">Chinese Character Learning</p>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Master 2500 of the most common Chinese characters with structured learning,
