@@ -290,7 +290,7 @@ export default function CharacterDetailView({
               </div>
             ))}
           </div>
-          {character.examples.length > 3 && !showAllExamples && (
+          {activeExamples.length > 3 && !showAllExamples && (
             <Button
               variant="outline"
               onClick={() => setShowAllExamples(true)}

@@ -17,31 +17,36 @@ interface FilteredCharactersResponse {
 
 export default function StandardMode() {
   const [location, setLocation] = useLocation();
-  const [currentPage, setCurrentPage] = useState(0);
-  const [filterReading, setFilterReading] = useState(false);
-  const [filterWriting, setFilterWriting] = useState(false);
-  const [filterRadical, setFilterRadical] = useState(false);
-  const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
+
+  // Initialize all filter state directly from the URL so that navigating back
+  // from a character detail page restores exactly the same view.
+  const [currentPage, setCurrentPage] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return parseInt(params.get('page') || '0');
+  });
+  const [filterReading, setFilterReading] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterReading') === 'true';
+  });
+  const [filterWriting, setFilterWriting] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterWriting') === 'true';
+  });
+  const [filterRadical, setFilterRadical] = useState(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    return params.get('filterRadical') === 'true';
+  });
+  const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const hskLevelsStr = params.get('hskLevels');
+    return hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [jumpInput, setJumpInput] = useState("");
 
-  // Parse URL query parameters on mount to restore filters
-  useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    
-    const page = parseInt(params.get('page') || '0');
-    const reading = params.get('filterReading') === 'true';
-    const writing = params.get('filterWriting') === 'true';
-    const radical = params.get('filterRadical') === 'true';
-    const hskLevelsStr = params.get('hskLevels');
-    const hskLevels = hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
-
-    setCurrentPage(page);
-    setFilterReading(reading);
-    setFilterWriting(writing);
-    setFilterRadical(radical);
-    setSelectedHskLevels(hskLevels);
-  }, []);
+  // Used to skip the page-reset on the very first render (filters haven't changed,
+  // they were just restored from the URL above).
+  const isFirstRender = useRef(true);
 
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
@@ -79,8 +84,13 @@ export default function StandardMode() {
     }
   }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, location, setLocation]);
 
-  // Reset to first page when filters (not page) change
+  // Reset to first page when filters change — but not on the initial render,
+  // because the filters were already restored from the URL.
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setCurrentPage(0);
   }, [filterReading, filterWriting, filterRadical, selectedHskLevels]);
 

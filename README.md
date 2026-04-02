@@ -48,7 +48,7 @@ Filter options for tests:
 ### AI Features (require an Anthropic API key)
 Two features use Claude to generate content on demand:
 - **AI-generated quiz sentences** — Claude writes a unique example sentence for each character the first time it appears in a quiz. The sentence is stored and reused on subsequent attempts, so the API is only called once per character.
-- **Fresh AI feedback** — When you submit a quiz answer, Claude explains why it was right or wrong in context. By default, a cached explanation is reused; enabling "Fresh AI feedback" generates a new explanation every time.
+- **Fresh AI feedback** — When you submit a quiz answer, Claude explains why it was right or wrong in context. By default, explanations are cached and reused; enabling "Fresh AI feedback" forces a new explanation to be generated each time.
 
 Both features are disabled by default. To enable them:
 1. Open **Settings** (gear icon in the top-right corner).

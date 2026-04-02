@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
@@ -54,6 +54,9 @@ export default function MultipleChoiceQuiz() {
   // Request sequencing: ignore stale async results when a newer load is in flight
   const requestIdRef = useRef(0);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always reflects the latest selectedLevels so callbacks don't close over stale values
+  const selectedLevelsRef = useRef(selectedLevels);
+  useEffect(() => { selectedLevelsRef.current = selectedLevels; }, [selectedLevels]);
 
   // ── Load question + choices together ──
   async function loadQuestion(levels: number[]) {
@@ -83,37 +86,16 @@ export default function MultipleChoiceQuiz() {
 
   useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
 
-  // Auto-retry after a short delay if loading fails
+  // Auto-retry after a short delay if loading fails — read levels from ref to avoid stale closure
   useEffect(() => {
     if (isError) {
-      autoRetryTimer.current = setTimeout(() => loadQuestion(selectedLevels), 3000);
+      autoRetryTimer.current = setTimeout(() => loadQuestion(selectedLevelsRef.current), 3000);
     }
     return () => { if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current); };
   }, [isError]);
 
-  // Keyboard shortcuts: 1–4 select a choice, S skips, N advances after answering
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (document.activeElement?.tagName === "INPUT") return;
-      if (e.key === "n" || e.key === "N") {
-        if (selected !== null) handleNext();
-        return;
-      }
-      if ((e.key === "s" || e.key === "S") && selected === null) {
-        handleSkip();
-        return;
-      }
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= 4 && selected === null && choices[num - 1]) {
-        handleSelect(choices[num - 1].character);
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [selected, choices]);
-
   // ── Handle choice selection ──
-  function handleSelect(char: string) {
+  const handleSelect = useCallback((char: string) => {
     if (!question || selected !== null) return;
     setSelected(char);
 
@@ -149,16 +131,37 @@ export default function MultipleChoiceQuiz() {
         mode: "choice",
       }]);
     }
-  }
+  }, [question, selected, setSelected, setScores, setWrongAnswers]);
 
-  function handleNext() {
-    loadQuestion(selectedLevels);
-  }
+  const handleNext = useCallback(() => {
+    loadQuestion(selectedLevelsRef.current);
+  }, []);
 
-  function handleSkip() {
+  const handleSkip = useCallback(() => {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
-    loadQuestion(selectedLevels);
-  }
+    loadQuestion(selectedLevelsRef.current);
+  }, []);
+
+  // Keyboard shortcuts: 1–4 select a choice, S skips, N advances after answering
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (document.activeElement?.tagName === "INPUT") return;
+      if (e.key === "n" || e.key === "N") {
+        if (selected !== null) handleNext();
+        return;
+      }
+      if ((e.key === "s" || e.key === "S") && selected === null) {
+        handleSkip();
+        return;
+      }
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4 && selected === null && choices[num - 1]) {
+        handleSelect(choices[num - 1].character);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selected, choices, handleNext, handleSkip, handleSelect]);
 
   function toggleLevel(level: number) {
     setSelectedLevels((prev) => {

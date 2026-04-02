@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
+import type { Express } from "express";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
 import { log } from "./log";
