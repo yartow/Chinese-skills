@@ -301,11 +301,13 @@ export default function Home() {
                   standardModePageSize={settings?.standardModePageSize}
                   useAiFeedback={settings?.useAiFeedback ?? false}
                   useAiSentences={settings?.useAiSentences ?? false}
+                  anthropicApiKeySet={(settings as any)?.anthropicApiKeySet ?? false}
                   onLevelChange={handleLevelChange}
                   onDailyCharCountChange={handleDailyCharCountChange}
                   onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
                   onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
                   onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
+                  onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key } as any)}
                 />
               </Card>
             )}

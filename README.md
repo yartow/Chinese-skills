@@ -45,6 +45,18 @@ Filter options for tests:
 - **Fill in the Blank** — An authentic sentence with the target character blanked out. You type the character and Claude AI gives contextual feedback on your answer.
 - **Write the Character** — Draw the character on a canvas. HanziLookup stroke recognition checks your drawing against simplified, traditional, and all known traditional variants.
 
+### AI Features (require an Anthropic API key)
+Two features use Claude to generate content on demand:
+- **AI-generated quiz sentences** — Claude writes a unique example sentence for each character the first time it appears in a quiz. The sentence is stored and reused on subsequent attempts, so the API is only called once per character.
+- **Fresh AI feedback** — When you submit a quiz answer, Claude explains why it was right or wrong in context. By default, a cached explanation is reused; enabling "Fresh AI feedback" generates a new explanation every time.
+
+Both features are disabled by default. To enable them:
+1. Open **Settings** (gear icon in the top-right corner).
+2. Paste your Anthropic API key (starts with `sk-ant-`) in the **Anthropic API Key** field and click **Save**.
+3. Toggle **AI-generated quiz sentences** and/or **Fresh AI feedback** on.
+
+Your key is stored securely on the server and is never returned to the browser. You can get a key at [console.anthropic.com](https://console.anthropic.com).
+
 ### Other
 - **Simplified / Traditional toggle** — Switch script globally at any time.
 - **Installable PWA** — Add to home screen on Android or iOS for an app-like experience with offline caching.
@@ -131,5 +143,15 @@ Environment variables required:
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SESSION_SECRET` | Secret for session signing |
+| `ANTHROPIC_API_KEY` | *(Optional)* Server-level fallback API key for AI features. Users can supply their own key via the Settings panel instead. |
 
 In production, the server automatically runs `npm run db:push` on startup to sync any schema changes to the database.
+
+### Anthropic API Key
+
+AI features (fill-in-the-blank quiz feedback and AI-generated sentences) require an Anthropic API key. There are two ways to provide one:
+
+1. **Per-user (recommended)** — Each user enters their own key in **Settings → Anthropic API Key**. The key is stored in the database, scoped to that user, and never sent back to the browser.
+2. **Server-wide fallback** — Set the `ANTHROPIC_API_KEY` environment variable. This key is used for any user who has not set their own. Leave it unset if you want each user to supply their own key.
+
+If no key is available for a user, AI features will gracefully fail with an error message rather than crashing.

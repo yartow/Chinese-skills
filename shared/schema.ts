@@ -50,6 +50,7 @@ export const userSettings = pgTable("user_settings", {
   preferTraditional: boolean("prefer_traditional").notNull().default(true),
   useAiFeedback: boolean("use_ai_feedback").notNull().default(false),
   useAiSentences: boolean("use_ai_sentences").notNull().default(false),
+  anthropicApiKey: varchar("anthropic_api_key"), // User-supplied Anthropic API key (nullable)
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
