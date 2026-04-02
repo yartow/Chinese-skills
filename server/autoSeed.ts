@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { chineseCharacters, radicals } from "@shared/schema";
-import { count, isNull } from "drizzle-orm";
+import { count, eq, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
@@ -105,4 +105,39 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
   }
 
   log(`Characters table has ${charCount.value} characters — skipping character seed.`);
+
+  // ── Targeted data patches ────────────────────────────────────────────────────
+  // Fix index 1550 (扣/釦): second example used 敲 (to knock) instead of 扣.
+  // Replace with a sentence that actually contains 扣/釦.
+  await patchKouExamples(log);
+}
+
+async function patchKouExamples(log: (msg: string) => void) {
+  const [row] = await db
+    .select({ examples: chineseCharacters.examples, examplesTraditional: chineseCharacters.examplesTraditional })
+    .from(chineseCharacters)
+    .where(eq(chineseCharacters.index, 1550));
+
+  if (!row) return;
+
+  const examples = row.examples as { chinese: string; english: string }[];
+  if (!examples?.some((e) => e.chinese.includes("指关节"))) return; // already fixed
+
+  const fixedExamples = examples.map((e) =>
+    e.chinese.includes("指关节")
+      ? { ...e, chinese: "他用指关节轻轻扣了扣门。" }
+      : e
+  );
+  const examplesTrad = row.examplesTraditional as { chinese: string; english: string }[];
+  const fixedTrad = (examplesTrad ?? []).map((e) =>
+    e.chinese.includes("指關節")
+      ? { ...e, chinese: "他用指關節輕輕扣了扣門。" }
+      : e
+  );
+
+  await db.update(chineseCharacters)
+    .set({ examples: fixedExamples, examplesTraditional: fixedTrad })
+    .where(eq(chineseCharacters.index, 1550));
+
+  log("Patched index 1550 (扣/釦): replaced incorrect 敲門 example with 扣門.");
 }
