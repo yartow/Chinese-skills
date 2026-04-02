@@ -50,6 +50,7 @@ export const userSettings = pgTable("user_settings", {
   preferTraditional: boolean("prefer_traditional").notNull().default(true),
   useAiFeedback: boolean("use_ai_feedback").notNull().default(false),
   useAiSentences: boolean("use_ai_sentences").notNull().default(false),
+  anthropicApiKey: varchar("anthropic_api_key"), // User-supplied Anthropic API key (nullable)
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -93,17 +94,22 @@ export const chineseCharacters = pgTable("chinese_characters", {
   numberedPinyin: varchar("numbered_pinyin"), // Numbered pinyin for primary (e.g., "xue2")
   numberedPinyin2: varchar("numbered_pinyin2"), // Numbered pinyin for alt 2
   numberedPinyin3: varchar("numbered_pinyin3"), // Numbered pinyin for alt 3
-  radicalIndex: integer("radical_index").references(() => radicals.index, { onDelete: "set null" }), // Foreign key to radicals table
+  radicalIndex: integer("radical_index").references(() => radicals.index, { onDelete: "set null" }), // Foreign key to radicals table (simplified)
+  radicalIndexTraditional: integer("radical_index_traditional").references(() => radicals.index, { onDelete: "set null" }), // Foreign key for traditional radical (nullable until populated)
   definition: text("definition").array().notNull(),
   examples: jsonb("examples").notNull(), // Array of { chinese: string, english: string }
+  examplesTraditional: jsonb("examples_traditional"), // Traditional form of examples (nullable until translated)
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
   lesson: smallint("lesson"), // Lesson number for curriculum organization (nullable)
   wordExamples: jsonb("word_examples"), // Array of word usage examples (nullable)
+  wordExamplesTraditional: jsonb("word_examples_traditional"), // Traditional form of wordExamples (nullable until translated)
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {
   radicalPinyin?: string | null;
   radical?: string | null;
+  radicalTraditional?: string | null;
+  radicalPinyinTraditional?: string | null;
 };
 
 // Chinese words/vocabulary table - Multi-character words from HSK

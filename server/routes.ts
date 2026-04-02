@@ -10,15 +10,23 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-const anthropic = new Anthropic();
+
+// Returns an Anthropic client using the user's stored API key if set,
+// falling back to the server ANTHROPIC_API_KEY environment variable.
+async function getAnthropicForUser(userId: string): Promise<Anthropic | null> {
+  const userSettings = await storage.getUserSettings(userId);
+  const apiKey = userSettings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+  return new Anthropic({ apiKey });
+}
 
 // Columns exported to Excel — all actual chinese_characters table columns (in order)
 const EXPORT_COLUMNS = [
   "index", "simplified", "traditional", "traditionalVariants",
   "pinyin", "pinyin2", "pinyin3",
   "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
-  "radicalIndex", "hskLevel", "lesson",
-  "definition", "examples", "wordExamples",
+  "radicalIndex", "radicalIndexTraditional", "hskLevel", "lesson",
+  "definition", "examples", "examplesTraditional", "wordExamples", "wordExamplesTraditional",
 ];
 
 
@@ -54,7 +62,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      res.json(settings);
+      // Never return the raw API key — expose only whether one is set
+      const { anthropicApiKey, ...safeSettings } = settings;
+      res.json({ ...safeSettings, anthropicApiKeySet: !!anthropicApiKey });
     } catch (error) {
       console.error("Error fetching settings:", error);
       res.status(500).json({ message: "Failed to fetch settings" });
@@ -70,7 +80,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const settings = await storage.upsertUserSettings(settingsData);
-      res.json(settings);
+      const { anthropicApiKey, ...safeSettings } = settings;
+      res.json({ ...safeSettings, anthropicApiKeySet: !!anthropicApiKey });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid settings data", errors: error.errors });
@@ -354,11 +365,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         numberedPinyin2: c.numberedPinyin2 ?? "",
         numberedPinyin3: c.numberedPinyin3 ?? "",
         radicalIndex: c.radicalIndex ?? "",
+        radicalIndexTraditional: c.radicalIndexTraditional ?? "",
         hskLevel: c.hskLevel,
         lesson: c.lesson ?? "",
         definition: Array.isArray(c.definition) ? c.definition.join(" | ") : "",
         examples: JSON.stringify(c.examples),
+        examplesTraditional: c.examplesTraditional != null ? JSON.stringify(c.examplesTraditional) : "",
         wordExamples: c.wordExamples != null ? JSON.stringify(c.wordExamples) : "",
+        wordExamplesTraditional: c.wordExamplesTraditional != null ? JSON.stringify(c.wordExamplesTraditional) : "",
       }));
 
       const wb = XLSX.utils.book_new();
@@ -480,6 +494,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           update.radicalIndex = (n !== null && !isNaN(n)) ? n : null;
           hasField = true;
         }
+        if ("radicalIndexTraditional" in row) {
+          const v = row["radicalIndexTraditional"];
+          const n = (v === null || v === "") ? null : Number(v);
+          update.radicalIndexTraditional = (n !== null && !isNaN(n)) ? n : null;
+          hasField = true;
+        }
         // definition: exported as " | "-joined string, import splits back to array
         if ("definition" in row) {
           const v = row["definition"];
@@ -513,6 +533,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch {
               // Skip malformed wordExamples JSON — do not overwrite existing data
             }
+          }
+        }
+        if ("wordExamplesTraditional" in row) {
+          const v = row["wordExamplesTraditional"];
+          if (v === null || v === "") {
+            update.wordExamplesTraditional = null;
+            hasField = true;
+          } else {
+            try {
+              update.wordExamplesTraditional = JSON.parse(String(v));
+              hasField = true;
+            } catch {}
+          }
+        }
+        if ("examplesTraditional" in row) {
+          const v = row["examplesTraditional"];
+          if (v === null || v === "") {
+            update.examplesTraditional = null;
+            hasField = true;
+          } else {
+            try {
+              update.examplesTraditional = JSON.parse(String(v));
+              hasField = true;
+            } catch {}
           }
         }
 
@@ -590,6 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           try {
             const generated = await generateExampleSentence(
+              req.user.claims.sub,
               chosen.simplified, chosen.traditional, chosen.pinyin,
               chosen.definition, chosen.hskLevel
             );
@@ -745,9 +790,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper: build the character-in-context explanation prompt (result-independent)
   async function generateExampleSentence(
+    userId: string,
     character: string, traditional: string, pinyin: string,
     definition: string | string[], hskLevel: number
   ): Promise<{ sentence: string; blanked: string; translation: string }> {
+    const client = await getAnthropicForUser(userId);
+    if (!client) throw new Error("No Anthropic API key configured");
     const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
     const prompt = `Create one example sentence in Mandarin Chinese for an HSK ${hskLevel} student.
 
@@ -763,7 +811,7 @@ Requirements:
 Reply with JSON only, no extra text:
 {"sentence": "...", "translation": "..."}`;
 
-    const response = await anthropic.messages.create({
+    const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
       messages: [{ role: "user", content: prompt }],
@@ -774,9 +822,15 @@ Reply with JSON only, no extra text:
   }
 
   async function generateCharacterFeedback(
+    userId: string,
     character: string, pinyin: string, definition: string | string[],
     blanked: string, translation: string, hskLevel: number
   ): Promise<string> {
+    const client = await getAnthropicForUser(userId);
+    if (!client) {
+      const defStr = Array.isArray(definition) ? definition[0] : definition;
+      return `${character} (${pinyin}): ${defStr}`;
+    }
     const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
     const prompt = `A student is studying HSK ${hskLevel}. In this fill-in-the-blank:
 
@@ -789,7 +843,7 @@ Write 2 sentences for a language learner:
 2. Give one memory tip or usage note about ${character}.
 Be concise and encouraging.`;
 
-    const response = await anthropic.messages.create({
+    const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
       messages: [{ role: "user", content: prompt }],
@@ -811,7 +865,8 @@ Be concise and encouraging.`;
       const existing = await storage.getFeedbackCache(blanked, character);
       if (existing) return;
 
-      const feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+      const userId = req.user.claims.sub;
+      const feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
       await storage.setFeedbackCache(blanked, character, feedback);
     } catch (err) {
       console.error("Prefetch error (non-fatal):", err);
@@ -847,12 +902,12 @@ Be concise and encouraging.`;
           feedback = cached;
         } else {
           // Generate and cache for next time
-          feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+          feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
           storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
         }
       } else {
         // Always generate fresh
-        feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+        feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
         // Still cache so other users benefit
         storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
       }

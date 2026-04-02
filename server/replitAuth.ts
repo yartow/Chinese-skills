@@ -21,6 +21,19 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const secret = process.env.SESSION_SECRET ?? "dev-secret-change-me";
+
+  // Without Replit Auth (local dev), use the default in-memory store and
+  // allow non-HTTPS cookies so the app works on plain http://localhost.
+  if (!process.env.REPL_ID) {
+    return session({
+      secret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: { httpOnly: true, secure: false, maxAge: sessionTtl },
+    });
+  }
+
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -29,7 +42,7 @@ export function getSession() {
     tableName: "sessions",
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -68,6 +81,15 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  if (!process.env.REPL_ID) {
+    // Replit Auth is not configured — login/callback/logout routes are no-ops.
+    // All isAuthenticated-guarded endpoints will return 401.
+    app.get("/api/login", (_req, res) => res.status(501).json({ message: "Auth not configured" }));
+    app.get("/api/callback", (_req, res) => res.redirect("/"));
+    app.get("/api/logout", (_req, res) => res.redirect("/"));
+    return;
+  }
 
   const config = await getOidcConfig();
 
@@ -131,7 +153,25 @@ export async function setupAuth(app: Express) {
   });
 }
 
+const DEV_USER_ID = "local-dev-user";
+
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // When Replit Auth is not configured (local dev), auto-authenticate as a
+  // local dev user so the app is fully usable without credentials.
+  if (!process.env.REPL_ID) {
+    if (!req.user) {
+      await storage.upsertUser({
+        id: DEV_USER_ID,
+        email: "dev@localhost",
+        firstName: "Dev",
+        lastName: "User",
+        profileImageUrl: null,
+      });
+      (req as any).user = { id: DEV_USER_ID, claims: { sub: DEV_USER_ID } };
+    }
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

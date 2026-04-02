@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
@@ -129,11 +129,12 @@ export default function FillInBlankQuiz() {
     });
   }
 
-  function handleSubmit() {
-    if (!question || !answer.trim() || checkMutation.isPending) return;
+  // submitValue takes the value explicitly so it's never stale (safe to call from onChange)
+  function submitValue(val: string) {
+    if (!question || !val.trim() || checkMutation.isPending) return;
     checkMutation.mutate({
       character: question.character,
-      answer: answer.trim(),
+      answer: val.trim(),
       blanked: question.blanked,
       translation: question.translation,
       definition: question.definition,
@@ -145,11 +146,15 @@ export default function FillInBlankQuiz() {
     });
   }
 
-  function handleNext() {
+  function handleSubmit() {
+    submitValue(answer);
+  }
+
+  const handleNext = useCallback(() => {
     setAnswer("");
     setResult(null);
     refetch();
-  }
+  }, [refetch]);
 
   function handleSkip() {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
@@ -158,25 +163,23 @@ export default function FillInBlankQuiz() {
     refetch();
   }
 
+  // Global Enter/N — also handles advancing after a result when the input is disabled.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.isComposing) return;
+      if ((e.key === "n" || e.key === "N") && result) handleNext();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [result, handleNext]);
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.isComposing) return;
     if (e.key === "Enter") {
       if (result) handleNext();
       else handleSubmit();
     }
   }
-
-  // N key = next question (only after answering, not while typing in an active input)
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.key === "n" || e.key === "N") && result) {
-        const el = document.activeElement as HTMLInputElement | null;
-        if (el?.tagName === "INPUT" && !el.disabled) return;
-        handleNext();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [result]);
 
   function renderBlanked(q: QuizQuestion) {
     const parts = q.blanked.split("＿");
@@ -194,7 +197,7 @@ export default function FillInBlankQuiz() {
   const hint = question ? getHint(question) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto px-4 space-y-6">
       <QuizShell
         scores={scores}
         selectedLevels={selectedLevels}

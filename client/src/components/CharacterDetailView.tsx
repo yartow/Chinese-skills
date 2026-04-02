@@ -19,6 +19,9 @@ interface WordExample {
   english?: string;
 }
 
+type ExampleSentences = ExampleSentence[] | null | undefined;
+type WordExamples = WordExample[] | null | undefined;
+
 interface SavePayload {
   type: string;
   chinese: string;
@@ -33,11 +36,15 @@ interface CharacterDetailViewProps {
     pinyin: string;
     pinyin2?: string | null;
     pinyin3?: string | null;
-    radical: string;
-    radicalPinyin: string;
+    radical?: string | null;
+    radicalTraditional?: string | null;
+    radicalPinyin?: string | null;
+    radicalPinyinTraditional?: string | null;
     definition: string[];
     examples: ExampleSentence[];
-    wordExamples?: WordExample[];
+    examplesTraditional?: ExampleSentences;
+    wordExamples?: WordExamples;
+    wordExamplesTraditional?: WordExamples;
   };
   index?: number;
   hskLevel?: number;
@@ -76,7 +83,21 @@ export default function CharacterDetailView({
 }: CharacterDetailViewProps) {
   const [showAllExamples, setShowAllExamples] = useState(false);
   const displayChar = isTraditional ? character.traditional : character.simplified;
-  const displayedExamples = showAllExamples ? character.examples : character.examples.slice(0, 3);
+
+  // Use traditional variants when toggle is on and data is available, else fall back to simplified
+  const displayRadical = isTraditional
+    ? (character.radicalTraditional ?? character.radical)
+    : character.radical;
+  const displayRadicalPinyin = isTraditional
+    ? (character.radicalPinyinTraditional ?? character.radicalPinyin)
+    : character.radicalPinyin;
+  const activeExamples: ExampleSentence[] = (isTraditional && character.examplesTraditional?.length)
+    ? (character.examplesTraditional as ExampleSentence[])
+    : character.examples;
+  const activeWordExamples: WordExample[] | undefined = (isTraditional && character.wordExamplesTraditional?.length)
+    ? (character.wordExamplesTraditional as WordExample[])
+    : (character.wordExamples as WordExample[] | undefined);
+  const displayedExamples = showAllExamples ? activeExamples : activeExamples.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-background">
@@ -189,8 +210,8 @@ export default function CharacterDetailView({
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Radical</h3>
             <div className="flex items-center gap-4">
-              <span className="text-4xl font-chinese" data-testid="text-radical">{character.radical}</span>
-              <span className="text-xl text-muted-foreground" data-testid="text-radical-pinyin">({character.radicalPinyin})</span>
+              <span className="text-4xl font-chinese" data-testid="text-radical">{displayRadical}</span>
+              <span className="text-xl text-muted-foreground" data-testid="text-radical-pinyin">({displayRadicalPinyin})</span>
             </div>
           </div>
 
@@ -211,11 +232,11 @@ export default function CharacterDetailView({
           <StrokeOrder character={displayChar} />
         </Card>
 
-        {character.wordExamples && character.wordExamples.length > 0 && (
+        {activeWordExamples && activeWordExamples.length > 0 && (
           <Card className="p-6 space-y-4">
             <h3 className="text-lg font-semibold">Word Examples</h3>
             <div className="space-y-4">
-              {character.wordExamples.map((we, index) => (
+              {activeWordExamples.map((we, index) => (
                 <div key={index} className="space-y-1" data-testid={`word-example-${index}`}>
                   <div className="flex items-start gap-2">
                     <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
@@ -269,7 +290,7 @@ export default function CharacterDetailView({
               </div>
             ))}
           </div>
-          {character.examples.length > 3 && !showAllExamples && (
+          {activeExamples.length > 3 && !showAllExamples && (
             <Button
               variant="outline"
               onClick={() => setShowAllExamples(true)}

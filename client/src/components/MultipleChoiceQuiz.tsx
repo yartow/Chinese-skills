@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
 import QuizShell from "./QuizShell";
@@ -53,6 +53,10 @@ export default function MultipleChoiceQuiz() {
 
   // Request sequencing: ignore stale async results when a newer load is in flight
   const requestIdRef = useRef(0);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always reflects the latest selectedLevels so callbacks don't close over stale values
+  const selectedLevelsRef = useRef(selectedLevels);
+  useEffect(() => { selectedLevelsRef.current = selectedLevels; }, [selectedLevels]);
 
   // ── Load question + choices together ──
   async function loadQuestion(levels: number[]) {
@@ -82,20 +86,16 @@ export default function MultipleChoiceQuiz() {
 
   useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
 
-  // N key = next (only after answering)
+  // Auto-retry after a short delay if loading fails — read levels from ref to avoid stale closure
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.key === "n" || e.key === "N") && selected !== null) {
-        if (document.activeElement?.tagName === "INPUT") return;
-        handleNext();
-      }
+    if (isError) {
+      autoRetryTimer.current = setTimeout(() => loadQuestion(selectedLevelsRef.current), 3000);
     }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [selected]);
+    return () => { if (autoRetryTimer.current) clearTimeout(autoRetryTimer.current); };
+  }, [isError]);
 
   // ── Handle choice selection ──
-  function handleSelect(char: string) {
+  const handleSelect = useCallback((char: string) => {
     if (!question || selected !== null) return;
     setSelected(char);
 
@@ -131,16 +131,37 @@ export default function MultipleChoiceQuiz() {
         mode: "choice",
       }]);
     }
-  }
+  }, [question, selected, setSelected, setScores, setWrongAnswers]);
 
-  function handleNext() {
-    loadQuestion(selectedLevels);
-  }
+  const handleNext = useCallback(() => {
+    loadQuestion(selectedLevelsRef.current);
+  }, []);
 
-  function handleSkip() {
+  const handleSkip = useCallback(() => {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
-    loadQuestion(selectedLevels);
-  }
+    loadQuestion(selectedLevelsRef.current);
+  }, []);
+
+  // Keyboard shortcuts: 1–4 select a choice, S skips, N advances after answering
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (document.activeElement?.tagName === "INPUT") return;
+      if (e.key === "n" || e.key === "N") {
+        if (selected !== null) handleNext();
+        return;
+      }
+      if ((e.key === "s" || e.key === "S") && selected === null) {
+        handleSkip();
+        return;
+      }
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4 && selected === null && choices[num - 1]) {
+        handleSelect(choices[num - 1].character);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selected, choices, handleNext, handleSkip, handleSelect]);
 
   function toggleLevel(level: number) {
     setSelectedLevels((prev) => {
@@ -158,7 +179,7 @@ export default function MultipleChoiceQuiz() {
   // ── UI ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto px-4 space-y-6">
       <QuizShell
         scores={scores}
         selectedLevels={selectedLevels}
@@ -179,8 +200,8 @@ export default function MultipleChoiceQuiz() {
           {isLoading && <div className="text-center text-muted-foreground py-8 text-sm">Loading…</div>}
           {isError && (
             <div className="text-center text-destructive py-8 text-sm">
-              Failed to load.{" "}
-              <button onClick={() => loadQuestion(selectedLevels)} className="underline">Retry</button>
+              Failed to load. Retrying…{" "}
+              <button onClick={() => loadQuestion(selectedLevels)} className="underline">Retry now</button>
             </div>
           )}
           {question && !isLoading && (
@@ -263,7 +284,14 @@ export default function MultipleChoiceQuiz() {
                   onClick={() => handleSelect(choice.character)}
                   disabled={isAnswered}
                 >
-                  <div className="font-serif text-2xl">{choice.character}</div>
+                  <div className="relative">
+                    {!isAnswered && (
+                      <span className="absolute -top-1 -left-1 text-[10px] font-mono text-muted-foreground/60 leading-none select-none">
+                        {i + 1}
+                      </span>
+                    )}
+                    <div className="font-serif text-2xl">{choice.character}</div>
+                  </div>
                   {choice.character !== choice.traditional && (
                     <div className="font-serif text-base text-muted-foreground">{choice.traditional}</div>
                   )}
@@ -285,6 +313,7 @@ export default function MultipleChoiceQuiz() {
         {!isAnswered && (
           <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1 text-muted-foreground">
             <SkipForward className="w-4 h-4" /> Skip
+            <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
           </Button>
         )}
         {isAnswered && (

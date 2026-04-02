@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HelpCircle, Download, Upload } from "lucide-react";
+import { HelpCircle, Download, Upload, Eye, EyeOff } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -12,11 +12,13 @@ interface SettingsPanelProps {
   standardModePageSize?: number;
   useAiFeedback?: boolean;
   useAiSentences?: boolean;
+  anthropicApiKeySet?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
   onUseAiFeedbackChange?: (value: boolean) => void;
   onUseAiSentencesChange?: (value: boolean) => void;
+  onAnthropicApiKeyChange?: (key: string) => void;
 }
 
 export default function SettingsPanel({
@@ -25,15 +27,19 @@ export default function SettingsPanel({
   standardModePageSize = 20,
   useAiFeedback = false,
   useAiSentences = false,
+  anthropicApiKeySet = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
   onUseAiFeedbackChange,
   onUseAiSentencesChange,
+  onAnthropicApiKeyChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
   const [tempPageSize, setTempPageSize] = useState(standardModePageSize.toString());
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -210,15 +216,16 @@ export default function SettingsPanel({
       {onUseAiSentencesChange && (
         <div className="flex items-start justify-between gap-4 py-1">
           <div className="space-y-0.5">
-            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
+            <Label htmlFor="ai-sentences-toggle" className="text-sm">Generate quiz sentences with AI</Label>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
-              Use Claude to generate a unique example sentence for each character. Each sentence is generated once and reused. When off, pre-stored corpus sentences are used.
+              When on, Claude generates a sentence for each character on demand (requires an API key). Each sentence is stored and reused. When off, pre-stored corpus sentences are used.
             </p>
           </div>
           <Switch
             id="ai-sentences-toggle"
             checked={useAiSentences}
             onCheckedChange={onUseAiSentencesChange}
+            disabled={!anthropicApiKeySet}
             data-testid="toggle-ai-sentences"
           />
         </div>
@@ -236,25 +243,57 @@ export default function SettingsPanel({
             id="ai-feedback-toggle"
             checked={useAiFeedback}
             onCheckedChange={onUseAiFeedbackChange}
+            disabled={!anthropicApiKeySet}
             data-testid="toggle-ai-feedback"
           />
         </div>
       )}
 
-      {onUseAiSentencesChange && (
-        <div className="flex items-start justify-between gap-4 py-1">
-          <div className="space-y-0.5">
-            <Label htmlFor="ai-sentences-toggle" className="text-sm">AI-generated quiz sentences</Label>
-            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
-              Use Claude to generate example sentences for quiz questions. Generated sentences are stored and reused, so the API is only called once per character.
-            </p>
+      {onAnthropicApiKeyChange && (
+        <div className="space-y-3 pt-2 border-t">
+          <div className="flex items-center gap-1">
+            <Label className="text-sm font-semibold">Anthropic API Key</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>Required for AI-powered quiz feedback and sentence generation. Get your key at console.anthropic.com. The key is stored securely on the server and never returned to the browser.</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <Switch
-            id="ai-sentences-toggle"
-            checked={useAiSentences}
-            onCheckedChange={onUseAiSentencesChange}
-            data-testid="toggle-ai-sentences"
-          />
+          <p className="text-xs text-muted-foreground">
+            {anthropicApiKeySet ? "An API key is currently saved. Enter a new key below to replace it." : "No API key set. AI features (quiz feedback, generated sentences) will not work without one."}
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                placeholder="sk-ant-..."
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                className="pr-9"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!apiKeyInput.trim()}
+              onClick={() => {
+                onAnthropicApiKeyChange(apiKeyInput.trim());
+                setApiKeyInput("");
+              }}
+            >
+              Save
+            </Button>
+          </div>
         </div>
       )}
 
