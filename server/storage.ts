@@ -18,7 +18,11 @@ import {
   type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, alias } from "drizzle-orm";
+
+// Aliased radical joins — rs = simplified radical, rt = traditional radical
+const radicalsSimp = alias(radicals, "rs");
+const radicalsTrad = alias(radicals, "rt");
 
 export interface CharacterFilters {
   hskLevels?: number[];
@@ -49,8 +53,11 @@ export interface CharacterUpdate {
   traditionalVariants?: string[] | null;
   radicalIndex?: number | null;
   definition?: string[];
+  radicalIndexTraditional?: number | null;
   examples?: unknown;
+  examplesTraditional?: unknown;
   wordExamples?: unknown;
+  wordExamplesTraditional?: unknown;
   pinyin?: string;
   pinyin2?: string | null;
   pinyin3?: string | null;
@@ -285,57 +292,20 @@ export class DatabaseStorage implements IStorage {
   // Chinese characters operations
   async getCharacter(index: number): Promise<ChineseCharacter | undefined> {
     const [result] = await db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(eq(chineseCharacters.index, index));
-    
     return result;
   }
 
   async getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]> {
-    const characters = await db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+    return db
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(
         and(
           gte(chineseCharacters.index, startIndex),
@@ -344,35 +314,15 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(chineseCharacters.index)
       .limit(count);
-    return characters;
   }
 
   async getAllCharacters(): Promise<ChineseCharacter[]> {
-    const characters = await db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+    return db
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .orderBy(chineseCharacters.index);
-    return characters;
   }
 
   // Returns all columns from the chinese_characters table directly (no joins) ordered by index.
@@ -399,19 +349,25 @@ export class DatabaseStorage implements IStorage {
       radicalIndex: chineseCharacters.radicalIndex,
       definition: chineseCharacters.definition,
       examples: chineseCharacters.examples,
+      examplesTraditional: chineseCharacters.examplesTraditional,
       wordExamples: chineseCharacters.wordExamples,
+      wordExamplesTraditional: chineseCharacters.wordExamplesTraditional,
       hskLevel: chineseCharacters.hskLevel,
       lesson: chineseCharacters.lesson,
-      radical: radicals.simplified,
-      radicalPinyin: radicals.pinyin,
-    } as const;
+      radical: radicalsSimp.simplified,
+      radicalPinyin: radicalsSimp.pinyin,
+      // Traditional radical: use dedicated traditional radical if set, else fall back to simplified radical's traditional form
+      radicalTraditional: sql<string | null>`COALESCE(${radicalsTrad.traditional}, ${radicalsSimp.traditional})`,
+      radicalPinyinTraditional: sql<string | null>`COALESCE(${radicalsTrad.pinyin}, ${radicalsSimp.pinyin})`,
+    };
   }
 
   async getCharactersByLesson(lesson: number): Promise<ChineseCharacter[]> {
     return db
       .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(eq(chineseCharacters.lesson, lesson))
       .orderBy(chineseCharacters.index);
   }
@@ -420,7 +376,8 @@ export class DatabaseStorage implements IStorage {
     return db
       .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(and(gte(chineseCharacters.lesson, lessonStart), lte(chineseCharacters.lesson, lessonEnd)))
       .orderBy(chineseCharacters.index);
   }
@@ -484,28 +441,10 @@ export class DatabaseStorage implements IStorage {
     
     // Build the query with LEFT JOINs for both progress and radicals
     let query = db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .leftJoin(
         characterProgress,
         and(
@@ -545,28 +484,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     const results = await db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(and(...conditions))
       .orderBy(sql`RANDOM()`)
       .limit(count);
@@ -575,36 +496,16 @@ export class DatabaseStorage implements IStorage {
 
   async searchCharacters(searchTerm: string, limit: number = 50): Promise<ChineseCharacter[]> {
     const lowerSearchTerm = searchTerm.toLowerCase().trim();
-    
+
     if (!lowerSearchTerm) {
       return [];
     }
 
-    // Search in simplified, traditional, pinyin, or definition (text array)
-    // For definition array, we convert to string and search within it
     const results = await db
-      .select({
-        index: chineseCharacters.index,
-        simplified: chineseCharacters.simplified,
-        traditional: chineseCharacters.traditional,
-        traditionalVariants: chineseCharacters.traditionalVariants,
-        pinyin: chineseCharacters.pinyin,
-        pinyin2: chineseCharacters.pinyin2,
-        pinyin3: chineseCharacters.pinyin3,
-        numberedPinyin: chineseCharacters.numberedPinyin,
-        numberedPinyin2: chineseCharacters.numberedPinyin2,
-        numberedPinyin3: chineseCharacters.numberedPinyin3,
-        radicalIndex: chineseCharacters.radicalIndex,
-        definition: chineseCharacters.definition,
-        examples: chineseCharacters.examples,
-        wordExamples: chineseCharacters.wordExamples,
-        hskLevel: chineseCharacters.hskLevel,
-        lesson: chineseCharacters.lesson,
-        radical: radicals.simplified,
-        radicalPinyin: radicals.pinyin,
-      })
+      .select(this.characterSelectFields())
       .from(chineseCharacters)
-      .leftJoin(radicals, eq(chineseCharacters.radicalIndex, radicals.index))
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(
         or(
           eq(chineseCharacters.simplified, searchTerm),
@@ -632,9 +533,12 @@ export class DatabaseStorage implements IStorage {
         if ('traditional' in update && update.traditional) setFields.traditional = update.traditional;
         if ('traditionalVariants' in update) setFields.traditionalVariants = update.traditionalVariants ?? null;
         if ('radicalIndex' in update) setFields.radicalIndex = update.radicalIndex ?? null;
+        if ('radicalIndexTraditional' in update) setFields.radicalIndexTraditional = update.radicalIndexTraditional ?? null;
         if ('definition' in update && Array.isArray(update.definition)) setFields.definition = update.definition;
         if ('examples' in update && update.examples !== undefined) setFields.examples = update.examples;
+        if ('examplesTraditional' in update) setFields.examplesTraditional = update.examplesTraditional ?? null;
         if ('wordExamples' in update) setFields.wordExamples = update.wordExamples ?? null;
+        if ('wordExamplesTraditional' in update) setFields.wordExamplesTraditional = update.wordExamplesTraditional ?? null;
         if ('pinyin' in update && update.pinyin) setFields.pinyin = update.pinyin;
         if ('pinyin2' in update) setFields.pinyin2 = update.pinyin2 ?? null;
         if ('pinyin3' in update) setFields.pinyin3 = update.pinyin3 ?? null;

@@ -17,8 +17,8 @@ const EXPORT_COLUMNS = [
   "index", "simplified", "traditional", "traditionalVariants",
   "pinyin", "pinyin2", "pinyin3",
   "numberedPinyin", "numberedPinyin2", "numberedPinyin3",
-  "radicalIndex", "hskLevel", "lesson",
-  "definition", "examples", "wordExamples",
+  "radicalIndex", "radicalIndexTraditional", "hskLevel", "lesson",
+  "definition", "examples", "examplesTraditional", "wordExamples", "wordExamplesTraditional",
 ];
 
 
@@ -354,11 +354,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         numberedPinyin2: c.numberedPinyin2 ?? "",
         numberedPinyin3: c.numberedPinyin3 ?? "",
         radicalIndex: c.radicalIndex ?? "",
+        radicalIndexTraditional: c.radicalIndexTraditional ?? "",
         hskLevel: c.hskLevel,
         lesson: c.lesson ?? "",
         definition: Array.isArray(c.definition) ? c.definition.join(" | ") : "",
         examples: JSON.stringify(c.examples),
+        examplesTraditional: c.examplesTraditional != null ? JSON.stringify(c.examplesTraditional) : "",
         wordExamples: c.wordExamples != null ? JSON.stringify(c.wordExamples) : "",
+        wordExamplesTraditional: c.wordExamplesTraditional != null ? JSON.stringify(c.wordExamplesTraditional) : "",
       }));
 
       const wb = XLSX.utils.book_new();
@@ -480,6 +483,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           update.radicalIndex = (n !== null && !isNaN(n)) ? n : null;
           hasField = true;
         }
+        if ("radicalIndexTraditional" in row) {
+          const v = row["radicalIndexTraditional"];
+          const n = (v === null || v === "") ? null : Number(v);
+          update.radicalIndexTraditional = (n !== null && !isNaN(n)) ? n : null;
+          hasField = true;
+        }
         // definition: exported as " | "-joined string, import splits back to array
         if ("definition" in row) {
           const v = row["definition"];
@@ -513,6 +522,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch {
               // Skip malformed wordExamples JSON — do not overwrite existing data
             }
+          }
+        }
+        if ("wordExamplesTraditional" in row) {
+          const v = row["wordExamplesTraditional"];
+          if (v === null || v === "") {
+            update.wordExamplesTraditional = null;
+            hasField = true;
+          } else {
+            try {
+              update.wordExamplesTraditional = JSON.parse(String(v));
+              hasField = true;
+            } catch {}
+          }
+        }
+        if ("examplesTraditional" in row) {
+          const v = row["examplesTraditional"];
+          if (v === null || v === "") {
+            update.examplesTraditional = null;
+            hasField = true;
+          } else {
+            try {
+              update.examplesTraditional = JSON.parse(String(v));
+              hasField = true;
+            } catch {}
           }
         }
 

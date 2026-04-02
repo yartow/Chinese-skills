@@ -104,14 +104,22 @@ export default function CharacterDetail() {
     pinyin2: character.pinyin2,
     pinyin3: character.pinyin3,
     radical: character.radical || "",
+    radicalTraditional: character.radicalTraditional ?? null,
     radicalPinyin: character.radicalPinyin || "",
+    radicalPinyinTraditional: character.radicalPinyinTraditional ?? null,
     definition: Array.isArray(character.definition) ? character.definition : [],
     examples: Array.isArray(character.examples)
       ? character.examples as Array<{ chinese: string; english: string }>
       : [],
+    examplesTraditional: Array.isArray(character.examplesTraditional)
+      ? character.examplesTraditional as Array<{ chinese: string; english: string }>
+      : null,
     wordExamples: Array.isArray(character.wordExamples)
       ? character.wordExamples as Array<{ word: string; pinyin: string; definition: string; chinese: string; english: string }>
       : [],
+    wordExamplesTraditional: Array.isArray(character.wordExamplesTraditional)
+      ? character.wordExamplesTraditional as Array<{ word: string; pinyin: string; definition: string; chinese: string; english: string }>
+      : null,
   };
 
   return (
