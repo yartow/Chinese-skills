@@ -4,13 +4,18 @@ import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import CharacterCard from "@/components/CharacterCard";
 import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
-import { Settings, LogOut, Filter, ChevronDown, ChevronUp, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
+import { LogOut, Filter, MoreVertical, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
+
+// The server strips anthropicApiKey from responses and replaces it with a boolean flag
+type UserSettingsResponse = Omit<UserSettings, "anthropicApiKey"> & { anthropicApiKeySet: boolean };
 
 interface MasteryStats {
   readingMastered: number;
@@ -22,15 +27,15 @@ interface MasteryStats {
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [showSettings, setShowSettings] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [filterReading, setFilterReading] = useState(false);
   const [filterWriting, setFilterWriting] = useState(false);
   const [filterRadical, setFilterRadical] = useState(false);
   const [selectedHskLevels, setSelectedHskLevels] = useState<number[]>([]);
 
   // Fetch user settings
-  const { data: settings, isLoading: settingsLoading } = useQuery<UserSettings>({
+  const { data: settings, isLoading: settingsLoading } = useQuery<UserSettingsResponse>({
     queryKey: ["/api/settings"],
   });
 
@@ -191,25 +196,50 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ScriptToggle isTraditional={isTraditional} onToggle={handleScriptToggle} />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSettings(!showSettings)}
-              data-testid="button-settings"
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              data-testid="button-logout"
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" data-testid="button-menu">
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)} data-testid="menu-item-settings">
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} data-testid="menu-item-logout">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
+
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Settings</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6">
+            <SettingsPanel
+              currentLevel={currentLevel}
+              dailyCharCount={dailyCharCount}
+              standardModePageSize={settings?.standardModePageSize}
+              useAiFeedback={settings?.useAiFeedback ?? false}
+              useAiSentences={settings?.useAiSentences ?? false}
+              anthropicApiKeySet={settings?.anthropicApiKeySet ?? false}
+              onLevelChange={handleLevelChange}
+              onDailyCharCountChange={handleDailyCharCountChange}
+              onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
+              onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
+              onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
+              onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         <Card className="p-6 space-y-4">
@@ -292,26 +322,6 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3 space-y-6">
-            {showSettings && (
-              <Card className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Settings</h2>
-                <SettingsPanel
-                  currentLevel={currentLevel}
-                  dailyCharCount={dailyCharCount}
-                  standardModePageSize={settings?.standardModePageSize}
-                  useAiFeedback={settings?.useAiFeedback ?? false}
-                  useAiSentences={settings?.useAiSentences ?? false}
-                  anthropicApiKeySet={(settings as any)?.anthropicApiKeySet ?? false}
-                  onLevelChange={handleLevelChange}
-                  onDailyCharCountChange={handleDailyCharCountChange}
-                  onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
-                  onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
-                  onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
-                  onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key } as any)}
-                />
-              </Card>
-            )}
-
             <div>
               <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
                 <h2 className="text-base sm:text-xl font-semibold">

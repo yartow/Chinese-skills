@@ -53,16 +53,21 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
   }
 
   // ── Stale-data check ────────────────────────────────────────────────────────
-  // If any characters are missing radical_index, the database was seeded with
-  // old data (before radical linkage was added). Run a full upsert to bring all
+  // If any characters are missing radical_index or radical_index_traditional,
+  // the database was seeded with old data. Run a full upsert to bring all
   // character records up to date with the current seed file.
   const [missingRadical] = await db
     .select({ value: count() })
     .from(chineseCharacters)
     .where(isNull(chineseCharacters.radicalIndex));
 
-  if (missingRadical.value > 0) {
-    log(`Characters table has ${charCount.value} rows but ${missingRadical.value} are missing radical data — running full upsert from seed…`);
+  const [missingRadicalTrad] = await db
+    .select({ value: count() })
+    .from(chineseCharacters)
+    .where(isNull(chineseCharacters.radicalIndexTraditional));
+
+  if (missingRadical.value > 0 || missingRadicalTrad.value > 0) {
+    log(`Characters table has ${charCount.value} rows but ${missingRadical.value} missing radical_index and ${missingRadicalTrad.value} missing radical_index_traditional — running full upsert from seed…`);
     let updated = 0;
     for (let i = 0; i < charData.length; i += 100) {
       const batch = charData.slice(i, i + 100);
@@ -82,10 +87,13 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
             numberedPinyin2: sql`excluded.numbered_pinyin2`,
             numberedPinyin3: sql`excluded.numbered_pinyin3`,
             radicalIndex: sql`excluded.radical_index`,
+            radicalIndexTraditional: sql`excluded.radical_index_traditional`,
             definition: sql`excluded.definition`,
             examples: sql`excluded.examples`,
+            examplesTraditional: sql`excluded.examples_traditional`,
             hskLevel: sql`excluded.hsk_level`,
             wordExamples: sql`excluded.word_examples`,
+            wordExamplesTraditional: sql`excluded.word_examples_traditional`,
             lesson: sql`excluded.lesson`,
           },
         });

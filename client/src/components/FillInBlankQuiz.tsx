@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
@@ -150,11 +150,11 @@ export default function FillInBlankQuiz() {
     submitValue(answer);
   }
 
-  function handleNext() {
+  const handleNext = useCallback(() => {
     setAnswer("");
     setResult(null);
     refetch();
-  }
+  }, [refetch]);
 
   function handleSkip() {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
@@ -171,7 +171,7 @@ export default function FillInBlankQuiz() {
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [result]);
+  }, [result, handleNext]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.isComposing) return;

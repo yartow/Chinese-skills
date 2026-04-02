@@ -907,7 +907,7 @@ Be concise and encouraging.`;
         }
       } else {
         // Always generate fresh
-        feedback = await generateCharacterFeedback(character, pinyin, definition, blanked, translation, hskLevel);
+        feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
         // Still cache so other users benefit
         storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
       }

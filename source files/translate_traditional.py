@@ -76,6 +76,7 @@ For wordExamplesTraditional each item has the same fields as wordExamples but wi
 
 def call_api(batch: list[dict]) -> list[dict] | None:
     prompt = build_prompt(batch)
+    raw = None
     try:
         response = client.messages.create(
             model=MODEL,
@@ -89,7 +90,8 @@ def call_api(batch: list[dict]) -> list[dict] | None:
         return json.loads(raw)
     except json.JSONDecodeError as e:
         print(f"    [!] JSON parse error: {e}")
-        print(f"    Raw response: {raw[:300]}")
+        if raw is not None:
+            print(f"    Raw response: {raw[:300]}")
         return None
     except Exception as e:
         print(f"    [!] API error: {e}")
@@ -272,7 +274,7 @@ def main():
     if failed_indices:
         print(f"\n[!] {len(failed_indices)} rows could not be processed:")
         print(f"    Indices: {failed_indices}")
-        print(f"    Tip: re-run on the output file — it will skip already-filled rows.")
+        print("    Tip: re-run on the output file — it will skip already-filled rows.")
 
 
 if __name__ == "__main__":
