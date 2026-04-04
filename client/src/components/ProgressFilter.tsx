@@ -82,7 +82,7 @@ export default function ProgressFilter({
       <div className="space-y-3">
         <Label className="text-sm font-medium">Filter by HSK Level:</Label>
         <div className="grid grid-cols-2 gap-2">
-          {[1, 2, 3, 4, 5, 6].map((level) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((level) => (
             <div key={level} className="flex items-center space-x-2">
               <Checkbox
                 id={`hsk-level-${level}`}
@@ -94,7 +94,7 @@ export default function ProgressFilter({
                 htmlFor={`hsk-level-${level}`}
                 className="text-sm font-normal cursor-pointer"
               >
-                HSK {level}
+                {level === 0 ? "Unknown" : `HSK ${level}`}
               </Label>
             </div>
           ))}

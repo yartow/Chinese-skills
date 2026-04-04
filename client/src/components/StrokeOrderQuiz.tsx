@@ -28,7 +28,7 @@ const HSK_COLORS: Record<number, string> = {
   6: "bg-purple-100 text-purple-700 border-purple-200",
 };
 
-const ALL_LEVELS = [1, 2, 3, 4, 5, 6];
+const ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
