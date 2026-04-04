@@ -294,7 +294,7 @@ def generate(client, entry: dict) -> dict:
 
     # If the CSV supplied the core fields, use the cheaper enrichment-only prompt.
     # If anything essential is missing, fall back to full generation.
-    has_core = traditional and pinyin and hsk_level and definition
+    has_core = bool(traditional) and bool(pinyin) and hsk_level is not None and bool(definition)
 
     if has_core:
         prompt = ENRICH_PROMPT.format(
@@ -322,7 +322,7 @@ def generate(client, entry: dict) -> dict:
             data["traditional"] = traditional
         if pinyin:
             data["pinyin"] = pinyin
-        if hsk_level:
+        if hsk_level is not None:
             data["hsk_level"] = hsk_level
         if definition:
             data["definition"] = definition
@@ -420,7 +420,7 @@ def build_params(index: int, data: dict, radical_idx, radical_idx_trad) -> dict:
         "radical_index":             radical_idx,
         "radical_index_traditional": radical_idx_trad,
         "definition":                definition,
-        "hsk_level":                 int(data.get("hsk_level") or 7),
+        "hsk_level":                 int(data["hsk_level"]) if data.get("hsk_level") is not None else 7,
         "lesson":                    None,
         "examples":                  to_json("examples"),
         "examples_traditional":      to_json("examples_traditional"),

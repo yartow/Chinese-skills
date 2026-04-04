@@ -56,7 +56,7 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
                     : "bg-background text-muted-foreground border-border hover:border-foreground"
                   }`}
               >
-                HSK {level}
+                {level === 0 ? "Unknown" : `HSK ${level}`}
                 {lvPct !== null && selectedLevels.includes(level) && (
                   <span className="text-xs opacity-70">{lvPct}%</span>
                 )}
@@ -74,8 +74,8 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
               const lvPct = Math.round((ls.correct / ls.total) * 100);
               return (
                 <div key={level} className="flex items-center gap-2">
-                  <span className={`text-xs font-medium w-12 shrink-0 ${HSK_COLORS[level].split(" ")[1]}`}>
-                    HSK {level}
+                  <span className={`text-xs font-medium w-12 shrink-0 ${HSK_COLORS[level]?.split(" ")[1] ?? "text-gray-500"}`}>
+                    {level === 0 ? "?" : `HSK ${level}`}
                   </span>
                   <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
                     <div

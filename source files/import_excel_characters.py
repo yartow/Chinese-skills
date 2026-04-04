@@ -137,8 +137,14 @@ def load_rows(excel_path: str, existing_simplified: set) -> list:
 
         trad = (row[2] or "").strip() or simp
 
-        hsk_raw  = (row[15] or "").strip()
-        hsk_level = int(hsk_raw.replace("HSK_L", "")) if hsk_raw else 0
+        hsk_raw = cell_to_str(row[15]) if len(row) > 15 else ""
+        if not hsk_raw:
+            hsk_level = 0
+        elif re.match(r"^HSK_L\d+$", hsk_raw):
+            hsk_level = int(hsk_raw[5:])
+        else:
+            print(f"      WARNING: unexpected hsk30_level value {hsk_raw!r} for {simp!r} — defaulting to 0")
+            hsk_level = 0
 
         meaning_junda = cell_to_str(row[13]) if len(row) > 13 else ""
         cedict        = cell_to_str(row[20]) if len(row) > 20 else ""

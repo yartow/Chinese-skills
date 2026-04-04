@@ -132,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filters: any = {};
       
       if (req.query.hskLevels) {
-        const levels = (req.query.hskLevels as string).split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
+        const levels = (req.query.hskLevels as string).split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
         if (levels.length > 0) {
           filters.hskLevels = levels;
         }
@@ -589,6 +589,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const levelsParam = (req.query.levels as string) || "1,2,3";
       const hskLevels = levelsParam
         .split(",")
+        .map(p => p.trim())
+        .filter(p => p !== "")
         .map(Number)
         .filter((n) => !isNaN(n) && n >= 0 && n <= 9);
 
@@ -737,6 +739,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const hskLevels = levelsParam
         .split(",")
+        .map(p => p.trim())
+        .filter(p => p !== "")
         .map(Number)
         .filter((n) => !isNaN(n) && n >= 0 && n <= 9);
 

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { SkipForward, Eraser, Settings2 } from "lucide-react";
+import { ALL_LEVELS, HSK_COLORS } from "./quizTypes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,17 +19,6 @@ interface QuizQuestion {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const HSK_COLORS: Record<number, string> = {
-  1: "bg-red-100 text-red-700 border-red-200",
-  2: "bg-orange-100 text-orange-700 border-orange-200",
-  3: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  4: "bg-green-100 text-green-700 border-green-200",
-  5: "bg-blue-100 text-blue-700 border-blue-200",
-  6: "bg-purple-100 text-purple-700 border-purple-200",
-};
-
-const ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -210,7 +200,7 @@ export default function StrokeOrderQuiz() {
                   : "bg-background text-muted-foreground border-border hover:border-foreground"
                 }`}
             >
-              HSK {level}
+              {level === 0 ? "Unknown" : `HSK ${level}`}
             </button>
           ))}
         </div>
@@ -262,8 +252,8 @@ export default function StrokeOrderQuiz() {
           {question && !isLoading && (
             <>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${HSK_COLORS[question.hskLevel]}`}>
-                  HSK {question.hskLevel}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${HSK_COLORS[question.hskLevel] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                  {question.hskLevel === 0 ? "Unknown" : `HSK ${question.hskLevel}`}
                 </span>
               </div>
               <div className="font-serif text-3xl leading-relaxed tracking-wide">

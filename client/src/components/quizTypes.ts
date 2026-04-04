@@ -73,7 +73,7 @@ export const HSK_BG_SOLID: Record<number, string> = {
   9: "bg-gray-500",
 };
 
-export const ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+export const ALL_LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // Hint rules matching real HSK exam conventions:
 // HSK 1 → pinyin + definition, HSK 2 → pinyin only, HSK 3-6 → no hint
