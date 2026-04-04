@@ -3,15 +3,17 @@ import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
 import StrokeOrderQuiz from "@/components/StrokeOrderQuiz";
-import { ListChecks, Type, PenLine, Brush } from "lucide-react";
+import WordQuiz from "@/components/WordQuiz";
+import { ListChecks, Type, PenLine, Brush, BookText } from "lucide-react";
 
-type QuizTab = "choice" | "fill" | "handwriting" | "stroke";
+type QuizTab = "choice" | "fill" | "handwriting" | "stroke" | "words";
 
 const TABS: { id: QuizTab; label: string; Icon: React.ElementType }[] = [
   { id: "choice",      label: "Multiple choice", Icon: ListChecks },
   { id: "fill",        label: "Fill in blank",   Icon: Type       },
   { id: "handwriting", label: "Handwriting",      Icon: PenLine    },
   { id: "stroke",      label: "Stroke order",     Icon: Brush      },
+  { id: "words",       label: "Vocabulary",       Icon: BookText   },
 ];
 
 export default function TestModePage() {
@@ -48,6 +50,7 @@ export default function TestModePage() {
       {activeTab === "fill"        && <FillInBlankQuiz />}
       {activeTab === "handwriting" && <HandwritingQuiz />}
       {activeTab === "stroke"      && <StrokeOrderQuiz />}
+      {activeTab === "words"       && <WordQuiz />}
     </div>
   );
 }

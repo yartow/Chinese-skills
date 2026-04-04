@@ -4,6 +4,8 @@ import {
   userSettings,
   characterProgress,
   chineseCharacters,
+  chineseWords,
+  wordProgress,
   radicals,
   savedItems,
   generatedSentences,
@@ -15,10 +17,12 @@ import {
   type CharacterProgress,
   type InsertCharacterProgress,
   type ChineseCharacter,
+  type ChineseWord,
+  type WordProgress,
   type SavedItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, count } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 // Aliased radical joins — rs = simplified radical, rt = traditional radical
@@ -590,6 +594,73 @@ export class DatabaseStorage implements IStorage {
 
   async saveGeneratedSentence(characterIndex: number, sentence: string, blanked: string, translation: string): Promise<void> {
     await db.insert(generatedSentences).values({ characterIndex, sentence, blanked, translation });
+  }
+
+  // ── Word vocabulary ──────────────────────────────────────────────────────────
+
+  async getRandomWordsForQuiz(hskLevels: number[], count: number, excludeIds: number[] = []): Promise<ChineseWord[]> {
+    const conditions: any[] = [inArray(chineseWords.hskLevel, hskLevels)];
+    if (excludeIds.length > 0) {
+      conditions.push(notInArray(chineseWords.id, excludeIds));
+    }
+    return db
+      .select()
+      .from(chineseWords)
+      .where(and(...conditions))
+      .orderBy(sql`RANDOM()`)
+      .limit(count) as Promise<ChineseWord[]>;
+  }
+
+  async getWordChoices(correctId: number, hskLevel: number, count: number): Promise<ChineseWord[]> {
+    // Return distractors from the same or adjacent HSK level, excluding the correct word
+    const results = await db
+      .select()
+      .from(chineseWords)
+      .where(and(
+        notInArray(chineseWords.id, [correctId]),
+        inArray(chineseWords.hskLevel, [Math.max(1, hskLevel - 1), hskLevel, Math.min(6, hskLevel + 1)])
+      ))
+      .orderBy(sql`RANDOM()`)
+      .limit(count);
+    return results as ChineseWord[];
+  }
+
+  async getWordById(id: number): Promise<ChineseWord | undefined> {
+    const [word] = await db.select().from(chineseWords).where(eq(chineseWords.id, id));
+    return word as ChineseWord | undefined;
+  }
+
+  async updateWordExamples(id: number, examples: { chinese: string; english: string }[]): Promise<void> {
+    await db.update(chineseWords).set({ examples }).where(eq(chineseWords.id, id));
+  }
+
+  async getWordProgressForUser(userId: string, wordId: number): Promise<WordProgress | undefined> {
+    const [row] = await db
+      .select()
+      .from(wordProgress)
+      .where(and(eq(wordProgress.userId, userId), eq(wordProgress.wordId, wordId)));
+    return row;
+  }
+
+  async getWordProgressStats(userId: string): Promise<{ known: number; total: number }> {
+    const [knownCount] = await db
+      .select({ value: count() })
+      .from(wordProgress)
+      .where(and(eq(wordProgress.userId, userId), eq(wordProgress.known, true)));
+    const [totalCount] = await db
+      .select({ value: count() })
+      .from(chineseWords);
+    return { known: knownCount.value, total: totalCount.value };
+  }
+
+  async upsertWordProgress(userId: string, wordId: number, known: boolean): Promise<void> {
+    await db
+      .insert(wordProgress)
+      .values({ userId, wordId, known })
+      .onConflictDoUpdate({
+        target: [wordProgress.userId, wordProgress.wordId],
+        set: { known, updatedAt: new Date() },
+      });
   }
 }
 

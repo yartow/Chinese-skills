@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { chineseCharacters, radicals } from "@shared/schema";
+import { chineseCharacters, chineseWords, radicals } from "@shared/schema";
 import { count, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import fs from "fs";
@@ -105,4 +105,57 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
   }
 
   log(`Characters table has ${charCount.value} characters — skipping character seed.`);
+
+  // ── Words ────────────────────────────────────────────────────────────────────
+  await ensureWordDataSeeded(log);
+}
+
+async function ensureWordDataSeeded(log: (msg: string) => void) {
+  const wordSeedPath = path.join(process.cwd(), "server", "data", "words-seed.json");
+  if (!fs.existsSync(wordSeedPath)) {
+    log("Warning: words-seed.json not found — skipping word seed.");
+    return;
+  }
+
+  // Ensure the traditional column exists (added after initial schema deployment)
+  try {
+    await db.execute(
+      sql`ALTER TABLE chinese_words ADD COLUMN IF NOT EXISTS traditional varchar NOT NULL DEFAULT ''`
+    );
+  } catch {
+    // Column already exists or DB doesn't support IF NOT EXISTS — ignore
+  }
+
+  const wordData: Array<{
+    id: number; word: string; traditional: string;
+    pinyin: string; definition: string[]; hskLevel: number; examples: unknown[];
+  }> = JSON.parse(fs.readFileSync(wordSeedPath, "utf-8"));
+
+  const [wordCount] = await db.select({ value: count() }).from(chineseWords);
+
+  if (wordCount.value >= wordData.length) {
+    log(`Words table has ${wordCount.value} entries — skipping word seed.`);
+    return;
+  }
+
+  log(`Words table has ${wordCount.value}/${wordData.length} entries — seeding words in batches…`);
+  for (let i = 0; i < wordData.length; i += 100) {
+    const batch = wordData.slice(i, i + 100);
+    await db
+      .insert(chineseWords)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: chineseWords.id,
+        set: {
+          word: sql`excluded.word`,
+          traditional: sql`excluded.traditional`,
+          pinyin: sql`excluded.pinyin`,
+          definition: sql`excluded.definition`,
+          hskLevel: sql`excluded.hsk_level`,
+        },
+      });
+    if (i % 500 === 0) log(`  …seeded up to word ${i + 100}`);
+  }
+  const [newCount] = await db.select({ value: count() }).from(chineseWords);
+  log(`Word seeding complete — ${newCount.value} words in database.`);
 }

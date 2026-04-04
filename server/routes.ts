@@ -955,6 +955,190 @@ Be concise and encouraging.`;
     }
   });
 
+  // ── Word Quiz endpoints ──────────────────────────────────────────────────────
+
+  // GET /api/quiz/word?levels=1,2,3&exclude=4,17
+  // Returns a random word + a blanked example sentence.
+  app.get('/api/quiz/word', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const levelsParam = (req.query.levels as string) || "1,2,3";
+      const excludeParam = (req.query.exclude as string) || "";
+
+      const hskLevels = levelsParam
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 6);
+
+      const excludeIds = excludeParam
+        ? excludeParam.split(",").map(Number).filter((n) => !isNaN(n))
+        : [];
+
+      let words = await storage.getRandomWordsForQuiz(hskLevels, 10, excludeIds);
+      if (words.length === 0) {
+        words = await storage.getRandomWordsForQuiz(hskLevels, 10, []);
+      }
+      if (words.length === 0) {
+        return res.status(404).json({ message: "No words found for the selected levels" });
+      }
+
+      // Pick a word that has examples, or generate them on demand
+      let chosen = words[0];
+      let example: { chinese: string; english: string } | null = null;
+
+      for (const word of words) {
+        const exs = Array.isArray(word.examples) ? word.examples as { chinese: string; english: string }[] : [];
+        const valid = exs.find((e) => e.chinese && e.chinese.includes(word.word));
+        if (valid) {
+          chosen = word;
+          example = valid;
+          break;
+        }
+      }
+
+      // If no cached example, generate one via Claude
+      if (!example) {
+        const userSettings = await storage.getUserSettings(userId);
+        const apiKey = userSettings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+        if (apiKey) {
+          try {
+            const anthropic = new Anthropic({ apiKey });
+            const response = await anthropic.messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 200,
+              messages: [{
+                role: "user",
+                content: `Create one short example sentence in Chinese (Traditional characters) using the word "${chosen.word}" (${chosen.pinyin}, meaning: ${chosen.definition.join("; ")}). Reply with JSON only: {"chinese": "...", "english": "..."}`,
+              }],
+            });
+            const text = response.content[0].type === "text" ? response.content[0].text : "";
+            const jsonMatch = text.match(/\{[^}]+\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.chinese && parsed.english && parsed.chinese.includes(chosen.word)) {
+                example = parsed;
+                await storage.updateWordExamples(chosen.id, [parsed]);
+              }
+            }
+          } catch {
+            // fall through — return word without example sentence
+          }
+        }
+      }
+
+      const blanked = example ? example.chinese.replace(chosen.word, "＿＿") : null;
+
+      res.json({
+        wordId: chosen.id,
+        word: chosen.word,
+        traditional: chosen.traditional,
+        pinyin: chosen.pinyin,
+        definition: chosen.definition,
+        hskLevel: chosen.hskLevel,
+        sentence: example?.chinese ?? null,
+        blanked,
+        translation: example?.english ?? null,
+      });
+    } catch (error) {
+      console.error("Error generating word quiz question:", error);
+      res.status(500).json({ message: "Failed to generate word question" });
+    }
+  });
+
+  // GET /api/quiz/word/choices?correctId=5&level=2
+  // Returns 3 distractor words for multiple-choice.
+  app.get('/api/quiz/word/choices', isAuthenticated, async (req: any, res) => {
+    try {
+      const correctId = parseInt(req.query.correctId as string);
+      const level = parseInt(req.query.level as string);
+
+      if (isNaN(correctId) || isNaN(level)) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      const distractors = await storage.getWordChoices(correctId, level, 3);
+      res.json(distractors.map((w) => ({
+        wordId: w.id,
+        word: w.word,
+        traditional: w.traditional,
+        pinyin: w.pinyin,
+        definition: w.definition,
+        hskLevel: w.hskLevel,
+      })));
+    } catch (error) {
+      console.error("Error fetching word choices:", error);
+      res.status(500).json({ message: "Failed to fetch word choices" });
+    }
+  });
+
+  // POST /api/quiz/word/check
+  // Returns AI feedback for a fill-in-blank word answer.
+  app.post('/api/quiz/word/check', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { wordId, blanked, userAnswer, correctWord, pinyin, definition } = req.body;
+
+      if (!blanked || !correctWord) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const isCorrect = userAnswer?.trim() === correctWord || userAnswer?.trim() === (await storage.getWordById(wordId))?.traditional;
+
+      const anthropic = await getAnthropicForUser(userId);
+      if (!anthropic) {
+        return res.json({ correct: isCorrect, feedback: isCorrect ? "Correct!" : `The answer is "${correctWord}" (${pinyin}).` });
+      }
+
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        messages: [{
+          role: "user",
+          content: `The student is filling in the blank in this Chinese sentence: "${blanked}"\nThe correct answer is "${correctWord}" (${pinyin}), meaning: ${definition}.\nThe student answered: "${userAnswer ?? "(blank)"}"\nGive brief, encouraging feedback (2-3 sentences). If wrong, explain why the correct word fits here.`,
+        }],
+      });
+
+      const feedback = response.content[0].type === "text" ? response.content[0].text : (isCorrect ? "Correct!" : `The answer is "${correctWord}".`);
+      res.json({ correct: isCorrect, feedback });
+    } catch (error) {
+      console.error("Error checking word answer:", error);
+      res.status(500).json({ message: "Failed to check answer" });
+    }
+  });
+
+  // GET /api/progress/words
+  // Returns word progress stats for the current user.
+  app.get('/api/progress/words', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const progress = await storage.getWordProgressStats(userId);
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching word progress:", error);
+      res.status(500).json({ message: "Failed to fetch word progress" });
+    }
+  });
+
+  // POST /api/progress/words/:id
+  // Mark a word as known or unknown.
+  app.post('/api/progress/words/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const wordId = parseInt(req.params.id);
+      const { known } = req.body;
+
+      if (isNaN(wordId) || typeof known !== "boolean") {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      await storage.upsertWordProgress(userId, wordId, known);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating word progress:", error);
+      res.status(500).json({ message: "Failed to update word progress" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

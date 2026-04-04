@@ -115,7 +115,8 @@ export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {
 // Chinese words/vocabulary table - Multi-character words from HSK
 export const chineseWords = pgTable("chinese_words", {
   id: integer("id").primaryKey(),
-  word: varchar("word").notNull(), // e.g., "学校"
+  word: varchar("word").notNull(), // simplified, e.g., "学校"
+  traditional: varchar("traditional").notNull().default(""), // traditional, e.g., "學校"
   pinyin: varchar("pinyin").notNull(), // e.g., "xué xiào"
   definition: text("definition").array().notNull(),
   hskLevel: integer("hsk_level").notNull().default(1), // HSK level 1-6
