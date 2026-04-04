@@ -1,0 +1,12 @@
+# characters_3000.txt
+# Characters to add starting at index 3000.
+# Format: one character per line. Comments (#) and blank lines are ignored.
+# Optional tab-separated hints: character [TAB hsk_level] [TAB definition hint]
+#
+# IMPORTANT: do not add characters that already exist in the database
+# (the script will skip them with a warning if you do).
+#
+# Example entries — replace with your actual list:
+# 韵	7	rhyme; charm
+# 谚	7	proverb; saying
+# 嗽	7	to cough

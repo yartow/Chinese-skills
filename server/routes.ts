@@ -132,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filters: any = {};
       
       if (req.query.hskLevels) {
-        const levels = (req.query.hskLevels as string).split(',').map(Number).filter(n => !isNaN(n) && n >= 1 && n <= 6);
+        const levels = (req.query.hskLevels as string).split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
         if (levels.length > 0) {
           filters.hskLevels = levels;
         }
@@ -589,8 +589,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const levelsParam = (req.query.levels as string) || "1,2,3";
       const hskLevels = levelsParam
         .split(",")
+        .map(p => p.trim())
+        .filter(p => p !== "")
         .map(Number)
-        .filter((n) => !isNaN(n) && n >= 1 && n <= 6);
+        .filter((n) => !isNaN(n) && n >= 0 && n <= 9);
 
       if (hskLevels.length === 0) {
         return res.status(400).json({ message: "No valid HSK levels provided" });
@@ -737,8 +739,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const hskLevels = levelsParam
         .split(",")
+        .map(p => p.trim())
+        .filter(p => p !== "")
         .map(Number)
-        .filter((n) => !isNaN(n) && n >= 1 && n <= 6);
+        .filter((n) => !isNaN(n) && n >= 0 && n <= 9);
 
       if (isNaN(correctIndex) || isNaN(hskLevel)) {
         return res.status(400).json({ message: "Invalid parameters" });
