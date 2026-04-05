@@ -132,7 +132,7 @@ export const wordProgress = pgTable("word_progress", {
   known: boolean("known").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
-  index("idx_user_word").on(table.userId, table.wordId),
+  unique("unique_user_word").on(table.userId, table.wordId),
 ]);
 
 export const insertWordProgressSchema = createInsertSchema(wordProgress).omit({
