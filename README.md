@@ -191,8 +191,8 @@ HSK 3 has specific patterns you must know cold:
 - 是…的 emphasis structure
 - Measure words (量词) for a wide range of nouns
 
-### Sentence Completion with Full Words
-- Fill in a sentence with a full word chosen from options — different from the current single-character exercises
+### Exam-Style Multiple-Choice / Cloze Completion
+The vocabulary quiz already supports fill-in-the-blank sentence completion with full words. What is not yet covered is the official HSK exam format: a sentence with a blank and four word options to choose from (multiple-choice cloze), including distractor options chosen to test grammatical and semantic distinctions.
 
 ### Timed Mock Tests
 - The real test is strictly timed. Practising under time pressure is essential.

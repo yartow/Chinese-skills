@@ -986,9 +986,19 @@ Be concise and encouraging.`;
       let chosen = words[0];
       let example: { chinese: string; english: string } | null = null;
 
+      // Validate: example must contain the target word and produce a non-trivial blank
+      function isValidExample(e: { chinese: string }, targetWord: string): boolean {
+        if (!e.chinese) return false;
+        const regex = new RegExp(targetWord, "g");
+        const blanked = e.chinese.replace(regex, "＿＿");
+        return blanked !== e.chinese && blanked.includes("＿＿");
+      }
+
       for (const word of words) {
         const exs = Array.isArray(word.examples) ? word.examples as { chinese: string; english: string }[] : [];
-        const valid = exs.find((e) => e.chinese && e.chinese.includes(word.word));
+        // Try simplified word first, then traditional
+        const valid = exs.find((e) => isValidExample(e, word.word))
+                   ?? exs.find((e) => word.traditional && isValidExample(e, word.traditional));
         if (valid) {
           chosen = word;
           example = valid;
@@ -1008,14 +1018,14 @@ Be concise and encouraging.`;
               max_tokens: 200,
               messages: [{
                 role: "user",
-                content: `Create one short example sentence in Chinese (Traditional characters) using the word "${chosen.word}" (${chosen.pinyin}, meaning: ${chosen.definition.join("; ")}). Reply with JSON only: {"chinese": "...", "english": "..."}`,
+                content: `Create one short example sentence in Chinese using the word "${chosen.word}" (${chosen.pinyin}, meaning: ${chosen.definition.join("; ")}). The sentence MUST contain "${chosen.word}". Reply with JSON only: {"chinese": "...", "english": "..."}`,
               }],
             });
             const text = response.content[0].type === "text" ? response.content[0].text : "";
             const jsonMatch = text.match(/\{[^}]+\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.chinese && parsed.english && parsed.chinese.includes(chosen.word)) {
+              if (parsed.chinese && parsed.english && isValidExample(parsed, chosen.word)) {
                 example = parsed;
                 await storage.updateWordExamples(chosen.id, [parsed]);
               }
@@ -1026,7 +1036,15 @@ Be concise and encouraging.`;
         }
       }
 
-      const blanked = example ? example.chinese.replace(chosen.word, "＿＿") : null;
+      if (!example) {
+        return res.status(404).json({ message: "No valid example found for selected word" });
+      }
+
+      // Use the script that matches the example text (word or traditional)
+      const targetInExample = chosen.traditional && example.chinese.includes(chosen.traditional)
+        ? chosen.traditional
+        : chosen.word;
+      const blanked = example.chinese.replace(new RegExp(targetInExample, "g"), "＿＿");
 
       res.json({
         wordId: chosen.id,
@@ -1076,13 +1094,20 @@ Be concise and encouraging.`;
   app.post('/api/quiz/word/check', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { wordId, blanked, userAnswer, correctWord, pinyin, definition } = req.body;
+      const { wordId, blanked, userAnswer, pinyin, definition } = req.body;
 
-      if (!blanked || !correctWord) {
+      if (!blanked || !wordId) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
-      const isCorrect = userAnswer?.trim() === correctWord || userAnswer?.trim() === (await storage.getWordById(wordId))?.traditional;
+      const storedWord = await storage.getWordById(wordId);
+      if (!storedWord) {
+        return res.status(404).json({ message: "Word not found" });
+      }
+
+      const trimmed = userAnswer?.trim() ?? "";
+      const isCorrect = trimmed === storedWord.word || (!!storedWord.traditional && trimmed === storedWord.traditional);
+      const correctWord = storedWord.word;
 
       const anthropic = await getAnthropicForUser(userId);
       if (!anthropic) {

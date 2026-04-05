@@ -49,7 +49,7 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     }
     const [newCount] = await db.select({ value: count() }).from(chineseCharacters);
     log(`Seeding complete — ${newCount.value} characters in database.`);
-    return;
+    // fall through — still run word seed
   }
 
   // ── Stale-data check ────────────────────────────────────────────────────────
@@ -101,10 +101,10 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
       if (i % 500 === 0) log(`  …updated up to index ${i + 100}`);
     }
     log(`Full upsert complete — ${updated} characters updated.`);
-    return;
+    // fall through — still run word seed
+  } else {
+    log(`Characters table has ${charCount.value} characters — skipping character seed.`);
   }
-
-  log(`Characters table has ${charCount.value} characters — skipping character seed.`);
 
   // ── Words ────────────────────────────────────────────────────────────────────
   await ensureWordDataSeeded(log);
@@ -133,12 +133,9 @@ async function ensureWordDataSeeded(log: (msg: string) => void) {
 
   const [wordCount] = await db.select({ value: count() }).from(chineseWords);
 
-  if (wordCount.value >= wordData.length) {
-    log(`Words table has ${wordCount.value} entries — skipping word seed.`);
-    return;
-  }
-
-  log(`Words table has ${wordCount.value}/${wordData.length} entries — seeding words in batches…`);
+  // Always upsert — this backfills the traditional column for pre-existing rows
+  // that were inserted before the column was added, and inserts any missing rows.
+  log(`Words table has ${wordCount.value}/${wordData.length} entries — upserting words in batches…`);
   for (let i = 0; i < wordData.length; i += 100) {
     const batch = wordData.slice(i, i + 100);
     await db
