@@ -1036,15 +1036,14 @@ Be concise and encouraging.`;
         }
       }
 
-      if (!example) {
-        return res.status(404).json({ message: "No valid example found for selected word" });
-      }
-
       // Use the script that matches the example text (word or traditional)
-      const targetInExample = chosen.traditional && example.chinese.includes(chosen.traditional)
-        ? chosen.traditional
-        : chosen.word;
-      const blanked = example.chinese.replace(new RegExp(targetInExample, "g"), "＿＿");
+      let blanked: string | null = null;
+      if (example) {
+        const targetInExample = chosen.traditional && example.chinese.includes(chosen.traditional)
+          ? chosen.traditional
+          : chosen.word;
+        blanked = example.chinese.replace(new RegExp(targetInExample, "g"), "＿＿");
+      }
 
       res.json({
         wordId: chosen.id,
@@ -1096,7 +1095,7 @@ Be concise and encouraging.`;
       const userId = req.user.claims.sub;
       const { wordId, blanked, userAnswer, pinyin, definition } = req.body;
 
-      if (!blanked || !wordId) {
+      if (!wordId) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
