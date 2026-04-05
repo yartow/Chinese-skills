@@ -155,3 +155,51 @@ AI features (fill-in-the-blank quiz feedback and AI-generated sentences) require
 2. **Server-wide fallback** — Set the `ANTHROPIC_API_KEY` environment variable. This key is used for any user who has not set their own. Leave it unset if you want each user to supply their own key.
 
 If no key is available for a user, AI features will gracefully fail with an error message rather than crashing.
+
+---
+
+## Roadmap
+
+More features are planned. Contributions and suggestions are welcome via issues and pull requests.
+
+---
+
+## What This App Does Not Cover (Yet)
+
+The app focuses on character recognition and writing. If you are preparing for a formal HSK exam, the following areas are tested but not currently covered:
+
+### Listening (35% of the test — biggest gap)
+- Short dialogues with true/false questions
+- Multi-turn conversations with multiple choice
+- You need to practise recognising spoken Mandarin at natural speed, tones included
+- Resources: HSK Standard Course audio, ChinesePod, Mandarin Corner on YouTube
+
+### Word Ordering (排列句子)
+- You are given 4–5 words/phrases and must arrange them into a correct sentence
+- Tests grammar knowledge, not just vocabulary
+- Very common on the test and hard to improvise
+
+### Reading Passages
+- Short paragraphs (50–100 characters) followed by questions
+- Differs from single-character exercises — you need to read at pace and infer meaning from context
+
+### Grammar Pattern Drilling
+HSK 3 has specific patterns you must know cold:
+- 把 / 被 sentences
+- 虽然…但是, 因为…所以, 不但…而且
+- Resultative complements (做完, 学会, 听懂)
+- 是…的 emphasis structure
+- Measure words (量词) for a wide range of nouns
+
+### Exam-Style Multiple-Choice / Cloze Completion
+The vocabulary quiz already supports fill-in-the-blank sentence completion with full words. What is not yet covered is the official HSK exam format: a sentence with a blank and four word options to choose from (multiple-choice cloze), including distractor options chosen to test grammatical and semantic distinctions.
+
+### Timed Mock Tests
+- The real test is strictly timed. Practising under time pressure is essential.
+- Official HSK 3 past papers are available from Hanban/NEEA
+
+### Practical Suggestions for Exam Prep
+1. **Start with the official HSK 3 Standard Course book** (汉语水平考试标准教程 3) — structured exactly around the test format and includes audio
+2. **Do at least one full mock test per week** under timed conditions
+3. **Anki for vocabulary** — HSK 3 has 600 words; recognising them as whole words (not just the characters) is different from what this app trains
+4. **Speaking practice** — HSK 3 does not test speaking, but producing sentences yourself cements grammar patterns far better than recognition exercises
