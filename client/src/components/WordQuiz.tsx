@@ -144,16 +144,14 @@ export default function WordQuiz() {
 
   function handleSubmit() {
     if (!question || !answer.trim() || checkMutation.isPending) return;
-    if (question.blanked) {
-      checkMutation.mutate({
-        wordId: question.wordId,
-        blanked: question.blanked,
-        userAnswer: answer.trim(),
-        correctWord: question.word,
-        pinyin: question.pinyin,
-        definition: question.definition,
-      });
-    }
+    checkMutation.mutate({
+      wordId: question.wordId,
+      blanked: question.blanked ?? "",
+      userAnswer: answer.trim(),
+      correctWord: question.word,
+      pinyin: question.pinyin,
+      definition: question.definition,
+    });
   }
 
   const handleNext = useCallback(() => {
@@ -229,8 +227,11 @@ export default function WordQuiz() {
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${HSK_COLORS[question.hskLevel]}`}>
                   HSK {question.hskLevel}
                 </span>
-                <span className="text-xs text-muted-foreground font-serif">{question.traditional || question.word}</span>
                 <span className="text-xs text-muted-foreground">{question.pinyin}</span>
+                {/* Show the word/traditional only after the user has answered */}
+                {result && question.traditional && question.traditional !== question.word && (
+                  <span className="text-xs text-muted-foreground font-serif">{question.traditional}</span>
+                )}
               </div>
 
               <div className="text-sm text-muted-foreground">
@@ -285,7 +286,7 @@ export default function WordQuiz() {
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={!answer.trim() || checkMutation.isPending || !question.blanked}
+                  disabled={!answer.trim() || checkMutation.isPending}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   {checkMutation.isPending ? "Checking…" : "Check"}

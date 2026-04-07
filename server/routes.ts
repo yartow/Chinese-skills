@@ -955,6 +955,58 @@ Be concise and encouraging.`;
     }
   });
 
+  // ── Word Browse endpoints ────────────────────────────────────────────────────
+
+  // GET /api/words/filtered?page=0&pageSize=20&hskLevels=1,2,3&filterUnknown=true
+  app.get('/api/words/filtered', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const page = parseInt(req.query.page as string) || 0;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+
+      if (page < 0 || pageSize < 1 || pageSize > 100) {
+        return res.status(400).json({ message: "Invalid pagination parameters" });
+      }
+
+      let hskLevels: number[] | undefined;
+      if (req.query.hskLevels) {
+        const levels = (req.query.hskLevels as string).split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
+        if (levels.length > 0) hskLevels = levels;
+      }
+
+      const filterUnknown = req.query.filterUnknown === 'true';
+
+      const result = await storage.getFilteredWords(userId, page, pageSize, hskLevels, filterUnknown);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching filtered words:", error);
+      res.status(500).json({ message: "Failed to fetch words" });
+    }
+  });
+
+  // GET /api/words/batch-progress?wordIds=1,2,3
+  app.get('/api/words/batch-progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const wordIdsParam = req.query.wordIds as string;
+
+      if (!wordIdsParam) {
+        return res.json([]);
+      }
+
+      const wordIds = wordIdsParam.split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n));
+      if (wordIds.length > 200) {
+        return res.status(400).json({ message: "Too many word IDs (max 200)" });
+      }
+
+      const progress = await storage.getWordBatchProgress(userId, wordIds);
+      res.json(progress);
+    } catch (error) {
+      console.error("Error fetching word batch progress:", error);
+      res.status(500).json({ message: "Failed to fetch word progress" });
+    }
+  });
+
   // ── Word Quiz endpoints ──────────────────────────────────────────────────────
 
   // GET /api/quiz/word?levels=1,2,3&exclude=4,17
@@ -1036,15 +1088,14 @@ Be concise and encouraging.`;
         }
       }
 
-      if (!example) {
-        return res.status(404).json({ message: "No valid example found for selected word" });
-      }
-
       // Use the script that matches the example text (word or traditional)
-      const targetInExample = chosen.traditional && example.chinese.includes(chosen.traditional)
-        ? chosen.traditional
-        : chosen.word;
-      const blanked = example.chinese.replace(new RegExp(targetInExample, "g"), "＿＿");
+      let blanked: string | null = null;
+      if (example) {
+        const targetInExample = chosen.traditional && example.chinese.includes(chosen.traditional)
+          ? chosen.traditional
+          : chosen.word;
+        blanked = example.chinese.replace(new RegExp(targetInExample, "g"), "＿＿");
+      }
 
       res.json({
         wordId: chosen.id,
@@ -1096,7 +1147,7 @@ Be concise and encouraging.`;
       const userId = req.user.claims.sub;
       const { wordId, blanked, userAnswer, pinyin, definition } = req.body;
 
-      if (!blanked || !wordId) {
+      if (!wordId) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
