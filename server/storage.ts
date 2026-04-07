@@ -110,6 +110,10 @@ export interface IStorage {
   // Quiz feedback cache operations
   getFeedbackCache(blanked: string, character: string): Promise<string | null>;
   setFeedbackCache(blanked: string, character: string, feedback: string): Promise<void>;
+
+  // Word browse operations
+  getFilteredWords(userId: string, page: number, pageSize: number, hskLevels?: number[], filterUnknown?: boolean): Promise<{ words: ChineseWord[]; total: number }>;
+  getWordBatchProgress(userId: string, wordIds: number[]): Promise<WordProgress[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -661,6 +665,49 @@ export class DatabaseStorage implements IStorage {
         target: [wordProgress.userId, wordProgress.wordId],
         set: { known, updatedAt: new Date() },
       });
+  }
+
+  async getFilteredWords(userId: string, page: number, pageSize: number, hskLevels?: number[], filterUnknown?: boolean): Promise<{ words: ChineseWord[]; total: number }> {
+    const offset = page * pageSize;
+    const conditions: any[] = [];
+
+    if (hskLevels && hskLevels.length > 0) {
+      conditions.push(inArray(chineseWords.hskLevel, hskLevels));
+    }
+
+    if (filterUnknown) {
+      // Exclude words marked as known by this user
+      const knownSubquery = db
+        .select({ wordId: wordProgress.wordId })
+        .from(wordProgress)
+        .where(and(eq(wordProgress.userId, userId), eq(wordProgress.known, true)));
+      conditions.push(notInArray(chineseWords.id, knownSubquery));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [{ value: total }] = await db
+      .select({ value: count() })
+      .from(chineseWords)
+      .where(whereClause);
+
+    const words = await db
+      .select()
+      .from(chineseWords)
+      .where(whereClause)
+      .orderBy(chineseWords.hskLevel, chineseWords.id)
+      .limit(pageSize)
+      .offset(offset);
+
+    return { words: words as ChineseWord[], total };
+  }
+
+  async getWordBatchProgress(userId: string, wordIds: number[]): Promise<WordProgress[]> {
+    if (wordIds.length === 0) return [];
+    return db
+      .select()
+      .from(wordProgress)
+      .where(and(eq(wordProgress.userId, userId), inArray(wordProgress.wordId, wordIds))) as Promise<WordProgress[]>;
   }
 }
 

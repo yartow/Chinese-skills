@@ -10,12 +10,13 @@ import Home from "./pages/home-connected";
 import CharacterDetail from "./pages/character-detail";
 import TestModePage from "./pages/test-mode-page";
 import StandardMode from "./pages/standard-mode";
+import WordsMode from "./pages/words-mode";
 import Search from "./pages/search";
 import CharacterBrowserPage from "./pages/character-browser-page";
 import Saved from "./pages/saved";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen } from "lucide-react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -54,6 +55,15 @@ function Router() {
           >
             <BookMarked className="w-4 h-4" />
             <span className="hidden sm:inline">Standard</span>
+          </Button>
+          <Button
+            variant={location === "/words" ? "default" : "ghost"}
+            onClick={() => setLocation("/words")}
+            className="gap-2"
+            data-testid="nav-words"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">Words</span>
           </Button>
           <Button
             variant={location === "/search" ? "default" : "ghost"}
@@ -98,6 +108,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/standard" component={StandardMode} />
+          <Route path="/words" component={WordsMode} />
           <Route path="/search" component={Search} />
           <Route path="/character/:id" component={CharacterDetail} />
           <Route path="/test" component={TestModePage} />
