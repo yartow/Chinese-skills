@@ -149,6 +149,7 @@ async function ensureWordDataSeeded(log: (msg: string) => void) {
           pinyin: sql`excluded.pinyin`,
           definition: sql`excluded.definition`,
           hskLevel: sql`excluded.hsk_level`,
+          examples: sql`CASE WHEN excluded.examples::text <> '[]' THEN excluded.examples ELSE ${chineseWords.examples} END`,
         },
       });
     if (i % 500 === 0) log(`  …seeded up to word ${i + 100}`);
