@@ -203,3 +203,6 @@ The vocabulary quiz already supports fill-in-the-blank sentence completion with 
 2. **Do at least one full mock test per week** under timed conditions
 3. **Anki for vocabulary** — HSK 3 has 600 words; recognising them as whole words (not just the characters) is different from what this app trains
 4. **Speaking practice** — HSK 3 does not test speaking, but producing sentences yourself cements grammar patterns far better than recognition exercises
+
+
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/yartow/Chinese-skills?utm_source=oss&utm_medium=github&utm_campaign=yartow%2FChinese-skills&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
