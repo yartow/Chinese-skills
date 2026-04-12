@@ -215,7 +215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
     try {
       const index = parseInt(req.params.index);
-      if (isNaN(index) || index < 0 || index >= 3000) {
+      if (isNaN(index) || index < 0 || index >= 100000) {
         return res.status(400).json({ message: "Invalid character index" });
       }
 
@@ -243,7 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing indices parameter" });
       }
 
-      const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 3000);
+      const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 100000);
       
       if (indices.length === 0) {
         return res.json([]);

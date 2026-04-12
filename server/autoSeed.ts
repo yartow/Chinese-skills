@@ -6,6 +6,26 @@ import fs from "fs";
 import path from "path";
 
 export async function ensureDataSeeded(log: (msg: string) => void) {
+  // ── Search indexes ────────────────────────────────────────────────────────────
+  // Enable pg_trgm for fast LIKE / ILIKE searches on definition text.
+  // These are idempotent — safe to run on every startup.
+  try {
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_cc_definition_trgm
+        ON chinese_characters
+        USING GIN (LOWER(array_to_string(definition, ' ')) gin_trgm_ops)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_cc_pinyin_trgm
+        ON chinese_characters
+        USING GIN (pinyin gin_trgm_ops)
+    `);
+    log("Search indexes OK.");
+  } catch (e) {
+    log(`Warning: could not create search indexes (${e}) — searches may be slower.`);
+  }
+
   // Build paths relative to the project root (process.cwd()) so this works
   // both in development (tsx) and after bundling where __dirname may differ.
   const radSeedPath = path.join(process.cwd(), "server", "data", "radicals-seed.json");
