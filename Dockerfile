@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies (including dev deps needed for the build)
 COPY package*.json ./
-RUN npm ci
+RUN npm install --prefer-offline
 
 # Copy source and build
 COPY . .
@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev --prefer-offline
 
 # Compiled backend + frontend bundle
 COPY --from=builder /app/dist ./dist
