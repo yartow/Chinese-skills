@@ -150,8 +150,19 @@ export default function HandwritingQuiz() {
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
-  const [candidateCount, setCandidateCount] = useState(16);
   const [showSettings, setShowSettings] = useState(false);
+
+  const { data: userSettings } = useQuery<{ handwritingCandidates?: number }>({
+    queryKey: ["/api/settings"],
+    staleTime: Infinity,
+  });
+  const savedCandidateCount = userSettings?.handwritingCandidates ?? 8;
+  const [candidateCount, setCandidateCount] = useState(savedCandidateCount);
+
+  // Sync local state whenever the persisted setting changes (e.g. user updates it in Settings)
+  useEffect(() => {
+    setCandidateCount(savedCandidateCount);
+  }, [savedCandidateCount]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { startStroke, continueStroke, endStroke, clearCanvas, getStrokesForLookup, redraw } =
@@ -194,7 +205,7 @@ export default function HandwritingQuiz() {
         setRecognizing(false);
       });
     } catch { setRecognizing(false); }
-  }, [engineReady, getStrokesForLookup]);
+  }, [engineReady, getStrokesForLookup, candidateCount]);
 
   // ── Coordinate normalization ──
   // The canvas internal drawing space is CANVAS_SIZE × CANVAS_SIZE (logical pixels).
@@ -444,22 +455,24 @@ export default function HandwritingQuiz() {
           )}
         </div>
 
-        {candidates.length > 0 && !result && (
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {recognizing ? "Recognising…" : "Tap your character:"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {candidates.map((char, i) => (
-                <button key={i} onClick={() => selectCandidate(char)}
-                  className="font-serif text-2xl w-12 h-12 rounded-lg border border-border hover:border-foreground hover:bg-muted transition-all flex items-center justify-center">
-                  {char}
-                </button>
-              ))}
+        {/* Always reserve height so candidates appearing/disappearing doesn't shift the page */}
+        <div className="min-h-[4.5rem]">
+          {candidates.length > 0 && !result && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {recognizing ? "Recognising…" : "Tap your character:"}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {candidates.map((char, i) => (
+                  <button key={i} onClick={() => selectCandidate(char)}
+                    className="font-serif text-2xl w-12 h-12 rounded-lg border border-border hover:border-foreground hover:bg-muted transition-all flex items-center justify-center">
+                    {char}
+                  </button>
+                ))}
+              </div>
             </div>
-
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Feedback */}

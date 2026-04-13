@@ -236,6 +236,8 @@ export default function Home() {
               onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
               onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
               onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
+              handwritingCandidates={settings?.handwritingCandidates ?? 8}
+              onHandwritingCandidatesChange={(val) => updateSettingsMutation.mutate({ handwritingCandidates: val })}
             />
           </div>
         </SheetContent>

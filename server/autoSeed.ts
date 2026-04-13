@@ -6,6 +6,35 @@ import fs from "fs";
 import path from "path";
 
 export async function ensureDataSeeded(log: (msg: string) => void) {
+  // ── Schema migrations ─────────────────────────────────────────────────────────
+  // Add columns that were introduced after the initial schema deployment.
+  try {
+    await db.execute(
+      sql`ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS handwriting_candidates integer NOT NULL DEFAULT 8`
+    );
+  } catch {
+    // Column already exists or not supported — ignore
+  }
+
+  // ── Data cleanup ──────────────────────────────────────────────────────────────
+  // Remove duplicate entries where simplified = traditional (bare traditional-form
+  // entries) and the character is already represented as the `traditional` column
+  // of another entry that has a distinct simplified form. HSK > 0 entries are kept.
+  try {
+    await db.execute(sql`
+      DELETE FROM chinese_characters cc
+      WHERE cc.simplified = cc.traditional
+        AND cc.hsk_level = 0
+        AND EXISTS (
+          SELECT 1 FROM chinese_characters cc2
+          WHERE cc2.traditional = cc.simplified
+            AND cc2.simplified <> cc2.traditional
+        )
+    `);
+  } catch (e) {
+    log(`Warning: duplicate-character cleanup failed (${e})`);
+  }
+
   // ── Search indexes ────────────────────────────────────────────────────────────
   // Enable pg_trgm for fast LIKE / ILIKE searches on definition text.
   // These are idempotent — safe to run on every startup.
