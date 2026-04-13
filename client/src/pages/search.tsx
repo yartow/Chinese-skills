@@ -146,18 +146,17 @@ export default function Search() {
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
               data-testid="input-search"
-              className="pr-10"
+              className="pr-8"
             />
             {searchTerm && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+              <button
+                type="button"
                 onClick={handleClearSearch}
                 data-testid="button-clear-search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="h-4 w-4" />
-              </Button>
+              </button>
             )}
           </div>
           <Button

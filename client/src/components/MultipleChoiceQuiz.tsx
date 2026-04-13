@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
@@ -141,6 +141,33 @@ export default function MultipleChoiceQuiz() {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
     loadQuestion(selectedLevelsRef.current);
   }, []);
+
+  const handleShowAnswer = useCallback(() => {
+    if (!question || selected !== null) return;
+    // Use a sentinel value that won't match any real character
+    setSelected("__revealed__");
+    setScores((s) => {
+      const lvl = question.hskLevel;
+      const prev = s.byLevel[lvl] ?? { correct: 0, total: 0 };
+      return {
+        ...s,
+        wrong: s.wrong + 1,
+        streak: 0,
+        byLevel: { ...s.byLevel, [lvl]: { correct: prev.correct, total: prev.total + 1 } },
+      };
+    });
+    setWrongAnswers((w) => [...w, {
+      character: question.character,
+      traditional: question.traditional,
+      pinyin: question.pinyin,
+      userAnswer: "",
+      sentence: question.sentence,
+      blanked: question.blanked,
+      translation: question.translation,
+      hskLevel: question.hskLevel,
+      mode: "choice" as const,
+    }]);
+  }, [question, selected]);
 
   // Keyboard shortcuts: 1–4 select a choice, S skips, N advances after answering
   useEffect(() => {
@@ -311,10 +338,15 @@ export default function MultipleChoiceQuiz() {
       {/* Skip / Next button */}
       <div className="flex justify-end gap-2">
         {!isAnswered && (
-          <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1 text-muted-foreground">
-            <SkipForward className="w-4 h-4" /> Skip
-            <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
-          </Button>
+          <>
+            <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1 text-muted-foreground">
+              <SkipForward className="w-4 h-4" /> Skip
+              <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleShowAnswer} className="gap-1 text-muted-foreground">
+              <Eye className="w-4 h-4" /> Show
+            </Button>
+          </>
         )}
         {isAnswered && (
           <Button onClick={handleNext} variant="outline" className="gap-1">
