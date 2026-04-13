@@ -260,6 +260,25 @@ export default function StandardMode() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6">
+        {/* Mobile filter panel — shown above the character list when toggled */}
+        {showFilters && (
+          <div className="lg:hidden mb-6">
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Filters</h2>
+              <ProgressFilter
+                filterReading={filterReading}
+                filterWriting={filterWriting}
+                filterRadical={filterRadical}
+                onToggleFilterReading={() => setFilterReading(!filterReading)}
+                onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
+                onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
+                selectedHskLevels={selectedHskLevels}
+                onToggleHskLevel={handleToggleHskLevel}
+              />
+            </Card>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3 space-y-6">
             <div className="flex flex-col gap-3">
@@ -342,22 +361,20 @@ export default function StandardMode() {
             )}
           </div>
 
-          <div className="lg:col-span-1">
-            <div className={showFilters ? undefined : "hidden lg:block"}>
-              <Card className="p-6 sticky top-6">
-                <h2 className="text-lg font-semibold mb-4">Filters</h2>
-                <ProgressFilter
-                  filterReading={filterReading}
-                  filterWriting={filterWriting}
-                  filterRadical={filterRadical}
-                  onToggleFilterReading={() => setFilterReading(!filterReading)}
-                  onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
-                  onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
-                  selectedHskLevels={selectedHskLevels}
-                  onToggleHskLevel={handleToggleHskLevel}
-                />
-              </Card>
-            </div>
+          <div className="hidden lg:block lg:col-span-1">
+            <Card className="p-6 sticky top-6">
+              <h2 className="text-lg font-semibold mb-4">Filters</h2>
+              <ProgressFilter
+                filterReading={filterReading}
+                filterWriting={filterWriting}
+                filterRadical={filterRadical}
+                onToggleFilterReading={() => setFilterReading(!filterReading)}
+                onToggleFilterWriting={() => setFilterWriting(!filterWriting)}
+                onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
+                selectedHskLevels={selectedHskLevels}
+                onToggleHskLevel={handleToggleHskLevel}
+              />
+            </Card>
           </div>
         </div>
       </main>

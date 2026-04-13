@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
 import { HSK_COLORS, EMPTY_SCORES, type QuizScores, type WrongAnswer } from "./quizTypes";
 
@@ -167,6 +167,33 @@ export default function WordQuiz() {
     refetch();
   }
 
+  function handleShowAnswer() {
+    if (!question || result) return;
+    const fakeResult: CheckResult = { correct: false, feedback: "Answer revealed." };
+    setResult(fakeResult);
+    setScores((s) => {
+      const lvl = question.hskLevel;
+      const prev = s.byLevel[lvl] ?? { correct: 0, total: 0 };
+      return {
+        ...s,
+        wrong: s.wrong + 1,
+        streak: 0,
+        byLevel: { ...s.byLevel, [lvl]: { correct: prev.correct, total: prev.total + 1 } },
+      };
+    });
+    setWrongAnswers((w) => [...w, {
+      character: question.word,
+      traditional: question.traditional,
+      pinyin: question.pinyin,
+      userAnswer: "",
+      sentence: question.sentence ?? "",
+      blanked: question.blanked ?? "",
+      translation: question.translation ?? "",
+      hskLevel: question.hskLevel,
+      mode: "fill" as const,
+    }]);
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.isComposing) return;
@@ -287,6 +314,14 @@ export default function WordQuiz() {
                 >
                   <SkipForward className="w-4 h-4" /> Skip
                   <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleShowAnswer}
+                  className="gap-1 text-muted-foreground"
+                >
+                  <Eye className="w-4 h-4" /> Show
                 </Button>
                 <Button
                   onClick={handleSubmit}
