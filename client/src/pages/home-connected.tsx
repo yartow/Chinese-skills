@@ -71,12 +71,26 @@ export default function Home() {
     enabled: !settingsLoading,
   });
 
-  // Update settings mutation
+  // Update settings mutation.
+  // We patch the cache directly with setQueryData instead of invalidating
+  // and re-fetching /api/settings.  A background refetch while the Sheet is
+  // open caused Radix to replay the slide-in animation and re-focus the first
+  // input on every save — very disruptive on mobile.
   const updateSettingsMutation = useMutation({
     mutationFn: (newSettings: Partial<UserSettings>) =>
       apiRequest("PATCH", "/api/settings", newSettings),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    onSuccess: (_data, variables) => {
+      queryClient.setQueryData<UserSettingsResponse>(["/api/settings"], (old) => {
+        if (!old) return old;
+        // anthropicApiKey is write-only; the server never returns it.
+        // Map it to the boolean flag the client cache uses.
+        const { anthropicApiKey, ...safeVars } = variables as Record<string, unknown>;
+        return {
+          ...old,
+          ...safeVars,
+          ...(anthropicApiKey !== undefined ? { anthropicApiKeySet: true } : {}),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/characters/range"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
     },
