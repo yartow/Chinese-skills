@@ -3,7 +3,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle, Download, Upload, Eye, EyeOff } from "lucide-react";
 
@@ -236,18 +235,31 @@ export default function SettingsPanel({
             </Tooltip>
           </div>
           <div className="flex items-center gap-3">
-            <Slider
-              min={3}
-              max={20}
-              step={1}
-              value={[handwritingCandidates]}
-              onValueChange={([v]) => onHandwritingCandidatesChange(v)}
-              className="flex-1"
-            />
-            <span className="text-sm text-muted-foreground w-6 text-right">{handwritingCandidates}</span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              disabled={handwritingCandidates <= 3}
+              onClick={() => onHandwritingCandidatesChange(Math.max(3, handwritingCandidates - 1))}
+            >
+              −
+            </Button>
+            <span className="text-sm font-medium w-6 text-center">{handwritingCandidates}</span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              disabled={handwritingCandidates >= 20}
+              onClick={() => onHandwritingCandidatesChange(Math.min(20, handwritingCandidates + 1))}
+            >
+              +
+            </Button>
+            <span className="text-xs text-muted-foreground ml-1">
+              {handwritingCandidates <= 6 ? "Strict" : handwritingCandidates <= 12 ? "Normal" : "Lenient"}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {handwritingCandidates <= 6 ? "Strict — only very close matches shown" : handwritingCandidates <= 12 ? "Normal" : "Lenient — more suggestions shown"}
+            Lower = fewer suggestions, stricter matching. Higher = more suggestions shown.
           </p>
         </div>
       )}
