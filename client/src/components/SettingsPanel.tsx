@@ -18,10 +18,12 @@ interface SettingsPanelProps {
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
   handwritingCandidates?: number;
+  autoReloadDatabase?: boolean;
   onUseAiFeedbackChange?: (value: boolean) => void;
   onUseAiSentencesChange?: (value: boolean) => void;
   onAnthropicApiKeyChange?: (key: string) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
+  onAutoReloadDatabaseChange?: (value: boolean) => void;
 }
 
 export default function SettingsPanel({
@@ -32,6 +34,7 @@ export default function SettingsPanel({
   useAiSentences = false,
   anthropicApiKeySet = false,
   handwritingCandidates = 8,
+  autoReloadDatabase = true,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
@@ -39,6 +42,7 @@ export default function SettingsPanel({
   onUseAiSentencesChange,
   onAnthropicApiKeyChange,
   onHandwritingCandidatesChange,
+  onAutoReloadDatabaseChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -334,6 +338,24 @@ export default function SettingsPanel({
 
       <div className="space-y-3 pt-2 border-t">
         <Label className="text-sm font-semibold">Admin</Label>
+
+        {onAutoReloadDatabaseChange && (
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-4 py-1">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-reload-toggle" className="text-sm">Reload database with new characters automatically after updates</Label>
+              </div>
+              <Switch
+                id="auto-reload-toggle"
+                checked={autoReloadDatabase}
+                onCheckedChange={onAutoReloadDatabaseChange}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              If this setting is turned on, then the current characters and examples will be overwritten with new ones from the seed file whenever the app detects a change. If you have previously uploaded your own version of the data, turn this setting <strong>off</strong>, or your data will be overwritten.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">

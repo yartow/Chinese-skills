@@ -4,6 +4,15 @@ import { count, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
+
+function seedChecksum(...filePaths: string[]): string {
+  const hash = crypto.createHash("md5");
+  for (const p of filePaths) {
+    if (fs.existsSync(p)) hash.update(fs.readFileSync(p));
+  }
+  return hash.digest("hex");
+}
 
 export async function ensureDataSeeded(log: (msg: string) => void) {
   // ── Schema migrations ─────────────────────────────────────────────────────────
@@ -14,6 +23,23 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     );
   } catch {
     // Column already exists or not supported — ignore
+  }
+
+  // Ensure the app_config table exists and has a default row.
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS app_config (
+        id integer PRIMARY KEY DEFAULT 1,
+        auto_reload_database boolean NOT NULL DEFAULT true,
+        seed_checksum varchar
+      )
+    `);
+    await db.execute(sql`
+      INSERT INTO app_config (id, auto_reload_database) VALUES (1, true)
+      ON CONFLICT (id) DO NOTHING
+    `);
+  } catch (e) {
+    log(`Warning: could not create app_config table (${e})`);
   }
 
   // ── Data cleanup ──────────────────────────────────────────────────────────────
@@ -101,22 +127,38 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     // fall through — still run word seed
   }
 
-  // ── Stale-data check ────────────────────────────────────────────────────────
-  // If any characters are missing radical_index or radical_index_traditional,
-  // the database was seeded with old data. Run a full upsert to bring all
-  // character records up to date with the current seed file.
+  // ── Seed-file change detection ───────────────────────────────────────────────
+  // Read the autoReloadDatabase setting and the last-applied checksum from app_config.
+  const wordSeedPathForCheck = path.join(process.cwd(), "server", "data", "words-seed.json");
+  const currentChecksum = seedChecksum(charSeedPath, wordSeedPathForCheck);
+
+  let autoReload = true;
+  let storedChecksum: string | null = null;
+  try {
+    const rows = await db.execute(sql`SELECT auto_reload_database, seed_checksum FROM app_config WHERE id = 1`);
+    const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+    if (row) {
+      autoReload = row.auto_reload_database ?? true;
+      storedChecksum = row.seed_checksum ?? null;
+    }
+  } catch (e) {
+    log(`Warning: could not read app_config (${e}) — defaulting to autoReload=true`);
+  }
+
+  // Also check for structurally stale rows (missing radical_index) as a fallback.
   const [missingRadical] = await db
     .select({ value: count() })
     .from(chineseCharacters)
     .where(isNull(chineseCharacters.radicalIndex));
 
-  const [missingRadicalTrad] = await db
-    .select({ value: count() })
-    .from(chineseCharacters)
-    .where(isNull(chineseCharacters.radicalIndexTraditional));
+  const checksumChanged = currentChecksum !== storedChecksum;
+  const needsFullUpsert = checksumChanged || missingRadical.value > 0;
 
-  if (missingRadical.value > 0 || missingRadicalTrad.value > 0) {
-    log(`Characters table has ${charCount.value} rows but ${missingRadical.value} missing radical_index and ${missingRadicalTrad.value} missing radical_index_traditional — running full upsert from seed…`);
+  if (!autoReload) {
+    log(`Auto-reload is disabled — skipping full upsert (seed changes will not be applied).`);
+  } else if (needsFullUpsert) {
+    const reason = missingRadical.value > 0 ? "missing radical_index" : "seed file changed";
+    log(`Running full upsert from seed (${reason})…`);
     let updated = 0;
     for (let i = 0; i < charData.length; i += 100) {
       const batch = charData.slice(i, i + 100);
@@ -149,17 +191,23 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
       updated += batch.length;
       if (i % 500 === 0) log(`  …updated up to index ${i + 100}`);
     }
+    // Persist the new checksum so we don't re-upsert on the next startup
+    await db.execute(sql`UPDATE app_config SET seed_checksum = ${currentChecksum} WHERE id = 1`);
     log(`Full upsert complete — ${updated} characters updated.`);
-    // fall through — still run word seed
   } else {
-    log(`Characters table has ${charCount.value} characters — skipping character seed.`);
+    log(`Seed file unchanged (checksum match) — skipping full character upsert.`);
   }
 
   // ── Words ────────────────────────────────────────────────────────────────────
-  await ensureWordDataSeeded(log);
+  await ensureWordDataSeeded(log, autoReload, currentChecksum, storedChecksum);
 }
 
-async function ensureWordDataSeeded(log: (msg: string) => void) {
+async function ensureWordDataSeeded(
+  log: (msg: string) => void,
+  autoReload: boolean,
+  currentChecksum: string,
+  storedChecksum: string | null,
+) {
   const wordSeedPath = path.join(process.cwd(), "server", "data", "words-seed.json");
   if (!fs.existsSync(wordSeedPath)) {
     log("Warning: words-seed.json not found — skipping word seed.");
@@ -182,8 +230,18 @@ async function ensureWordDataSeeded(log: (msg: string) => void) {
 
   const [wordCount] = await db.select({ value: count() }).from(chineseWords);
 
-  // Always upsert — this backfills the traditional column for pre-existing rows
-  // that were inserted before the column was added, and inserts any missing rows.
+  const needsWordUpsert = wordCount.value < wordData.length || currentChecksum !== storedChecksum;
+
+  if (!autoReload && wordCount.value >= wordData.length) {
+    log(`Auto-reload is disabled — skipping word upsert.`);
+    return;
+  }
+
+  if (!needsWordUpsert) {
+    log(`Words table has ${wordCount.value} words, seed unchanged — skipping word upsert.`);
+    return;
+  }
+
   log(`Words table has ${wordCount.value}/${wordData.length} entries — upserting words in batches…`);
   for (let i = 0; i < wordData.length; i += 100) {
     const batch = wordData.slice(i, i + 100);

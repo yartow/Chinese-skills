@@ -41,6 +41,18 @@ export const users = pgTable("users", {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// App-level configuration — single row (id = 1), not per-user
+export const appConfig = pgTable("app_config", {
+  id: integer("id").primaryKey().default(1),
+  // When true, autoSeed detects seed-file changes (via checksum) and runs a full
+  // upsert to propagate updated characters/examples to the live database.
+  // Set to false if you have uploaded custom data you don't want overwritten.
+  autoReloadDatabase: boolean("auto_reload_database").notNull().default(true),
+  // MD5 checksum of the last seed files that were successfully applied.
+  seedChecksum: varchar("seed_checksum"),
+});
+export type AppConfig = typeof appConfig.$inferSelect;
+
 // User settings table
 export const userSettings = pgTable("user_settings", {
   userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),

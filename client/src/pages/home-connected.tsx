@@ -39,6 +39,16 @@ export default function Home() {
     queryKey: ["/api/settings"],
   });
 
+  // Fetch and mutate app-level config (auto-reload database setting)
+  const { data: appConfig } = useQuery<{ autoReloadDatabase: boolean }>({
+    queryKey: ["/api/app-config"],
+  });
+  const updateAppConfigMutation = useMutation({
+    mutationFn: (newConfig: { autoReloadDatabase: boolean }) =>
+      apiRequest("PATCH", "/api/app-config", newConfig),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/app-config"] }),
+  });
+
   const isTraditional = settings?.preferTraditional ?? false;
   const currentLevel = settings?.currentLevel ?? 0;
   const dailyCharCount = settings?.dailyCharCount ?? 5;
@@ -238,6 +248,8 @@ export default function Home() {
               onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
               handwritingCandidates={settings?.handwritingCandidates ?? 8}
               onHandwritingCandidatesChange={(val) => updateSettingsMutation.mutate({ handwritingCandidates: val })}
+              autoReloadDatabase={appConfig?.autoReloadDatabase ?? true}
+              onAutoReloadDatabaseChange={(val) => updateAppConfigMutation.mutate({ autoReloadDatabase: val })}
             />
           </div>
         </SheetContent>
