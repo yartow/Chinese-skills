@@ -519,8 +519,8 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(chineseCharacters.simplified, searchTerm),
           eq(chineseCharacters.traditional, searchTerm),
-          like(chineseCharacters.pinyin, `%${lowerSearchTerm}%`),
-          sql`LOWER(array_to_string(${chineseCharacters.definition}, ' ')) LIKE ${`%${lowerSearchTerm}%`}`
+          sql`${chineseCharacters.pinyin} ILIKE ${`%${lowerSearchTerm}%`}`,
+          sql`array_to_string(${chineseCharacters.definition}, ' ') ILIKE ${`%${lowerSearchTerm}%`}`
         )
       )
       .orderBy(chineseCharacters.index)

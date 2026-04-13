@@ -158,6 +158,207 @@ If no key is available for a user, AI features will gracefully fail with an erro
 
 ---
 
+## Python Scripts (`source files/`)
+
+These scripts manage the database content from the command line. Most require environment variables set before running:
+
+```bash
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chinese_learning
+export ANTHROPIC_API_KEY=sk-ant-...   # only scripts that call Claude
+```
+
+Make sure the Docker database is running first (`docker compose up -d`).
+
+---
+
+### `enrich_character.py` — Enrich individual characters with Claude
+
+Re-generates AI-enriched fields for one or more characters already in the database. Useful when a character was imported with basic data (pinyin + definition) but is missing examples, radical, compound words, or alternate pronunciations.
+
+**What it fills in:** `hsk_level` (corrects if wrong), `traditional_variants`, `pinyin2`/`pinyin3` (多音字), `numbered_pinyin` 1–3, `radical_index`, `examples` (3 sentences, simplified + traditional), `word_examples` (3 compounds, simplified + traditional).
+
+**What it does not touch:** `index`, `simplified`, `pinyin`, `definition`, `lesson` — those are treated as authoritative from the original import.
+
+```bash
+# Enrich a single character
+python3 "source files/enrich_character.py" 嘌
+
+# Enrich multiple characters at once
+python3 "source files/enrich_character.py" 嘌 呤 囧
+
+# Preview what would be written without touching the database
+python3 "source files/enrich_character.py" 嘌 --dry-run
+```
+
+| Option | Description |
+|---|---|
+| `characters` | One or more simplified Chinese characters (required) |
+| `--dry-run` | Print the generated data without writing to the database |
+
+---
+
+### `generate_word_examples.py` — Generate example sentences for vocabulary words
+
+Generates fill-in-blank example sentences for every row in `chinese_words` where `examples` is empty. Each word gets one sentence in simplified Chinese. After running, export with `npx tsx server/exportSeedData.ts` and commit to propagate to production.
+
+```bash
+# Fill all empty rows (may take a while for thousands of words)
+python3 "source files/generate_word_examples.py"
+
+# Preview without writing
+python3 "source files/generate_word_examples.py" --dry-run
+
+# Process only the first 50 words (useful for testing)
+python3 "source files/generate_word_examples.py" --limit 50
+
+# Regenerate sentences even for words that already have one
+python3 "source files/generate_word_examples.py" --overwrite
+```
+
+| Option | Description |
+|---|---|
+| `--dry-run` | Print generated sentences without writing to the database |
+| `--limit N` | Process at most N words (default: all empty rows) |
+| `--overwrite` | Regenerate even if a sentence already exists |
+
+---
+
+### `import_excel_characters.py` — Bulk-import from `mega_hanzi_compilation.xlsx`
+
+One-time bulk import of non-HSK characters from the master Excel file. Assigns database indexes starting at 3000 (after the 3000 HSK characters). Does **not** use the Claude API — all data comes directly from the Excel file. Examples and radical fields are left empty and can be filled later with `enrich_character.py`.
+
+Characters already in the database (matched by simplified form) are skipped. Characters missing a pinyin value are also skipped (pinyin is required).
+
+```bash
+# Import all non-HSK characters
+python3 "source files/import_excel_characters.py"
+
+# Preview the first batch without writing
+python3 "source files/import_excel_characters.py" --dry-run
+```
+
+| Option | Description |
+|---|---|
+| `--dry-run` | Print what would be imported without writing to the database |
+
+**Does not need `ANTHROPIC_API_KEY`.**
+
+---
+
+### `add_characters.py` — Add characters from a CSV file with Claude enrichment
+
+Adds new characters from a master CSV to the database, calling Claude to fill in anything not supplied by the CSV (traditional form, pinyin, definitions, examples, radical, compound words). The CSV row number determines the database index, so row ordering must be stable.
+
+```bash
+# Add characters at indexes 3000–3999
+python3 "source files/add_characters.py" --source hsk.csv --from-to 3000 4000
+
+# Add a single character (for testing)
+python3 "source files/add_characters.py" --source hsk.csv --from-to 3005 3006
+
+# Preview without writing
+python3 "source files/add_characters.py" --source hsk.csv --from-to 3000 4000 --dry-run
+
+# Regenerate rows that already exist
+python3 "source files/add_characters.py" --source hsk.csv --from-to 3000 4000 --overwrite
+```
+
+| Option | Description |
+|---|---|
+| `--source FILE` | Path to the master CSV file (required) |
+| `--from-to START END` | Index range to process — START inclusive, END exclusive (required) |
+| `--dry-run` | Print what would be inserted without writing to the database |
+| `--overwrite` | Delete and re-generate rows that already exist |
+
+**CSV columns used:** `hanzi_sc` (simplified), `hanzi_trad` (traditional), `pinyin`, `level` (HSK 1–9), `cc_cedict_definitions`. All except `hanzi_sc` are optional — Claude fills in anything missing.
+
+---
+
+### `fix_characters.py` — Repair broken data in the database
+
+Two-phase repair tool:
+
+- **Phase 1** — Fixes the `traditional` column where it holds an archaic or obscure variant not used in modern Taiwan/HK Chinese. Claude returns the correct modern form.
+- **Phase 2** — Regenerates example sentences where the sentence does not actually contain the target character (a common validation failure).
+
+```bash
+# Run both phases
+python3 "source files/fix_characters.py"
+
+# Run only phase 1 (fix traditional forms)
+python3 "source files/fix_characters.py" --phase 1
+
+# Run only phase 2 (regenerate broken examples)
+python3 "source files/fix_characters.py" --phase 2
+
+# Preview without writing
+python3 "source files/fix_characters.py" --dry-run
+```
+
+| Option | Description |
+|---|---|
+| `--phase 1` or `--phase 2` | Run only that phase (default: both) |
+| `--dry-run` | Print what would change without writing to the database |
+
+---
+
+### `validate_examples.py` — Find characters with broken example sentences
+
+Scans the entire `chinese_characters` table and reports every row where an example sentence does not contain the character it is supposed to illustrate. Checks all four example columns: `examples`, `examples_traditional`, `word_examples`, `word_examples_traditional`. Read-only — makes no changes.
+
+```bash
+python3 "source files/validate_examples.py"
+```
+
+Use this before running `fix_characters.py --phase 2` to see the scope of the problem first.
+
+**Does not need `ANTHROPIC_API_KEY`.**
+
+---
+
+### Typical workflows
+
+**Add enriched data for one character:**
+```bash
+python3 "source files/enrich_character.py" 嘌 --dry-run   # preview
+python3 "source files/enrich_character.py" 嘌              # write
+npx tsx server/exportSeedData.ts                            # update seed file
+git add server/data/                                        # commit + push to deploy
+```
+
+**Generate word examples and deploy:**
+```bash
+python3 "source files/generate_word_examples.py" --limit 100  # test batch
+python3 "source files/generate_word_examples.py"               # fill all
+npx tsx server/exportSeedData.ts
+git add server/data/words-seed.json
+git commit -m "Add word examples"
+```
+
+**Find and fix broken examples:**
+```bash
+python3 "source files/validate_examples.py"            # identify broken rows
+python3 "source files/fix_characters.py" --dry-run     # preview fixes
+python3 "source files/fix_characters.py"               # apply fixes
+npx tsx server/exportSeedData.ts                        # export + commit
+```
+
+---
+
+### Legacy scripts (Excel-based, pre-database)
+
+These scripts operated on Excel files before the data was moved to PostgreSQL. They are kept for reference but are not part of the normal workflow.
+
+| Script | Purpose |
+|---|---|
+| `app.py` | Standalone Flask quiz app that reads from an Excel file directly |
+| `enrich_chinese.py` | Batch-enriched an Excel export with Claude-generated examples and compound words |
+| `fix_duoyinzi.py` | Fixed missing alternate pronunciations (多音字) in an Excel file |
+| `populate_radicals.py` | Populated radical columns in an Excel file using Claude |
+| `translate_traditional.py` | Translated simplified example sentences to traditional Chinese in an Excel file |
+
+---
+
 ## Roadmap
 
 More features are planned. Contributions and suggestions are welcome via issues and pull requests.

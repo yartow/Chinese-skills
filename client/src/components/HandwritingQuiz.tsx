@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward, Settings2 } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
@@ -149,6 +150,19 @@ export default function HandwritingQuiz() {
   const [engineReady, setEngineReady] = useState(false);
   const [engineError, setEngineError] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const { data: userSettings } = useQuery<{ handwritingCandidates?: number }>({
+    queryKey: ["/api/settings"],
+    staleTime: Infinity,
+  });
+  const savedCandidateCount = userSettings?.handwritingCandidates ?? 8;
+  const [candidateCount, setCandidateCount] = useState(savedCandidateCount);
+
+  // Sync local state whenever the persisted setting changes (e.g. user updates it in Settings)
+  useEffect(() => {
+    setCandidateCount(savedCandidateCount);
+  }, [savedCandidateCount]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { startStroke, continueStroke, endStroke, clearCanvas, getStrokesForLookup, redraw } =
@@ -186,12 +200,12 @@ export default function HandwritingQuiz() {
     try {
       const analyzed = new window.HanziLookup.AnalyzedCharacter(strokes);
       const matcher = new window.HanziLookup.Matcher("mmah");
-      matcher.match(analyzed, 16, (matches) => {
+      matcher.match(analyzed, candidateCount, (matches) => {
         setCandidates(matches.map((m) => m.character));
         setRecognizing(false);
       });
     } catch { setRecognizing(false); }
-  }, [engineReady, getStrokesForLookup]);
+  }, [engineReady, getStrokesForLookup, candidateCount]);
 
   // ── Coordinate normalization ──
   // The canvas internal drawing space is CANVAS_SIZE × CANVAS_SIZE (logical pixels).
@@ -275,14 +289,13 @@ export default function HandwritingQuiz() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "n" || e.key === "N") {
-        if (document.activeElement?.tagName === "INPUT") return;
-        handleNext();
-      }
+      if (document.activeElement?.tagName === "INPUT") return;
+      if (e.key === "n" || e.key === "N") { handleNext(); return; }
+      if ((e.key === "s" || e.key === "S") && !result) { handleSkip(); return; }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [handleNext]);
+  }, [handleNext, result]);
 
   const handleRetry = useCallback(() => {
     setIsRetrying(true);
@@ -316,6 +329,41 @@ export default function HandwritingQuiz() {
         onToggleLevel={(level) => { toggleLevel(level); setResult(null); setCandidates([]); clearCanvas(); }}
         wrongAnswers={wrongAnswers}
       />
+
+      {/* Settings toggle */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowSettings((v) => !v)}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+          title="Recognition settings"
+        >
+          <Settings2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Leniency settings */}
+      {showSettings && (
+        <div className="border rounded-xl p-4 space-y-3 bg-muted/40">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Candidates shown</span>
+            <span className="text-sm text-muted-foreground">
+              {candidateCount <= 10 ? "Strict" : candidateCount <= 18 ? "Normal" : "Lenient"}
+            </span>
+          </div>
+          <Slider
+            min={6}
+            max={25}
+            step={1}
+            value={[candidateCount]}
+            onValueChange={([v]) => setCandidateCount(v)}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Controls how many recognition candidates appear after drawing. More candidates makes it
+            easier to find the right character even with imprecise strokes. Takes effect from the next stroke.
+          </p>
+        </div>
+      )}
 
       {/* Question prompt */}
       <div className="border rounded-xl p-5 bg-card space-y-3">
@@ -368,6 +416,7 @@ export default function HandwritingQuiz() {
             {!result && (
               <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1.5 text-xs text-muted-foreground">
                 <SkipForward className="w-3.5 h-3.5" /> Skip
+                <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
               </Button>
             )}
             <Button
@@ -406,22 +455,24 @@ export default function HandwritingQuiz() {
           )}
         </div>
 
-        {candidates.length > 0 && !result && (
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {recognizing ? "Recognising…" : "Tap your character:"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {candidates.map((char, i) => (
-                <button key={i} onClick={() => selectCandidate(char)}
-                  className="font-serif text-2xl w-12 h-12 rounded-lg border border-border hover:border-foreground hover:bg-muted transition-all flex items-center justify-center">
-                  {char}
-                </button>
-              ))}
+        {/* Always reserve height so candidates appearing/disappearing doesn't shift the page */}
+        <div className="min-h-[4.5rem]">
+          {candidates.length > 0 && !result && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {recognizing ? "Recognising…" : "Tap your character:"}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {candidates.map((char, i) => (
+                  <button key={i} onClick={() => selectCandidate(char)}
+                    className="font-serif text-2xl w-12 h-12 rounded-lg border border-border hover:border-foreground hover:bg-muted transition-all flex items-center justify-center">
+                    {char}
+                  </button>
+                ))}
+              </div>
             </div>
-
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Feedback */}

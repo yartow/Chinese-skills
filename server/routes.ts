@@ -5,6 +5,8 @@ import { createServer, type Server } from "http";
 import { storage, type CharacterUpdate } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertUserSettingsSchema, insertCharacterProgressSchema } from "@shared/schema";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -89,6 +91,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error updating settings:", error);
         res.status(500).json({ message: "Failed to update settings" });
       }
+    }
+  });
+
+  // App-level config (single row, id=1) — controls auto-reload behaviour
+  app.get('/api/app-config', isAuthenticated, async (_req, res) => {
+    try {
+      const rows = await db.execute(sql`SELECT auto_reload_database, seed_checksum FROM app_config WHERE id = 1`);
+      const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+      res.json({ autoReloadDatabase: row?.auto_reload_database ?? true });
+    } catch (error) {
+      console.error("Error fetching app config:", error);
+      res.status(500).json({ message: "Failed to fetch app config" });
+    }
+  });
+
+  app.patch('/api/app-config', isAuthenticated, async (req: any, res) => {
+    try {
+      const { autoReloadDatabase } = req.body;
+      if (typeof autoReloadDatabase !== "boolean") {
+        return res.status(400).json({ message: "autoReloadDatabase must be a boolean" });
+      }
+      await db.execute(sql`
+        INSERT INTO app_config (id, auto_reload_database) VALUES (1, ${autoReloadDatabase})
+        ON CONFLICT (id) DO UPDATE SET auto_reload_database = ${autoReloadDatabase}
+      `);
+      res.json({ autoReloadDatabase });
+    } catch (error) {
+      console.error("Error updating app config:", error);
+      res.status(500).json({ message: "Failed to update app config" });
     }
   });
 
@@ -215,7 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
     try {
       const index = parseInt(req.params.index);
-      if (isNaN(index) || index < 0 || index >= 3000) {
+      if (isNaN(index) || index < 0 || index >= 100000) {
         return res.status(400).json({ message: "Invalid character index" });
       }
 
@@ -243,7 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing indices parameter" });
       }
 
-      const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 3000);
+      const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 100000);
       
       if (indices.length === 0) {
         return res.json([]);

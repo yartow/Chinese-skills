@@ -117,6 +117,15 @@ export default function StrokeOrderQuiz() {
     return () => clearTimeout(t);
   }, [completed]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.key === "s" || e.key === "S") && !completed) handleSkip();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [completed]);
+
   function handleNext(wasCorrect: boolean) {
     setCompleted(false);
     setMistakesThisQuestion(0);
@@ -286,6 +295,7 @@ export default function StrokeOrderQuiz() {
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleSkip} className="gap-1">
                   <SkipForward className="w-3.5 h-3.5" /> Skip
+                  <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleErase} className="gap-1">
                   <Eraser className="w-3.5 h-3.5" /> Erase

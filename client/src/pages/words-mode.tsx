@@ -192,6 +192,52 @@ export default function WordsMode() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6">
+        {/* Mobile filter panel — shown above the word list when toggled */}
+        {showFilters && (
+          <div className="lg:hidden mb-6">
+            <Card className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold">Filters</h2>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Show only not known:</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="filter-unknown-mobile"
+                    checked={filterUnknown}
+                    onCheckedChange={() => setFilterUnknown((v) => !v)}
+                  />
+                  <Label htmlFor="filter-unknown-mobile" className="text-sm font-normal cursor-pointer">
+                    Hide known words
+                  </Label>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Filter by HSK Level:</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
+                    <div key={level} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`word-hsk-mobile-${level}`}
+                        checked={selectedHskLevels.includes(level)}
+                        onCheckedChange={() => handleToggleHskLevel(level)}
+                      />
+                      <Label
+                        htmlFor={`word-hsk-mobile-${level}`}
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        HSK {level}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3 space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -241,8 +287,8 @@ export default function WordsMode() {
             )}
           </div>
 
-          <div className="lg:col-span-1">
-            <div className={showFilters ? undefined : "hidden lg:block"}>
+          <div className="hidden lg:block lg:col-span-1">
+            <div>
               <Card className="p-6 sticky top-6 space-y-4">
                 <h2 className="text-lg font-semibold">Filters</h2>
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Search() {
   const [, setLocation] = useLocation();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeSearch, setActiveSearch] = useState("");
+  const searchString = useSearch();
+  const initialQuery = new URLSearchParams(searchString).get("q") ?? "";
+  const [searchTerm, setSearchTerm] = useState(initialQuery);
+  const [activeSearch, setActiveSearch] = useState(initialQuery);
 
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
@@ -69,7 +71,9 @@ export default function Search() {
   });
 
   const handleSearch = () => {
-    setActiveSearch(searchTerm);
+    const q = searchTerm.trim();
+    setActiveSearch(q);
+    setLocation(q ? `/search?q=${encodeURIComponent(q)}` : "/search", { replace: true });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -81,6 +85,7 @@ export default function Search() {
   const handleClearSearch = () => {
     setSearchTerm("");
     setActiveSearch("");
+    setLocation("/search", { replace: true });
   };
 
   const handleToggleStar = (characterIndex: number, type: "reading" | "writing" | "radical") => {

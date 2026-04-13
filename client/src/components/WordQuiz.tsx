@@ -170,7 +170,10 @@ export default function WordQuiz() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.isComposing) return;
-      if ((e.key === "n" || e.key === "N") && result) handleNext();
+      if ((e.key === "n" || e.key === "N") && result) { handleNext(); return; }
+      if ((e.key === "s" || e.key === "S") && !result && document.activeElement?.tagName !== "INPUT") {
+        handleSkip();
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -283,6 +286,7 @@ export default function WordQuiz() {
                   className="gap-1 text-muted-foreground"
                 >
                   <SkipForward className="w-4 h-4" /> Skip
+                  <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
                 </Button>
                 <Button
                   onClick={handleSubmit}
