@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, X } from "lucide-react";
+import { ClipboardList, X, Copy, Check } from "lucide-react";
 import {
   ALL_LEVELS, HSK_COLORS, HSK_BG_SOLID,
   type QuizScores, type WrongAnswer,
@@ -15,6 +15,22 @@ interface Props {
 
 export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrongAnswers }: Props) {
   const [showWrong, setShowWrong] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function copyWrongAnswers() {
+    const lines = wrongAnswers.map((w, i) => {
+      const charDisplay = w.character !== w.traditional ? `${w.character} (${w.traditional})` : w.character;
+      return [
+        `${i + 1}. HSK ${w.hskLevel} · ${charDisplay} · ${w.pinyin}`,
+        `   ${w.sentence}  —  ${w.translation}`,
+        `   Your answer: "${w.userAnswer || "(none)"}"  ·  Correct: ${w.character}`,
+      ].join("\n");
+    }).join("\n\n");
+    navigator.clipboard.writeText(`Wrong answers (${wrongAnswers.length})\n\n${lines}`).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   const total = scores.correct + scores.wrong;
   const pct = total === 0 ? null : Math.round((scores.correct / total) * 100);
@@ -110,11 +126,23 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
             <div className="mt-3 border rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 bg-muted border-b">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Wrong answers — copy for practice
+                  Wrong answers
                 </span>
-                <button onClick={() => setShowWrong(false)}>
-                  <X className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={copyWrongAnswers}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    title="Copy all wrong answers"
+                  >
+                    {copied
+                      ? <><Check className="w-3.5 h-3.5 text-green-600" /><span className="text-green-600">Copied</span></>
+                      : <><Copy className="w-3.5 h-3.5" />Copy</>
+                    }
+                  </button>
+                  <button onClick={() => setShowWrong(false)}>
+                    <X className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                </div>
               </div>
               <div className="divide-y max-h-72 overflow-y-auto">
                 {wrongAnswers.map((w, i) => (
