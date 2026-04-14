@@ -128,7 +128,6 @@ export async function setupAuth(app: Express) {
   app.get("/api/login", (req, res, next) => {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, {
-      prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
@@ -193,6 +192,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     const config = await getOidcConfig();
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
     updateUserSession(user, tokenResponse);
+    // Explicitly save the session so the refreshed tokens are persisted to the
+    // PostgreSQL store. Without this, resave:false means the store entry keeps
+    // the old expired token and the refresh cycle breaks on the next request.
+    await new Promise<void>((resolve, reject) =>
+      req.session.save((err) => (err ? reject(err) : resolve()))
+    );
     return next();
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });
