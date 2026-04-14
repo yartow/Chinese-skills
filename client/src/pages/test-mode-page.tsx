@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
 import HandwritingQuiz from "@/components/HandwritingQuiz";
@@ -16,8 +17,14 @@ const TABS: { id: QuizTab; label: string; Icon: React.ElementType }[] = [
   { id: "words",       label: "Vocabulary",       Icon: BookText   },
 ];
 
+const VALID_TABS: QuizTab[] = ["choice", "fill", "handwriting", "stroke", "words"];
+
 export default function TestModePage() {
-  const [activeTab, setActiveTab] = useState<QuizTab>("choice");
+  const searchString = useSearch();
+  const initialTab = new URLSearchParams(searchString).get("tab") as QuizTab | null;
+  const [activeTab, setActiveTab] = useState<QuizTab>(
+    initialTab && VALID_TABS.includes(initialTab) ? initialTab : "choice"
+  );
 
   return (
     <div className="py-6">
