@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward, Settings2 } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward, Settings2, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
@@ -312,6 +312,32 @@ export default function HandwritingQuiz() {
     setResult(null); setCandidates([]); clearCanvas(); refetch();
   }
 
+  function handleShowAnswer() {
+    if (!question || result) return;
+    const lvl = question.hskLevel;
+    setScores((s) => {
+      const prev = s.byLevel[lvl] ?? { correct: 0, total: 0 };
+      return {
+        ...s,
+        wrong: s.wrong + 1,
+        streak: 0,
+        byLevel: { ...s.byLevel, [lvl]: { correct: prev.correct, total: prev.total + 1 } },
+      };
+    });
+    setWrongAnswers((w) => [...w, {
+      character: question.character,
+      traditional: question.traditional,
+      pinyin: question.pinyin,
+      userAnswer: "",
+      sentence: question.sentence,
+      blanked: question.blanked,
+      translation: question.translation,
+      hskLevel: question.hskLevel,
+      mode: "write" as const,
+    }]);
+    setResult("wrong");
+  }
+
   function toggleLevel(level: number) {
     setSelectedLevels((prev) => {
       if (prev.includes(level)) { if (prev.length === 1) return prev; return prev.filter((l) => l !== level); }
@@ -414,10 +440,15 @@ export default function HandwritingQuiz() {
           </p>
           <div className="flex gap-2">
             {!result && (
-              <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1.5 text-xs text-muted-foreground">
-                <SkipForward className="w-3.5 h-3.5" /> Skip
-                <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" onClick={handleShowAnswer} className="gap-1.5 text-xs text-muted-foreground">
+                  <Eye className="w-3.5 h-3.5" /> Show
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSkip} className="gap-1.5 text-xs text-muted-foreground">
+                  <SkipForward className="w-3.5 h-3.5" /> Skip
+                  <span className="text-[10px] font-mono opacity-50 ml-0.5">[S]</span>
+                </Button>
+              </>
             )}
             <Button
               variant="outline" size="sm"

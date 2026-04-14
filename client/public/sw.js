@@ -1,15 +1,13 @@
 // Cache version — increment this to force all clients to drop old caches
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `hanzi-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `hanzi-dynamic-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {
-  // Skip waiting so the new SW activates immediately
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  // Delete every cache that doesn't match the current version
   event.waitUntil(
     caches.keys().then((cacheNames) =>
       Promise.all(
@@ -27,31 +25,61 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
-  // API calls — always network-first, fall back to cache
-  if (url.pathname.startsWith('/api/')) {
+  // Quiz question endpoints need a fresh answer every time — keep network-first
+  // so refetch() after each answer doesn't serve the same question from cache.
+  if (url.pathname.startsWith('/api/quiz/')) {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE));
     return;
   }
 
-  // HTML navigation requests (e.g. "/", "/browse", "/test") — always network-first
-  // so the browser always gets the latest HTML with up-to-date script/style references.
-  // This is the key fix: without this, an old cached HTML will reference old JS bundles.
+  // All other API calls (settings, progress, characters, words, saved…) use
+  // stale-while-revalidate: return the cached response immediately so the UI
+  // is instant on slow connections, then update the cache in the background.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(staleWhileRevalidate(request, DYNAMIC_CACHE));
+    return;
+  }
+
+  // HTML navigation — always network-first so the browser gets fresh script references.
   if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(networkFirst(request, STATIC_CACHE));
     return;
   }
 
-  // Vite-hashed JS/CSS/font assets — safe to cache forever because their
-  // filenames change whenever their content changes (content-addressed).
-  // Anything matching /assets/* is a Vite-built hashed asset.
+  // Vite-hashed assets (/assets/*) — cache-first forever (content-addressed filenames).
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
 
-  // Everything else (manifest, icons, sw itself) — network-first
+  // Manifest, icons, etc.
   event.respondWith(networkFirst(request, STATIC_CACHE));
 });
+
+// Return cached response immediately; refresh cache in the background.
+// Falls back to network-then-503 if there is no cached entry yet.
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+
+  // Always kick off a background refresh
+  const networkFetch = fetch(request)
+    .then((response) => {
+      if (response.ok) cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => null);
+
+  if (cached) return cached;
+
+  // No cache yet — wait for the network
+  const response = await networkFetch;
+  if (response) return response;
+  return new Response(JSON.stringify({ error: 'Offline' }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 async function cacheFirst(request, cacheName) {
   const cached = await caches.match(request);
