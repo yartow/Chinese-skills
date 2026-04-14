@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
 import { HSK_COLORS, EMPTY_SCORES, type QuizScores, type WrongAnswer } from "./quizTypes";
+import { drawWordQuestion, warmUpWordPool } from "../lib/questionPool";
 
 interface WordQuestion {
   wordId: number;
@@ -69,12 +70,15 @@ export default function WordQuiz() {
 
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-word", selectedLevels],
-    queryFn: () => fetchWordQuestion(selectedLevels, seenIds.current),
+    queryFn: () => (drawWordQuestion(selectedLevels, seenIds.current) as WordQuestion | null) ?? fetchWordQuestion(selectedLevels, seenIds.current),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 3,
     retryDelay: 1000,
   });
+
+  // Keep the word question pool topped up whenever the level selection changes
+  useEffect(() => { warmUpWordPool(selectedLevels); }, [selectedLevels]);
 
   useEffect(() => {
     if (question) {

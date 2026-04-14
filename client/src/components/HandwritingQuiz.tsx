@@ -8,6 +8,7 @@ import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type WrongAnswer, type QuizScores,
 } from "./quizTypes";
+import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
 interface Point { x: number; y: number; }
 type Stroke = Point[];
@@ -172,6 +173,9 @@ export default function HandwritingQuiz() {
     ensureHanziLoaded((ok) => { if (ok) setEngineReady(true); else setEngineError(true); });
   }, []);
 
+  // Keep the question pool topped up whenever the level selection changes
+  useEffect(() => { warmUpStdPool(selectedLevels); }, [selectedLevels]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -185,7 +189,7 @@ export default function HandwritingQuiz() {
 
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-write", selectedLevels],
-    queryFn: () => fetchQuestion(selectedLevels),
+    queryFn: () => drawStdQuestion(selectedLevels, []) ?? fetchQuestion(selectedLevels),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });

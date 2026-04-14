@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { SkipForward, Eraser, Settings2 } from "lucide-react";
 import { ALL_LEVELS, HSK_COLORS } from "./quizTypes";
+import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,12 +52,15 @@ export default function StrokeOrderQuiz() {
     refetch,
   } = useQuery({
     queryKey: ["hw-quiz-question", selectedLevels],
-    queryFn: () => fetchQuestion(selectedLevels, seenIndices.current),
+    queryFn: () => (drawStdQuestion(selectedLevels, seenIndices.current) as QuizQuestion | null) ?? fetchQuestion(selectedLevels, seenIndices.current),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 3,
     retryDelay: 1000,
   });
+
+  // Keep the question pool topped up whenever the level selection changes
+  useEffect(() => { warmUpStdPool(selectedLevels); }, [selectedLevels]);
 
   // Auto-retry on persistent error
   useEffect(() => {
