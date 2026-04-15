@@ -11,7 +11,7 @@ import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
 import { LogOut, Filter, MoreVertical, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -128,9 +128,7 @@ export default function Home() {
     
     const autoProgressLevel = async () => {
       try {
-        const response = await fetch(`/api/progress/first-non-mastered/${currentLevel}`, {
-          credentials: 'include'
-        });
+        const response = await authenticatedFetch(`/api/progress/first-non-mastered/${currentLevel}`);
         if (response.ok) {
           const data = await response.json();
           if (data.index > currentLevel && data.index < 3000) {
