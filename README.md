@@ -133,6 +133,28 @@ Your key is stored securely on the server and is never returned to the browser. 
 
 ---
 
+## scripts/post-merge.sh
+
+This script (`npm install` + `npm run db:push`) is invoked automatically by the Replit task system after a task-agent branch is merged. It is **not** a git hook and is not installed in `.git/hooks/`.
+
+**Safety guard:** The script refuses to run unless `ALLOW_DB_PUSH=true` is set in the environment. This prevents accidental execution in CI or production:
+
+```bash
+ALLOW_DB_PUSH=true bash scripts/post-merge.sh
+```
+
+**Optional local hook:** If you want schema pushes to happen automatically after every local `git merge`, copy it manually — do not commit hooks:
+
+```bash
+cp scripts/post-merge.sh .git/hooks/post-merge
+chmod +x .git/hooks/post-merge
+# then set ALLOW_DB_PUSH=true in your shell profile
+```
+
+`npm run db:push` can prompt to drop columns or tables when destructive schema changes are detected. Always review diffs before running against a database that holds real data.
+
+---
+
 ## Getting Started
 
 The app runs on Replit with the `Start application` workflow (`npm run dev`), which starts both the Express server and Vite dev server on the same port.
