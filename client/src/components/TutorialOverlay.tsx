@@ -203,7 +203,7 @@ export default function TutorialOverlay({ visible, onDismiss }: TutorialOverlayP
             width: spotlightRect.width,
             height: spotlightRect.height,
             boxShadow: "0 0 0 9999px rgba(0,0,0,0.65)",
-            pointerEvents: "none",
+            pointerEvents: "auto",
             borderRadius: "6px",
           }}
         />

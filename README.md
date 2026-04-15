@@ -147,6 +147,23 @@ Environment variables required:
 
 In production, the server automatically runs `npm run db:push` on startup to sync any schema changes to the database.
 
+### Post-Merge Git Hook (Optional)
+
+The repository includes a `scripts/post-merge.sh` script that can automate `npm install` and `npm run db:push` after pulling changes that include schema updates. **This script is not installed automatically** to prevent accidental database pushes in CI or production environments.
+
+**To install locally:**
+```bash
+cp scripts/post-merge.sh .git/hooks/post-merge
+chmod +x .git/hooks/post-merge
+export CHECKOUT_DB_PUSH=true  # Add to your .bashrc/.zshrc for persistence
+```
+
+**Safety implications:**
+- The script will only run `npm run db:push` if `CHECKOUT_DB_PUSH=true` or `NODE_ENV=development` is set in your environment
+- Without this guard, the script exits early after printing a skip message
+- **Never commit files in `.git/hooks/`** — git hooks are local-only and should not be version controlled
+- This prevents accidental schema pushes in CI pipelines or production deploys that might pull changes
+
 ### Anthropic API Key
 
 AI features (fill-in-the-blank quiz feedback and AI-generated sentences) require an Anthropic API key. There are two ways to provide one:
