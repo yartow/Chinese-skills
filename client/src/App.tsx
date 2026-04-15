@@ -17,6 +17,7 @@ import Saved from "./pages/saved";
 import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
 import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen } from "lucide-react";
+import CommandPalette from "./components/CommandPalette";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -103,6 +104,8 @@ function Router() {
           </Button>
         </div>
       </nav>
+
+      <CommandPalette />
 
       <main className="flex-1">
         <Switch>

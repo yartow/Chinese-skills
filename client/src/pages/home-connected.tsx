@@ -113,6 +113,13 @@ export default function Home() {
     },
   });
 
+  // Listen for "open-settings" custom event from CommandPalette (Cmd+,)
+  useEffect(() => {
+    function onOpenSettings() { setSettingsOpen(true); }
+    window.addEventListener("open-settings", onOpenSettings);
+    return () => window.removeEventListener("open-settings", onOpenSettings);
+  }, []);
+
   // Auto-progress to first non-mastered character on initial load
   const hasAutoProgressed = useRef(false);
   
