@@ -8,6 +8,7 @@ import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
 import { ArrowLeft, Filter, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { enqueuePost } from "@/lib/offlineQueue";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
 interface FilteredCharactersResponse {
@@ -153,6 +154,9 @@ export default function StandardMode() {
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
+    onError: (_err, variables) => {
+      enqueuePost(variables);
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ predicate: (query) =>
         query.queryKey[0] === "/api/progress/batch" ||

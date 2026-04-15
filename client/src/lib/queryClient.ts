@@ -1,4 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { persistQueryClient } from "@tanstack/query-persist-client-core";
+import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import { get, set, del } from "idb-keyval";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -52,6 +55,33 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       retry: false,
+    },
+  },
+});
+
+// Persist the query cache to IndexedDB so settings, progress, and character
+// data survive page reloads without a network round-trip.
+// Quiz questions and AI feedback are excluded — they must always be fresh.
+const persister = createAsyncStoragePersister({
+  storage: {
+    getItem: (key: string) => get<string>(key),
+    setItem: (key: string, value: string) => set(key, value),
+    removeItem: (key: string) => del(key),
+  },
+  key: "hanzi-query-cache",
+});
+
+persistQueryClient({
+  queryClient,
+  persister,
+  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query) => {
+      if (query.state.status !== "success") return false;
+      const key = String(query.queryKey[0]);
+      // Skip quiz questions (need fresh picks) and AI feedback (large, session-specific)
+      if (key.startsWith("quiz-") || key.startsWith("ai-feedback")) return false;
+      return true;
     },
   },
 });

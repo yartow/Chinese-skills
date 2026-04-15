@@ -6,6 +6,7 @@ import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type QuizQuestion, type WrongAnswer, type QuizScores,
 } from "./quizTypes";
+import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ export default function MultipleChoiceQuiz() {
     setChoices([]);
     setQuestion(null);
     try {
-      const q = await fetchQuestion(levels);
+      const q = drawStdQuestion(levels, []) ?? await fetchQuestion(levels);
       if (thisId !== requestIdRef.current) return; // stale — a newer request is active
       const distractors = await fetchChoices(q.characterIndex, q.hskLevel, levels);
       if (thisId !== requestIdRef.current) return;
@@ -82,7 +83,7 @@ export default function MultipleChoiceQuiz() {
     }
   }
 
-  useEffect(() => { loadQuestion(selectedLevels); }, []);
+  useEffect(() => { warmUpStdPool(selectedLevels); loadQuestion(selectedLevels); }, []);
 
   useEffect(() => { if (question) prefetchFeedback(question); }, [question?.blanked, question?.character]);
 

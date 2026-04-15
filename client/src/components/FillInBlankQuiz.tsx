@@ -7,6 +7,7 @@ import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type QuizQuestion, type WrongAnswer, type QuizScores,
 } from "./quizTypes";
+import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
 interface CheckResult {
   correct: boolean;
@@ -52,12 +53,15 @@ export default function FillInBlankQuiz() {
 
   const { data: question, isLoading, isError, refetch } = useQuery({
     queryKey: ["quiz-fill", selectedLevels],
-    queryFn: () => fetchQuestion(selectedLevels, seenIndices.current),
+    queryFn: () => drawStdQuestion(selectedLevels, seenIndices.current) ?? fetchQuestion(selectedLevels, seenIndices.current),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 3,
     retryDelay: 1000,
   });
+
+  // Keep the question pool topped up whenever the level selection changes
+  useEffect(() => { warmUpStdPool(selectedLevels); }, [selectedLevels]);
 
   // Pre-warm the feedback cache and track seen indices when a question loads
   useEffect(() => {

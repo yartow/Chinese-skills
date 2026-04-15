@@ -12,6 +12,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
 import { LogOut, Filter, MoreVertical, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { enqueuePost } from "@/lib/offlineQueue";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
 // The server strips anthropicApiKey from responses and replaces it with a boolean flag
@@ -103,6 +104,9 @@ export default function Home() {
   const updateProgressMutation = useMutation({
     mutationFn: (progressData: { characterIndex: number; reading: boolean; writing: boolean; radical: boolean }) =>
       apiRequest("POST", "/api/progress", progressData),
+    onError: (_err, variables) => {
+      enqueuePost(variables);
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/progress/range"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress/stats"] });

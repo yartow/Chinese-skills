@@ -1,4 +1,5 @@
 // Shared types for all quiz modes
+import { enqueuePatch } from "../lib/offlineQueue";
 
 export interface QuizQuestion {
   characterIndex: number;
@@ -84,19 +85,21 @@ export function getHint(q: QuizQuestion): { pinyin: boolean; definition: boolean
   };
 }
 
-// Save progress to the existing /api/progress endpoint
+// Save progress to the existing /api/progress endpoint.
+// On network failure the save is queued and retried when back online.
 export async function saveProgress(
   characterIndex: number,
   field: "reading" | "writing"
 ): Promise<void> {
   try {
-    await fetch(`/api/progress/${characterIndex}`, {
+    const res = await fetch(`/api/progress/${characterIndex}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: true }),
     });
+    if (!res.ok) enqueuePatch(characterIndex, field);
   } catch {
-    // Non-fatal — progress saving is best-effort
+    enqueuePatch(characterIndex, field);
   }
 }
 
