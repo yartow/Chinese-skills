@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import type { ChineseCharacter } from "@shared/schema";
 
-const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+// userAgent is more reliable than the deprecated navigator.platform
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 const NAV_ITEMS = [
   { id: "daily",    label: "Daily",    desc: "Today's characters",  Icon: Home,       path: "/",        kw: "home daily 每天" },
@@ -50,7 +51,8 @@ export default function CommandPalette() {
   // Global keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
+      // Accept Cmd (Mac) or Ctrl (Windows/Linux) — avoids relying on platform detection
+      const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
       if (e.key === "k") {
