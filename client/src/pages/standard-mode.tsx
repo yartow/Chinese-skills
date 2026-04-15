@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
 import { ArrowLeft, Filter, ArrowRight } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -116,12 +116,8 @@ export default function StandardMode() {
         queryParams.set('filterRadical', 'true');
       }
 
-      const res = await fetch(`/api/characters/filtered?${queryParams.toString()}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`);
-      }
+      const res = await authenticatedFetch(`/api/characters/filtered?${queryParams.toString()}`);
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
   });
@@ -137,12 +133,8 @@ export default function StandardMode() {
       const [_, indicesString] = queryKey;
       if (!indicesString || indicesString === '') return [];
       
-      const res = await fetch(`/api/progress/batch?indices=${indicesString}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`);
-      }
+      const res = await authenticatedFetch(`/api/progress/batch?indices=${indicesString}`);
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
     enabled: characters.length > 0,
