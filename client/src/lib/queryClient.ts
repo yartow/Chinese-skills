@@ -4,7 +4,11 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { get, set, del } from "idb-keyval";
 
 // Redirect to login and clear stale cache when the session has expired.
+// Guard flag prevents multiple parallel 401s from each triggering a redirect.
+let sessionExpiredHandled = false;
 function handleSessionExpired() {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
   // Wipe the IndexedDB persisted cache so stale auth state isn't restored
   // on the next page load after the user logs back in.
   del("hanzi-query-cache").catch(() => {});
