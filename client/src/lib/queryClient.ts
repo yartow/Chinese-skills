@@ -3,6 +3,14 @@ import { persistQueryClient } from "@tanstack/query-persist-client-core";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del } from "idb-keyval";
 
+// Redirect to login and clear stale cache when the session has expired.
+function handleSessionExpired() {
+  // Wipe the IndexedDB persisted cache so stale auth state isn't restored
+  // on the next page load after the user logs back in.
+  del("hanzi-query-cache").catch(() => {});
+  window.location.href = "/api/login";
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -22,7 +30,22 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  if (res.status === 401) {
+    handleSessionExpired();
+    throw new Error("401: Unauthorized");
+  }
+
   await throwIfResNotOk(res);
+  return res;
+}
+
+// Shared fetch wrapper for custom queryFns that need 401 handling.
+export async function authenticatedFetch(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, { credentials: "include", ...init });
+  if (res.status === 401) {
+    handleSessionExpired();
+    throw new Error("401: Unauthorized");
+  }
   return res;
 }
 
@@ -36,8 +59,10 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") return null;
+      handleSessionExpired();
+      throw new Error("401: Unauthorized");
     }
 
     await throwIfResNotOk(res);

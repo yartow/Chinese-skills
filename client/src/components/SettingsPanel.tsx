@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HelpCircle, Download, Upload, Eye, EyeOff } from "lucide-react";
+import { HelpCircle, Download, Upload, Eye, EyeOff, PlayCircle } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -347,6 +347,22 @@ export default function SettingsPanel({
           </div>
         </div>
       )}
+
+      <div className="pt-2 border-t">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={() => {
+            localStorage.removeItem("tutorialSeen");
+            window.dispatchEvent(new CustomEvent("replayTutorial"));
+          }}
+          data-testid="button-replay-tutorial"
+        >
+          <PlayCircle className="h-4 w-4" />
+          Replay tutorial
+        </Button>
+      </div>
 
       <div className="space-y-3 pt-2 border-t">
         <Label className="text-sm font-semibold">Admin</Label>
