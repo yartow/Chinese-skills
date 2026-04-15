@@ -1,4 +1,5 @@
 // Replit Auth integration - blueprint:javascript_log_in_with_replit
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -18,10 +19,20 @@ import NotFound from "./pages/not-found";
 import { Button } from "./components/ui/button";
 import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen } from "lucide-react";
 import CommandPalette from "./components/CommandPalette";
+import TutorialOverlay from "./components/TutorialOverlay";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  const [tutorialVisible, setTutorialVisible] = useState(
+    () => localStorage.getItem("tutorialSeen") !== "1"
+  );
+
+  useEffect(() => {
+    const handler = () => setTutorialVisible(true);
+    window.addEventListener("replayTutorial", handler);
+    return () => window.removeEventListener("replayTutorial", handler);
+  }, []);
 
   if (isLoading) {
     return (
@@ -120,6 +131,11 @@ function Router() {
           <Route component={NotFound} />
         </Switch>
       </main>
+
+      <TutorialOverlay
+        visible={tutorialVisible}
+        onDismiss={() => setTutorialVisible(false)}
+      />
     </div>
   );
 }
