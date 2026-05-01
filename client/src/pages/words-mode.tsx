@@ -285,6 +285,23 @@ export default function WordsMode() {
                 </p>
               </Card>
             )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                disabled={currentPage === 0}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage((p) => p + 1)}
+                disabled={currentPage >= totalPages - 1}
+              >
+                Next
+              </Button>
+            </div>
           </div>
 
           <div className="hidden lg:block lg:col-span-1">
