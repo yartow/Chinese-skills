@@ -211,7 +211,7 @@ export default function WordQuiz() {
   }, [result, handleNext]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.isComposing) return;
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter") {
       if (result) handleNext();
       else handleSubmit();
