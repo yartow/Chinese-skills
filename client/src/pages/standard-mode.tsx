@@ -41,6 +41,7 @@ export default function StandardMode() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [jumpInput, setJumpInput] = useState("");
+  const [jumpFocused, setJumpFocused] = useState(false);
 
   // Skip the page-reset effect on first render — filters were restored from
   // the URL, they haven't actually "changed".
@@ -282,47 +283,52 @@ export default function StandardMode() {
                 <h2 className="text-xl font-semibold">
                   Showing {characters.length} characters
                 </h2>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-                    disabled={!hasPrevious}
-                    data-testid="button-previous-page"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    disabled={!hasNext}
-                    data-testid="button-next-page"
-                  >
-                    Next
-                  </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">Go to index:</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={3000}
+                    placeholder="e.g. 500"
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleJumpToIndex()}
+                    onFocus={() => setJumpFocused(true)}
+                    onBlur={() => setJumpFocused(false)}
+                    className="w-28"
+                    data-testid="input-jump-to-index"
+                  />
+                  {jumpFocused && (
+                    <Button
+                      variant="outline"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={handleJumpToIndex}
+                      disabled={jumpInput === ""}
+                      data-testid="button-jump-to-index"
+                      className="gap-1"
+                    >
+                      Go
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-muted-foreground shrink-0">Go to index:</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={3000}
-                  placeholder="e.g. 500"
-                  value={jumpInput}
-                  onChange={(e) => setJumpInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleJumpToIndex()}
-                  className="w-28"
-                  data-testid="input-jump-to-index"
-                />
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={handleJumpToIndex}
-                  disabled={jumpInput === ""}
-                  data-testid="button-jump-to-index"
-                  className="gap-1"
+                  onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                  disabled={!hasPrevious}
+                  data-testid="button-previous-page"
                 >
-                  Go
-                  <ArrowRight className="w-4 h-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  disabled={!hasNext}
+                  data-testid="button-next-page"
+                >
+                  Next
                 </Button>
               </div>
             </div>
@@ -355,6 +361,23 @@ export default function StandardMode() {
                 </p>
               </Card>
             )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                disabled={!hasPrevious}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => p + 1)}
+                disabled={!hasNext}
+              >
+                Next
+              </Button>
+            </div>
           </div>
 
           <div className="hidden lg:block lg:col-span-1">

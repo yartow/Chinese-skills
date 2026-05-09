@@ -396,7 +396,7 @@ export default function Home() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="characters-grid">
                 {characters
                   .filter((char) => {
                     // Filter by HSK level first (if any levels are selected)
@@ -436,6 +436,25 @@ export default function Home() {
                       />
                     );
                   })}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleLevelChange(Math.max(0, currentLevel - dailyCharCount))}
+                  disabled={currentLevel === 0}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleLevelChange(Math.min(3000 - dailyCharCount, currentLevel + dailyCharCount))}
+                  disabled={currentLevel >= 3000 - dailyCharCount}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           </div>
