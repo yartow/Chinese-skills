@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "./pages/landing";
+import AuthPage from "./pages/auth";
 import Home from "./pages/home-connected";
 import CharacterDetail from "./pages/character-detail";
 import TestModePage from "./pages/test-mode-page";
@@ -43,7 +44,7 @@ function Router() {
   }
 
   if (!isAuthenticated) {
-    return <Landing />;
+    return location === '/auth' ? <AuthPage /> : <Landing />;
   }
 
   return (

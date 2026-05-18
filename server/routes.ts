@@ -1,9 +1,10 @@
-// Replit Auth and API routes - blueprint:javascript_log_in_with_replit
 import Anthropic from "@anthropic-ai/sdk";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import passport from "passport";
+import bcrypt from "bcryptjs";
 import { storage, type CharacterUpdate } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { insertUserSettingsSchema, insertCharacterProgressSchema } from "@shared/schema";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
@@ -33,14 +34,55 @@ const EXPORT_COLUMNS = [
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
   await setupAuth(app);
 
-  // Auth routes
+  // ─── Auth routes ──────────────────────────────────────────────────────────
+
+  app.post('/api/login', (req, res, next) => {
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message ?? 'Invalid credentials' });
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.json(user);
+      });
+    })(req, res, next);
+  });
+
+  app.post('/api/register', async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+      }
+      if (password.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters' });
+      }
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(400).json({ message: 'An account with this email already exists' });
+      }
+      const passwordHash = await bcrypt.hash(password, 12);
+      const user = await storage.upsertUser({ email, passwordHash });
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(201).json(user);
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/logout', (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      res.json({ message: 'Logged out' });
+    });
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(req.user.id);
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -48,13 +90,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User settings routes
+  // ─── User settings ────────────────────────────────────────────────────────
+
   app.get('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       let settings = await storage.getUserSettings(userId);
-      
-      // Create default settings if they don't exist
       if (!settings) {
         settings = await storage.upsertUserSettings({
           userId,
@@ -63,7 +104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferTraditional: true,
         });
       }
-      
       // Never return the raw API key — expose only whether one is set
       const { anthropicApiKey, ...safeSettings } = settings;
       res.json({ ...safeSettings, anthropicApiKeySet: !!anthropicApiKey });
@@ -75,12 +115,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const settingsData = insertUserSettingsSchema.parse({
-        userId,
-        ...req.body,
-      });
-      
+      const userId = req.user.id;
+      const settingsData = insertUserSettingsSchema.parse({ userId, ...req.body });
       const settings = await storage.upsertUserSettings(settingsData);
       const { anthropicApiKey, ...safeSettings } = settings;
       res.json({ ...safeSettings, anthropicApiKeySet: !!anthropicApiKey });
@@ -123,23 +159,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Character routes
+  // ─── Characters ───────────────────────────────────────────────────────────
   // IMPORTANT: Specific routes must come before generic :index route to avoid matching issues
-  
-  // Search characters
+
   app.get('/api/characters/search', isAuthenticated, async (req: any, res) => {
     try {
       const searchTerm = req.query.q as string;
       const limit = parseInt(req.query.limit as string) || 50;
-      
-      if (!searchTerm || searchTerm.trim() === '') {
-        return res.json([]);
-      }
-      
+      if (!searchTerm || searchTerm.trim() === '') return res.json([]);
       if (limit < 1 || limit > 100) {
         return res.status(400).json({ message: "Invalid limit parameter (1-100)" });
       }
-
       const results = await storage.searchCharacters(searchTerm, limit);
       res.json(results);
     } catch (error) {
@@ -148,39 +178,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Filtered characters query with pagination
   app.get('/api/characters/filtered', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const page = parseInt(req.query.page as string) || 0;
       const pageSize = parseInt(req.query.pageSize as string) || 20;
-      
       if (page < 0 || pageSize < 1 || pageSize > 100) {
         return res.status(400).json({ message: "Invalid pagination parameters" });
       }
-
-      // Parse filter parameters
       const filters: any = {};
-      
       if (req.query.hskLevels) {
         const levels = (req.query.hskLevels as string).split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
         if (levels.length > 0) {
           filters.hskLevels = levels;
         }
       }
-      
-      if (req.query.filterReading === 'true') {
-        filters.filterReading = true;
-      }
-      
-      if (req.query.filterWriting === 'true') {
-        filters.filterWriting = true;
-      }
-      
-      if (req.query.filterRadical === 'true') {
-        filters.filterRadical = true;
-      }
-
+      if (req.query.filterReading === 'true') filters.filterReading = true;
+      if (req.query.filterWriting === 'true') filters.filterWriting = true;
+      if (req.query.filterRadical === 'true') filters.filterRadical = true;
       const result = await storage.getFilteredCharacters(userId, page, pageSize, filters);
       res.json(result);
     } catch (error) {
@@ -193,13 +208,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
-      
       if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
-
-      const safeCount = Math.min(count, 3000 - start);
-      const characters = await storage.getCharacters(start, safeCount);
+      const characters = await storage.getCharacters(start, Math.min(count, 3000 - start));
       res.json(characters);
     } catch (error) {
       console.error("Error fetching characters:", error);
@@ -243,18 +255,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generic :index route must come LAST after all specific routes
+
   app.get('/api/characters/:index', isAuthenticated, async (req: any, res) => {
     try {
       const index = parseInt(req.params.index);
       if (isNaN(index) || index < 0 || index >= 100000) {
         return res.status(400).json({ message: "Invalid character index" });
       }
-
       const character = await storage.getCharacter(index);
-      if (!character) {
-        return res.status(404).json({ message: "Character not found" });
-      }
-
+      if (!character) return res.status(404).json({ message: "Character not found" });
       res.json(character);
     } catch (error) {
       console.error("Error fetching character:", error);
@@ -262,24 +271,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Character progress routes
-  // IMPORTANT: Specific routes must come before generic :characterIndex route
-  
+  // ─── Character progress ───────────────────────────────────────────────────
+
   app.get('/api/progress/batch', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const indicesParam = req.query.indices as string;
-      
       if (!indicesParam) {
         return res.status(400).json({ message: "Missing indices parameter" });
       }
 
       const indices = indicesParam.split(',').map(Number).filter(n => !isNaN(n) && n >= 0 && n < 100000);
-      
+
       if (indices.length === 0) {
         return res.json([]);
       }
-      
+
       if (indices.length > 300) {
         return res.status(400).json({ message: "Too many indices (max 300)" });
       }
@@ -294,16 +301,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/progress/range/:start/:count', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const start = parseInt(req.params.start);
       const count = parseInt(req.params.count);
-      
       if (isNaN(start) || isNaN(count) || start < 0 || start >= 3000 || count < 1 || count > 300) {
         return res.status(400).json({ message: "Invalid range parameters" });
       }
-
-      const safeCount = Math.min(count, 3000 - start);
-      const progress = await storage.getUserCharacterProgress(userId, start, safeCount);
+      const progress = await storage.getUserCharacterProgress(userId, start, Math.min(count, 3000 - start));
       res.json(progress);
     } catch (error) {
       console.error("Error fetching progress:", error);
@@ -314,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mastery statistics - counts for each mastery type (must come BEFORE :characterIndex)
   app.get('/api/progress/stats', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const stats = await storage.getMasteryStats(userId);
       res.json(stats);
     } catch (error) {
@@ -326,9 +330,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get first non-mastered character index starting from a given index
   app.get('/api/progress/first-non-mastered/:startIndex', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const startIndex = parseInt(req.params.startIndex);
-      
+
       if (isNaN(startIndex) || startIndex < 0 || startIndex >= 3000) {
         return res.status(400).json({ message: "Invalid start index" });
       }
@@ -341,16 +345,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generic :characterIndex route must come LAST
+
   app.get('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const characterIndex = parseInt(req.params.characterIndex);
-      
       if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 3000) {
         return res.status(400).json({ message: "Invalid character index" });
       }
-
       const progress = await storage.getCharacterProgress(userId, characterIndex);
       res.json(progress || { reading: false, writing: false, radical: false });
     } catch (error) {
@@ -361,12 +363,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/progress', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const progressData = insertCharacterProgressSchema.parse({
-        userId,
-        ...req.body,
-      });
-
+      const userId = req.user.id;
+      const progressData = insertCharacterProgressSchema.parse({ userId, ...req.body });
       const progress = await storage.upsertCharacterProgress(progressData);
       res.json(progress);
     } catch (error) {
@@ -616,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // generates with Claude if not cached, then stores for reuse.
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const levelsParam = (req.query.levels as string) || "1,2,3";
       const hskLevels = levelsParam
         .split(",")
@@ -667,7 +665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           try {
             const generated = await generateExampleSentence(
-              req.user.claims.sub,
+              req.user.id,
               chosen.simplified, chosen.traditional, chosen.pinyin,
               chosen.definition, chosen.hskLevel
             );
@@ -786,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pool: Awaited<ReturnType<typeof storage.getFilteredCharacters>>["characters"] = [];
       for (let page = 0; page <= 10; page++) {
         const result = await storage.getFilteredCharacters(
-          req.user.claims.sub,
+          req.user.id,
           page,
           POOL_SIZE,
           { hskLevels }
@@ -900,7 +898,7 @@ Be concise and encouraging.`;
       const existing = await storage.getFeedbackCache(blanked, character);
       if (existing) return;
 
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
       await storage.setFeedbackCache(blanked, character, feedback);
     } catch (err) {
@@ -924,7 +922,7 @@ Be concise and encouraging.`;
       const fullSentence = blanked.replace("＿", character);
 
       // Check user's AI feedback preference
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const userSettingsRow = await storage.getUserSettings(userId);
       const useAiFeedback = userSettingsRow?.useAiFeedback ?? false;
 
@@ -962,7 +960,7 @@ Be concise and encouraging.`;
   // Saved items routes
   app.get('/api/saved', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const items = await storage.getSavedItems(userId);
       res.json(items);
     } catch (error) {
@@ -973,7 +971,7 @@ Be concise and encouraging.`;
 
   app.post('/api/saved/toggle', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { type, chinese, pinyin, english } = req.body;
       if (!type || !chinese || english === undefined) {
         return res.status(400).json({ message: "Missing required fields: type, chinese, english" });
@@ -991,7 +989,7 @@ Be concise and encouraging.`;
   // GET /api/words/filtered?page=0&pageSize=20&hskLevels=1,2,3&filterUnknown=true
   app.get('/api/words/filtered', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const page = parseInt(req.query.page as string) || 0;
       const pageSize = parseInt(req.query.pageSize as string) || 20;
 
@@ -1018,7 +1016,7 @@ Be concise and encouraging.`;
   // GET /api/words/batch-progress?wordIds=1,2,3
   app.get('/api/words/batch-progress', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const wordIdsParam = req.query.wordIds as string;
 
       if (!wordIdsParam) {
@@ -1044,7 +1042,7 @@ Be concise and encouraging.`;
   // Returns a random word + a blanked example sentence.
   app.get('/api/quiz/word', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const levelsParam = (req.query.levels as string) || "1,2,3";
       const excludeParam = (req.query.exclude as string) || "";
 
@@ -1175,7 +1173,7 @@ Be concise and encouraging.`;
   // Returns AI feedback for a fill-in-blank word answer.
   app.post('/api/quiz/word/check', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { wordId, blanked, userAnswer, pinyin, definition } = req.body;
 
       if (!wordId) {
@@ -1217,7 +1215,7 @@ Be concise and encouraging.`;
   // Returns word progress stats for the current user.
   app.get('/api/progress/words', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const progress = await storage.getWordProgressStats(userId);
       res.json(progress);
     } catch (error) {
@@ -1230,7 +1228,7 @@ Be concise and encouraging.`;
   // Mark a word as known or unknown.
   app.post('/api/progress/words/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const wordId = parseInt(req.params.id);
       const { known } = req.body;
 
