@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { execSync } from "child_process";
 import { registerRoutes } from "./routes";
