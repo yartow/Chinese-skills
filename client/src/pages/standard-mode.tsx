@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
-import { ArrowLeft, Filter, ArrowRight } from "lucide-react";
+import { ArrowLeft, Filter, ArrowRight, BookOpen, PenTool, Grid3x3, X, Check } from "lucide-react";
 import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
+import { cn } from "@/lib/utils";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
 interface FilteredCharactersResponse {
@@ -53,6 +54,11 @@ export default function StandardMode() {
 
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
+  const advancedEditMode = settings?.advancedEditMode ?? false;
+
+  // ─── Batch selection state ───────────────────────────────────────────────
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const lastClickedPos = useRef<number | null>(null);
 
   // Keep the URL in sync with filter/page state.
   // Use replaceState (replace: true) so filter changes never push extra entries
@@ -84,6 +90,12 @@ export default function StandardMode() {
     }
     setCurrentPage(0);
   }, [filterReading, filterWriting, filterRadical, selectedHskLevels]);
+
+  // Clear selection when navigating to a different page or changing filters
+  useEffect(() => {
+    setSelectedIndices(new Set());
+    lastClickedPos.current = null;
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels]);
 
   const { data, isLoading } = useQuery<FilteredCharactersResponse>({
     queryKey: [
@@ -194,6 +206,99 @@ export default function StandardMode() {
     }, 400));
   };
 
+  // ─── Selection handlers ──────────────────────────────────────────────────
+
+  const handleSelectChar = (charIndex: number, pos: number, shiftKey: boolean) => {
+    if (shiftKey && lastClickedPos.current !== null) {
+      const start = Math.min(lastClickedPos.current, pos);
+      const end = Math.max(lastClickedPos.current, pos);
+      setSelectedIndices(prev => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          if (characters[i]) next.add(characters[i].index);
+        }
+        return next;
+      });
+    } else {
+      setSelectedIndices(prev => {
+        const next = new Set(prev);
+        if (next.has(charIndex)) { next.delete(charIndex); } else { next.add(charIndex); }
+        return next;
+      });
+      lastClickedPos.current = pos;
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIndices.size === characters.length) {
+      setSelectedIndices(new Set());
+    } else {
+      setSelectedIndices(new Set(characters.map(c => c.index)));
+    }
+  };
+
+  const handleBatchToggle = async (field: 'reading' | 'writing' | 'radical') => {
+    if (selectedIndices.size === 0) return;
+    const cacheKey = ["/api/progress/batch", characterIndices.join(',')];
+    const currentList = queryClient.getQueryData<CharacterProgress[]>(cacheKey) ?? [];
+    const selectedArr = Array.from(selectedIndices);
+
+    const allOn = selectedArr.every(idx => {
+      const p = currentList.find(p => p.characterIndex === idx);
+      return p?.[field] ?? false;
+    });
+    const newValue = !allOn;
+
+    // Optimistic update
+    queryClient.setQueryData<CharacterProgress[]>(cacheKey, (old = []) => {
+      const map = new Map(old.map(p => [p.characterIndex, p]));
+      for (const idx of selectedArr) {
+        const existing = map.get(idx);
+        map.set(idx, existing
+          ? { ...existing, [field]: newValue }
+          : { id: '', userId: '', characterIndex: idx, reading: false, writing: false, radical: false, updatedAt: new Date(), [field]: newValue }
+        );
+      }
+      return Array.from(map.values());
+    });
+
+    try {
+      await fetch('/api/progress/batch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          updates: selectedArr.map(idx => {
+            const current = currentList.find(p => p.characterIndex === idx);
+            return {
+              characterIndex: idx,
+              reading: field === 'reading' ? newValue : (current?.reading ?? false),
+              writing: field === 'writing' ? newValue : (current?.writing ?? false),
+              radical: field === 'radical' ? newValue : (current?.radical ?? false),
+            };
+          }),
+        }),
+      });
+      queryClient.invalidateQueries({ predicate: q =>
+        q.queryKey[0] === '/api/progress/batch' ||
+        q.queryKey[0] === '/api/progress/range' ||
+        (q.queryKey[0] === '/api/progress' && typeof q.queryKey[1] === 'number')
+      });
+    } catch {
+      // best-effort; optimistic update stays
+    }
+  };
+
+  // Compute per-field state across selected characters for the batch action bar
+  const selectedProgressList = Array.from(selectedIndices).map(idx =>
+    progressList.find(p => p.characterIndex === idx)
+  );
+  const batchAllOn = {
+    reading: selectedProgressList.length > 0 && selectedProgressList.every(p => p?.reading ?? false),
+    writing: selectedProgressList.length > 0 && selectedProgressList.every(p => p?.writing ?? false),
+    radical: selectedProgressList.length > 0 && selectedProgressList.every(p => p?.radical ?? false),
+  };
+
   const handleToggleHskLevel = (level: number) => {
     setSelectedHskLevels((prev) =>
       prev.includes(level)
@@ -280,9 +385,27 @@ export default function StandardMode() {
           <div className="lg:col-span-3 space-y-6">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h2 className="text-xl font-semibold">
-                  Showing {characters.length} characters
-                </h2>
+                <div className="flex items-center gap-2">
+                  {advancedEditMode && (
+                    <button
+                      className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
+                        selectedIndices.size === characters.length && characters.length > 0
+                          ? "bg-primary border-primary"
+                          : "border-muted-foreground/40 hover:border-primary bg-background"
+                      )}
+                      onClick={handleSelectAll}
+                      title="Select all on this page"
+                    >
+                      {selectedIndices.size === characters.length && characters.length > 0 && (
+                        <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                      )}
+                    </button>
+                  )}
+                  <h2 className="text-xl font-semibold">
+                    Showing {characters.length} characters
+                  </h2>
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground shrink-0">Go to index:</span>
                   <Input
@@ -333,8 +456,53 @@ export default function StandardMode() {
               </div>
             </div>
 
+            {/* Batch action bar — visible when ≥1 character is selected */}
+            {advancedEditMode && selectedIndices.size > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-sm">
+                <span className="font-medium text-sm">{selectedIndices.size} selected</span>
+                <div className="flex gap-1.5 ml-1">
+                  <Button
+                    variant={batchAllOn.reading ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleBatchToggle('reading')}
+                    className="gap-1 h-7 px-2 text-xs"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Read
+                  </Button>
+                  <Button
+                    variant={batchAllOn.writing ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleBatchToggle('writing')}
+                    className="gap-1 h-7 px-2 text-xs"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    Write
+                  </Button>
+                  <Button
+                    variant={batchAllOn.radical ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleBatchToggle('radical')}
+                    className="gap-1 h-7 px-2 text-xs"
+                  >
+                    <Grid3x3 className="w-3.5 h-3.5" />
+                    Radical
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setSelectedIndices(new Set()); lastClickedPos.current = null; }}
+                  className="ml-auto h-7 w-7 p-0"
+                  title="Clear selection"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {characters.map((char) => {
+              {characters.map((char, charPos) => {
                 const progress = progressList.find((p: CharacterProgress) => p.characterIndex === char.index);
                 return (
                   <CharacterCard
@@ -348,7 +516,13 @@ export default function StandardMode() {
                     onToggleReading={() => handleToggleStar(char.index, "reading")}
                     onToggleWriting={() => handleToggleStar(char.index, "writing")}
                     onToggleRadical={() => handleToggleStar(char.index, "radical")}
-                    onClick={() => setLocation(`/character/${char.index}`)}
+                    onClick={
+                      advancedEditMode && selectedIndices.size > 0
+                        ? () => handleSelectChar(char.index, charPos, false)
+                        : () => setLocation(`/character/${char.index}`)
+                    }
+                    selected={advancedEditMode ? selectedIndices.has(char.index) : undefined}
+                    onSelect={advancedEditMode ? (shiftKey) => handleSelectChar(char.index, charPos, shiftKey) : undefined}
                   />
                 );
               })}

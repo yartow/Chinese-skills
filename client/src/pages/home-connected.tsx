@@ -271,6 +271,8 @@ export default function Home() {
               onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
               handwritingCandidates={settings?.handwritingCandidates ?? 8}
               onHandwritingCandidatesChange={(val) => updateSettingsMutation.mutate({ handwritingCandidates: val })}
+              advancedEditMode={settings?.advancedEditMode ?? false}
+              onAdvancedEditModeChange={(val) => updateSettingsMutation.mutate({ advancedEditMode: val })}
               autoReloadDatabase={appConfig?.autoReloadDatabase ?? true}
               onAutoReloadDatabaseChange={(val) => updateAppConfigMutation.mutate({ autoReloadDatabase: val })}
             />

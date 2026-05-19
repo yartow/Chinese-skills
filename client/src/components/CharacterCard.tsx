@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import StarRating from "./StarRating";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,9 @@ interface CharacterCardProps {
   onToggleRadical: () => void;
   onClick: () => void;
   className?: string;
+  /** Selection mode — provide both to enable the selection circle */
+  selected?: boolean;
+  onSelect?: (shiftKey: boolean) => void;
 }
 
 export default function CharacterCard({
@@ -28,22 +32,40 @@ export default function CharacterCard({
   onToggleRadical,
   onClick,
   className,
+  selected,
+  onSelect,
 }: CharacterCardProps) {
   return (
     <Card
       className={cn(
         "p-6 flex flex-col items-center gap-4 cursor-pointer hover-elevate transition-all relative",
+        selected && "ring-2 ring-primary ring-offset-1",
         className
       )}
       onClick={onClick}
       data-testid={`card-character-${character}`}
     >
-      <span
-        className="absolute top-2 left-3 text-xs text-muted-foreground font-mono select-none"
-        data-testid={`text-index-${index}`}
-      >
-        #{index}
-      </span>
+      {onSelect ? (
+        <button
+          className={cn(
+            "absolute top-2 left-2 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+            selected
+              ? "bg-primary border-primary"
+              : "bg-background/80 border-muted-foreground/40 hover:border-primary"
+          )}
+          onClick={(e) => { e.stopPropagation(); onSelect(e.shiftKey); }}
+          aria-label={selected ? "Deselect character" : "Select character"}
+        >
+          {selected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+        </button>
+      ) : (
+        <span
+          className="absolute top-2 left-3 text-xs text-muted-foreground font-mono select-none"
+          data-testid={`text-index-${index}`}
+        >
+          #{index}
+        </span>
+      )}
       {hskLevel !== undefined && (
         <span
           className="absolute top-2 right-3 text-xs text-muted-foreground font-medium select-none"

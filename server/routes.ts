@@ -361,6 +361,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/progress/batch', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { updates } = req.body;
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: 'updates must be a non-empty array' });
+      }
+      if (updates.length > 300) {
+        return res.status(400).json({ message: 'maximum 300 updates per request' });
+      }
+      const parsed = updates.map((u: any) => ({
+        characterIndex: Number(u.characterIndex),
+        reading: Boolean(u.reading),
+        writing: Boolean(u.writing),
+        radical: Boolean(u.radical),
+      }));
+      if (parsed.some(u => !Number.isInteger(u.characterIndex) || u.characterIndex < 0)) {
+        return res.status(400).json({ message: 'Invalid characterIndex in updates' });
+      }
+      await storage.batchUpsertCharacterProgress(userId, parsed);
+      res.json({ updated: parsed.length });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: 'Invalid progress data', errors: error.errors });
+      } else {
+        console.error('Error batch updating progress:', error);
+        res.status(500).json({ message: 'Failed to batch update progress' });
+      }
+    }
+  });
+
   app.post('/api/progress', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
