@@ -64,6 +64,7 @@ export const userSettings = pgTable("user_settings", {
   useAiSentences: boolean("use_ai_sentences").notNull().default(false),
   anthropicApiKey: varchar("anthropic_api_key"), // User-supplied Anthropic API key (nullable)
   handwritingCandidates: integer("handwriting_candidates").notNull().default(8),
+  advancedEditMode: boolean("advanced_edit_mode").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

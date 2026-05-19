@@ -84,6 +84,7 @@ export interface IStorage {
   getCharacterProgress(userId: string, characterIndex: number): Promise<CharacterProgress | undefined>;
   getUserCharacterProgress(userId: string, startIndex: number, count: number): Promise<CharacterProgress[]>;
   upsertCharacterProgress(progress: InsertCharacterProgress): Promise<CharacterProgress>;
+  batchUpsertCharacterProgress(userId: string, updates: Array<{ characterIndex: number; reading: boolean; writing: boolean; radical: boolean }>): Promise<void>;
   getMasteryStats(userId: string): Promise<MasteryStats>;
   getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number>;
 
@@ -226,6 +227,30 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async batchUpsertCharacterProgress(
+    userId: string,
+    updates: Array<{ characterIndex: number; reading: boolean; writing: boolean; radical: boolean }>
+  ): Promise<void> {
+    if (updates.length === 0) return;
+    const indices = updates.map(u => u.characterIndex);
+    const existing = await this.getBatchCharacterProgress(userId, indices);
+    const existingMap = new Map(existing.map(p => [p.characterIndex, p]));
+
+    const toInsert = updates.filter(u => !existingMap.has(u.characterIndex));
+    const toUpdate = updates.filter(u => existingMap.has(u.characterIndex));
+
+    if (toInsert.length > 0) {
+      await db.insert(characterProgress).values(toInsert.map(u => ({ userId, ...u })));
+    }
+    await Promise.all(
+      toUpdate.map(u =>
+        db.update(characterProgress)
+          .set({ reading: u.reading, writing: u.writing, radical: u.radical, updatedAt: new Date() })
+          .where(and(eq(characterProgress.userId, userId), eq(characterProgress.characterIndex, u.characterIndex)))
+      )
+    );
   }
 
   async getMasteryStats(userId: string): Promise<MasteryStats> {

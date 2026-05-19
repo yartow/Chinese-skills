@@ -13,6 +13,7 @@ interface SettingsPanelProps {
   useAiFeedback?: boolean;
   useAiSentences?: boolean;
   anthropicApiKeySet?: boolean;
+  advancedEditMode?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
@@ -21,6 +22,7 @@ interface SettingsPanelProps {
   onUseAiFeedbackChange?: (value: boolean) => void;
   onUseAiSentencesChange?: (value: boolean) => void;
   onAnthropicApiKeyChange?: (key: string) => void;
+  onAdvancedEditModeChange?: (value: boolean) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
   onAutoReloadDatabaseChange?: (value: boolean) => void;
 }
@@ -33,6 +35,7 @@ export default function SettingsPanel({
   useAiSentences = false,
   anthropicApiKeySet = false,
   handwritingCandidates = 8,
+  advancedEditMode = false,
   autoReloadDatabase = true,
   onLevelChange,
   onDailyCharCountChange,
@@ -41,6 +44,7 @@ export default function SettingsPanel({
   onUseAiSentencesChange,
   onAnthropicApiKeyChange,
   onHandwritingCandidatesChange,
+  onAdvancedEditModeChange,
   onAutoReloadDatabaseChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
@@ -261,6 +265,23 @@ export default function SettingsPanel({
           <p className="text-xs text-muted-foreground">
             Lower = fewer suggestions, stricter matching. Higher = more suggestions shown.
           </p>
+        </div>
+      )}
+
+      {onAdvancedEditModeChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="advanced-edit-toggle" className="text-sm">Advanced edit mode</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Enables batch selection in Standard Mode. Click the circle on a card to select it; hold Shift and click another to select a range. Use the action bar to toggle mastery fields for all selected characters at once.
+            </p>
+          </div>
+          <Switch
+            id="advanced-edit-toggle"
+            checked={advancedEditMode}
+            onCheckedChange={onAdvancedEditModeChange}
+            data-testid="toggle-advanced-edit-mode"
+          />
         </div>
       )}
 
