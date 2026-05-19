@@ -4,6 +4,46 @@ This guide covers migrating from Replit to a cPanel-based host. The app is a Nod
 
 ---
 
+## Will I lose my data?
+
+**Short answer: character/word data is safe; your personal progress will be lost unless you export it first.**
+
+| Data | Outcome |
+|---|---|
+| Characters, words, radicals (seed data) | ✅ Fully preserved — auto-seeded from JSON files on every startup |
+| Your character/word progress | ⚠️ Lost — tied to your old Replit user ID (see below) |
+| Your user settings | ⚠️ Lost — same reason |
+| Your account | ❌ Gone — old accounts used Replit OAuth; you register a fresh email/password account |
+
+**Why progress is lost:** The old system used Replit's OAuth `sub` claim as the user ID (e.g. `user:12345678`). The new system generates a random UUID when you register. Your progress rows in `character_progress` and `word_progress` point to the old ID, which no longer exists.
+
+### Optional: rescue your progress before you migrate
+
+If you want to carry over your progress, do this **before** cancelling Replit:
+
+1. **Export from Replit's DB** (run in the Replit shell):
+   ```bash
+   pg_dump $DATABASE_URL \
+     --table=character_progress \
+     --table=word_progress \
+     --table=user_settings \
+     --data-only --no-owner -f progress_export.sql
+   ```
+
+2. **After** setting up the new host and creating your new account, find your new user ID:
+   ```sql
+   SELECT id FROM users WHERE email = 'your@email.com';
+   ```
+
+3. Open `progress_export.sql` in a text editor and replace every occurrence of your old Replit user ID with the new UUID, then import it:
+   ```bash
+   psql $DATABASE_URL < progress_export.sql
+   ```
+
+If you only use the app yourself, this takes about 5 minutes. If you consider the progress data "nice to have" rather than critical, it is fine to start fresh — you can re-mark characters as you go.
+
+---
+
 ## Prerequisites
 
 Before you start, confirm your cPanel host supports:
@@ -244,3 +284,94 @@ Browser → cPanel/Passenger → Express (dist/index.js, port 5000)
 ```
 
 The app is entirely self-contained: the Express server serves both the API and the compiled React frontend. No separate web server (nginx/Apache) configuration is needed beyond what Passenger provides.
+
+---
+
+## Automated deployment (CI/CD)
+
+Instead of SSH-ing in manually every time you push code, you can automate the deploy with **GitHub Actions**. Every push to `main` will pull the latest code, rebuild, and restart the app on your cPanel server.
+
+### Step 1 — Add SSH credentials to GitHub
+
+1. On your cPanel server, generate a dedicated deploy key (or use an existing one):
+   ```bash
+   ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/github_deploy
+   cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+   ```
+2. Copy the **private** key:
+   ```bash
+   cat ~/.ssh/github_deploy
+   ```
+3. In your GitHub repo → **Settings → Secrets and variables → Actions**, add:
+
+   | Secret name | Value |
+   |---|---|
+   | `CPANEL_HOST` | Your server hostname or IP (e.g. `server123.youhost.com`) |
+   | `CPANEL_USER` | Your cPanel username |
+   | `CPANEL_SSH_KEY` | The private key you copied above |
+   | `CPANEL_APP_PATH` | Absolute path to the app (e.g. `/home/youraccount/chinese-skills`) |
+
+### Step 2 — Create the workflow file
+
+Create `.github/workflows/deploy.yml` in the repository:
+
+```yaml
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          key: ${{ secrets.CPANEL_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.CPANEL_APP_PATH }}
+
+            # Pull latest code
+            git pull origin main
+
+            # Install dependencies (skips dev deps in production)
+            npm ci --omit=dev
+            # Dev deps are needed for the build step, so install them too
+            npm ci
+
+            # Rebuild frontend + backend
+            npm run build
+
+            # Apply any schema changes
+            npm run db:push
+
+            # Signal Passenger to restart the app
+            mkdir -p tmp && touch tmp/restart.txt
+```
+
+### How it works
+
+```
+git push origin main
+       ↓
+GitHub Actions runner
+       ↓  SSH
+cPanel server: git pull → npm ci → npm run build → npm run db:push → touch tmp/restart.txt
+       ↓
+Passenger picks up restart.txt and reloads the app (zero-downtime on most setups)
+```
+
+The `tmp/restart.txt` trick is Phusion Passenger's standard way to trigger a graceful restart without needing root access or the `passenger-config` CLI.
+
+### Notes
+
+- **Database migrations**: `npm run db:push` is safe to run on every deploy — Drizzle only applies changes, it never drops existing columns or data.
+- **Rollback**: If a deploy breaks the app, SSH in and run `git revert HEAD && git push` or `git reset --hard HEAD~1` to revert, then the next push will trigger a fresh deploy.
+- **Skip deploys**: Add `[skip ci]` anywhere in your commit message to push without triggering a deploy.
+- **Build time**: On shared hosting the build step can take 30–60 seconds. The app is briefly unavailable during that window. If you need zero downtime, a VPS with two app instances behind a proxy is the proper solution, but for a personal app this is fine.
