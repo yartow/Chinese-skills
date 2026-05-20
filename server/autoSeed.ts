@@ -66,10 +66,18 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
   // These are idempotent — safe to run on every startup.
   try {
     await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    // array_to_string is STABLE (not IMMUTABLE) on some PostgreSQL builds, which
+    // prevents its use in an index expression. Wrapping it in an IMMUTABLE function
+    // lets PostgreSQL treat the result as a constant for indexing purposes.
+    await db.execute(sql`
+      CREATE OR REPLACE FUNCTION immutable_array_to_string(arr text[], sep text)
+        RETURNS text LANGUAGE sql IMMUTABLE AS
+        'SELECT array_to_string($1, $2)'
+    `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_cc_definition_trgm
         ON chinese_characters
-        USING GIN (LOWER(array_to_string(definition, ' ')) gin_trgm_ops)
+        USING GIN (LOWER(immutable_array_to_string(definition, ' ')) gin_trgm_ops)
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_cc_pinyin_trgm
@@ -152,7 +160,10 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     .where(isNull(chineseCharacters.radicalIndex));
 
   const checksumChanged = currentChecksum !== storedChecksum;
-  const needsFullUpsert = checksumChanged || missingRadical.value > 0;
+  // Only use the radical_index check as a first-run fallback (no stored checksum).
+  // If a checksum is already stored, trust it — some seed rows legitimately have
+  // null radical_index, and checking would trigger a pointless upsert every startup.
+  const needsFullUpsert = checksumChanged || (storedChecksum === null && missingRadical.value > 0);
 
   if (!autoReload) {
     log(`Auto-reload is disabled — skipping full upsert (seed changes will not be applied).`);
