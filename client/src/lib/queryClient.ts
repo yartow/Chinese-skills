@@ -12,7 +12,7 @@ function handleSessionExpired() {
   // Wipe the IndexedDB persisted cache so stale auth state isn't restored
   // on the next page load after the user logs back in.
   del("hanzi-query-cache").catch(() => {});
-  window.location.href = "/api/login";
+  window.location.href = "/auth";
 }
 
 async function throwIfResNotOk(res: Response) {
