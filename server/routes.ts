@@ -80,6 +80,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  const ADMIN_EMAILS = new Set(
+    (process.env.ADMIN_EMAILS ?? 'admin@andrew-yong.com')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  function isAdmin(req: any, res: any, next: any) {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: 'Unauthorized' });
+    if (!ADMIN_EMAILS.has((req.user.email ?? '').toLowerCase())) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    next();
+  }
+
+  app.post('/api/admin/reset-password', isAdmin, async (req, res, next) => {
+    try {
+      const { email, newPassword } = req.body;
+      if (!email || !newPassword) {
+        return res.status(400).json({ message: 'email and newPassword are required' });
+      }
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters' });
+      }
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: 'No account with that email address' });
+      }
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await storage.upsertUser({ ...user, passwordHash });
+      res.json({ message: `Password reset for ${email}` });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/api/admin/users', isAdmin, async (_req, res, next) => {
+    try {
+      const rows = await db.execute(sql`SELECT id, email, first_name, last_name, created_at FROM users ORDER BY created_at DESC`);
+      res.json((rows as any).rows ?? rows);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.id);

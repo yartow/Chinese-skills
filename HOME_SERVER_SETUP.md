@@ -409,13 +409,138 @@ In your GitHub repo → **Settings** → **Secrets and variables** → **Actions
 
 ---
 
-## Part 9 — Register your first account
+## Part 9 — Create the admin account
 
-Visit `https://chinese.yourdomain.com` and click **Register**. The first account
-you create is just a normal user — there is no special admin role. If you want to
-restrict registration later (so only you and your son can sign up), you can add an
-invite-code or simply disable registration in the source code after creating both
-accounts.
+The app has an admin role based on email address. By default, `admin@andrew-yong.com`
+is the admin. You can override this by setting the `ADMIN_EMAILS` environment variable
+to a comma-separated list of email addresses in your `.env` file.
+
+### Create the admin account via SQL (first time only)
+
+SSH into the Mac Mini and run:
+
+```bash
+sudo -u postgres psql chineseskills
+```
+
+Then paste this, replacing the hash with a real bcrypt hash (see below):
+
+```sql
+INSERT INTO users (email, first_name, password_hash)
+VALUES (
+  'admin@andrew-yong.com',
+  'Admin',
+  'BCRYPT_HASH_HERE'
+)
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+```
+
+**Generate a bcrypt hash from your MacBook** (no need to SSH):
+
+```bash
+cd ~/Documents/GitHub/Chinese-skills
+node -e "
+  const bcrypt = require('./node_modules/bcryptjs');
+  const crypto = require('crypto');
+  const pwd = crypto.randomBytes(16).toString('base64url');
+  console.log('Password:', pwd);
+  console.log('Hash:    ', bcrypt.hashSync(pwd, 12));
+"
+```
+
+Copy the printed password somewhere safe, paste the hash into the SQL above, then run it.
+
+---
+
+## Part 10 — Connect to the production database from your MacBook
+
+The production PostgreSQL listens only on `localhost` on the Mac Mini (it is not
+exposed to the internet). To run queries from your MacBook you open an SSH tunnel.
+
+### Open an SSH tunnel
+
+```bash
+# Replace mac-mini-ip with your Mac Mini's local IP (e.g. 192.168.1.50)
+ssh -L 5433:localhost:5432 your_ubuntu_username@mac-mini-ip -N
+```
+
+Leave this terminal open. While it is running, port `5433` on your MacBook is
+forwarded to port `5432` on the Mac Mini.
+
+### Connect with psql
+
+Open a **second terminal** on your MacBook:
+
+```bash
+psql "postgresql://chineseskills:choose_a_strong_password@localhost:5433/chineseskills"
+```
+
+You are now talking directly to the production database. Use standard SQL — for example:
+
+```sql
+-- List all users
+SELECT id, email, created_at FROM users;
+
+-- Check if admin account exists
+SELECT email, (password_hash IS NOT NULL) AS has_password FROM users WHERE email = 'admin@andrew-yong.com';
+```
+
+Type `\q` to exit psql. Close the first terminal to drop the tunnel.
+
+### Shortcut: run a one-off SQL command without opening psql
+
+```bash
+ssh -L 5433:localhost:5432 your_ubuntu_username@mac-mini-ip -N &
+sleep 2
+psql "postgresql://chineseskills:choose_a_strong_password@localhost:5433/chineseskills" \
+  -c "SELECT email, created_at FROM users;"
+kill %1   # close the tunnel
+```
+
+---
+
+## Part 11 — Reset a user's password (admin endpoint)
+
+Once you are logged in as `admin@andrew-yong.com`, you can reset any user's password
+without touching the database directly.
+
+```bash
+curl -s -X POST https://chinese.yourdomain.com/api/admin/reset-password \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"email": "user@example.com", "newPassword": "NewTemporaryPass1"}'
+```
+
+**Step-by-step:**
+
+1. Log in as admin and save the session cookie:
+
+```bash
+curl -s -X POST https://chinese.yourdomain.com/api/login \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{"email": "admin@andrew-yong.com", "password": "YOUR_ADMIN_PASSWORD"}'
+```
+
+2. Reset the target user's password:
+
+```bash
+curl -s -X POST https://chinese.yourdomain.com/api/admin/reset-password \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"email": "target@example.com", "newPassword": "TemporaryPassword1"}'
+```
+
+3. Tell the user their temporary password and ask them to change it after login.
+
+You can also list all registered users:
+
+```bash
+curl -s https://chinese.yourdomain.com/api/admin/users -b cookies.txt | python3 -m json.tool
+```
+
+The cookie file (`cookies.txt`) is created in your current directory and is only valid
+for the duration of the session (7 days). Delete it when you are done.
 
 ---
 

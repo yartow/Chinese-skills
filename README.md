@@ -121,6 +121,8 @@ Your key is stored securely on the server and is never returned to the browser. 
 | POST | `/api/quiz/check` | AI-powered answer checking |
 | GET | `/api/admin/characters/export` | Download characters as `.xlsx` |
 | POST | `/api/admin/characters/import` | Upload `.xlsx` to update character fields |
+| GET | `/api/admin/users` | List all registered users (admin only) |
+| POST | `/api/admin/reset-password` | Reset any user's password (admin only) |
 
 ---
 
