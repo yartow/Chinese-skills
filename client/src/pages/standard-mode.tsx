@@ -166,6 +166,7 @@ export default function StandardMode() {
       queryClient.invalidateQueries({ predicate: (query) =>
         query.queryKey[0] === "/api/progress/batch" ||
         query.queryKey[0] === "/api/progress/range" ||
+        query.queryKey[0] === "/api/progress/stats" ||
         (query.queryKey[0] === "/api/progress" && typeof query.queryKey[1] === "number")
       });
     },
@@ -282,6 +283,7 @@ export default function StandardMode() {
       queryClient.invalidateQueries({ predicate: q =>
         q.queryKey[0] === '/api/progress/batch' ||
         q.queryKey[0] === '/api/progress/range' ||
+        q.queryKey[0] === '/api/progress/stats' ||
         (q.queryKey[0] === '/api/progress' && typeof q.queryKey[1] === 'number')
       });
     } catch {

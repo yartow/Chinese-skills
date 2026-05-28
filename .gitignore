@@ -7,3 +7,4 @@ vite.config.ts.*
 *.xlsx
 .env*
 *.docx
+Personal*
