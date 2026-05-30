@@ -258,22 +258,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMasteryStats(userId: string): Promise<MasteryStats> {
-    const result = await db
-      .select({
-        readingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true)`,
-        writingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.writing} = true)`,
-        radicalMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.radical} = true)`,
-        characterMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true AND ${characterProgress.writing} = true AND ${characterProgress.radical} = true)`,
-      })
-      .from(characterProgress)
-      .where(eq(characterProgress.userId, userId));
+    const [progressResult, totalResult] = await Promise.all([
+      db
+        .select({
+          readingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true)`,
+          writingMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.writing} = true)`,
+          radicalMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.radical} = true)`,
+          characterMastered: sql<number>`COUNT(*) FILTER (WHERE ${characterProgress.reading} = true AND ${characterProgress.writing} = true AND ${characterProgress.radical} = true)`,
+        })
+        .from(characterProgress)
+        .where(eq(characterProgress.userId, userId)),
+      db.select({ count: sql<number>`COUNT(*)` }).from(chineseCharacters),
+    ]);
 
     return {
-      readingMastered: Number(result[0]?.readingMastered || 0),
-      writingMastered: Number(result[0]?.writingMastered || 0),
-      radicalMastered: Number(result[0]?.radicalMastered || 0),
-      characterMastered: Number(result[0]?.characterMastered || 0),
-      total: 3000,
+      readingMastered: Number(progressResult[0]?.readingMastered || 0),
+      writingMastered: Number(progressResult[0]?.writingMastered || 0),
+      radicalMastered: Number(progressResult[0]?.radicalMastered || 0),
+      characterMastered: Number(progressResult[0]?.characterMastered || 0),
+      total: Number(totalResult[0]?.count || 0),
     };
   }
 

@@ -66,10 +66,13 @@ export default function Home() {
     enabled: !settingsLoading,
   });
 
-  // Fetch mastery statistics for progress overview
+  // Fetch mastery statistics for progress overview.
+  // staleTime: 0 overrides the global Infinity so this always refetches on mount
+  // instead of serving the IndexedDB-persisted value (which may have total: 3000).
   const { data: masteryStats } = useQuery<MasteryStats>({
     queryKey: ["/api/progress/stats"],
     enabled: !settingsLoading,
+    staleTime: 0,
   });
 
   // Update settings mutation.
@@ -80,11 +83,21 @@ export default function Home() {
   const updateSettingsMutation = useMutation({
     mutationFn: (newSettings: Partial<UserSettings>) =>
       apiRequest("PATCH", "/api/settings", newSettings),
+    onMutate: (variables) => {
+      // Apply optimistically so toggles don't snap back when offline
+      const { anthropicApiKey, ...safeVars } = variables as Record<string, unknown>;
+      queryClient.setQueryData<UserSettingsResponse>(["/api/settings"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          ...safeVars,
+          ...(anthropicApiKey !== undefined ? { anthropicApiKeySet: true } : {}),
+        };
+      });
+    },
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<UserSettingsResponse>(["/api/settings"], (old) => {
         if (!old) return old;
-        // anthropicApiKey is write-only; the server never returns it.
-        // Map it to the boolean flag the client cache uses.
         const { anthropicApiKey, ...safeVars } = variables as Record<string, unknown>;
         return {
           ...old,
@@ -131,7 +144,7 @@ export default function Home() {
         const response = await authenticatedFetch(`/api/progress/first-non-mastered/${currentLevel}`);
         if (response.ok) {
           const data = await response.json();
-          if (data.index > currentLevel && data.index < 3000) {
+          if (data.index > currentLevel && (totalCharacters === 0 || data.index < totalCharacters)) {
             updateSettingsMutation.mutate({ currentLevel: data.index });
           }
         }
@@ -195,8 +208,9 @@ export default function Home() {
     }, 400));
   };
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    await fetch("/api/logout", { method: "POST", credentials: "include" });
+    window.location.href = "/auth";
   };
 
   const handleToggleHskLevel = (level: number) => {
@@ -207,6 +221,8 @@ export default function Home() {
     );
   };
 
+  const totalCharacters = masteryStats?.total ?? 0;
+
   if (settingsLoading || charactersLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -215,7 +231,7 @@ export default function Home() {
     );
   }
 
-  const progressPercentage = (currentLevel / 3000) * 100;
+  const progressPercentage = totalCharacters > 0 ? (currentLevel / totalCharacters) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -224,7 +240,7 @@ export default function Home() {
           <div className="flex items-center gap-2 min-w-0">
             <img src="/logo.png" alt="樂吃玩 — Learn Chinese with Andrew" className="h-9 w-auto shrink-0" />
             <div className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
-              Lv {currentLevel} / 3000
+              Lv {currentLevel} / {totalCharacters || "…"}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
