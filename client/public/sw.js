@@ -1,5 +1,5 @@
 // Cache version — increment this to force all clients to drop old caches
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `hanzi-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `hanzi-dynamic-${CACHE_VERSION}`;
 
@@ -28,6 +28,12 @@ self.addEventListener('fetch', (event) => {
   // Quiz question endpoints need a fresh answer every time — keep network-first
   // so refetch() after each answer doesn't serve the same question from cache.
   if (url.pathname.startsWith('/api/quiz/')) {
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
+    return;
+  }
+
+  // Progress stats must always be fresh (total character count can change).
+  if (url.pathname === '/api/progress/stats') {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE));
     return;
   }
