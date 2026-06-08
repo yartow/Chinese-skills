@@ -9,6 +9,7 @@ import ProgressFilter from "@/components/ProgressFilter";
 import { ArrowLeft, Filter, ArrowRight, BookOpen, PenTool, Grid3x3, X, Check } from "lucide-react";
 import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
+import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { cn } from "@/lib/utils";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -18,6 +19,7 @@ interface FilteredCharactersResponse {
 }
 
 export default function StandardMode() {
+  useActivityTracker("standard");
   const [, setLocation] = useLocation();
 
   // Read directly from window.location.search so the value is always the real
@@ -59,6 +61,7 @@ export default function StandardMode() {
   // ─── Batch selection state ───────────────────────────────────────────────
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const lastClickedPos = useRef<number | null>(null);
+  const batchInFlight = useRef(false);
 
   // Keep the URL in sync with filter/page state.
   // Use replaceState (replace: true) so filter changes never push extra entries
@@ -239,7 +242,8 @@ export default function StandardMode() {
   };
 
   const handleBatchToggle = async (field: 'reading' | 'writing' | 'radical') => {
-    if (selectedIndices.size === 0) return;
+    if (selectedIndices.size === 0 || batchInFlight.current) return;
+    batchInFlight.current = true;
     const cacheKey = ["/api/progress/batch", characterIndices.join(',')];
     const currentList = queryClient.getQueryData<CharacterProgress[]>(cacheKey) ?? [];
     const selectedArr = Array.from(selectedIndices);
@@ -288,6 +292,8 @@ export default function StandardMode() {
       });
     } catch {
       // best-effort; optimistic update stays
+    } finally {
+      batchInFlight.current = false;
     }
   };
 
@@ -467,7 +473,7 @@ export default function StandardMode() {
                     variant={batchAllOn.reading ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleBatchToggle('reading')}
-                    className="gap-1 h-7 px-2 text-xs"
+                    className="gap-1 h-7 px-2 text-xs min-w-[64px]"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     Read
@@ -476,7 +482,7 @@ export default function StandardMode() {
                     variant={batchAllOn.writing ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleBatchToggle('writing')}
-                    className="gap-1 h-7 px-2 text-xs"
+                    className="gap-1 h-7 px-2 text-xs min-w-[64px]"
                   >
                     <PenTool className="w-3.5 h-3.5" />
                     Write
@@ -485,7 +491,7 @@ export default function StandardMode() {
                     variant={batchAllOn.radical ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleBatchToggle('radical')}
-                    className="gap-1 h-7 px-2 text-xs"
+                    className="gap-1 h-7 px-2 text-xs min-w-[64px]"
                   >
                     <Grid3x3 className="w-3.5 h-3.5" />
                     Radical

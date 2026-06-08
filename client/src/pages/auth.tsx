@@ -29,6 +29,7 @@ export default function AuthPage() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      window.location.href = "/";
     } catch {
       setError("Could not connect to the server. Please try again.");
     } finally {
@@ -52,6 +53,7 @@ export default function AuthPage() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      window.location.href = "/";
     } catch {
       setError("Could not connect to the server. Please try again.");
     } finally {

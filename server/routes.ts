@@ -1320,6 +1320,258 @@ Be concise and encouraging.`;
     }
   });
 
+  // ─── Check-ups ────────────────────────────────────────────────────────────
+
+  app.post('/api/checkups', isAuthenticated, async (req: any, res, next) => {
+    try {
+      if (req.user.role !== 'teacher') return res.status(403).json({ message: 'Teachers only' });
+      const { studentId, characters, displayMode, gridType, maxPointsPerChar } = req.body;
+      if (!studentId || !Array.isArray(characters) || characters.length === 0) {
+        return res.status(400).json({ message: 'studentId and characters[] are required' });
+      }
+      // Verify student is in teacher's roster
+      const students = await storage.getStudents(req.user.id);
+      if (!students.some((s: any) => s.id === studentId)) {
+        return res.status(403).json({ message: 'That student is not in your list' });
+      }
+      // Look up pinyin for each character
+      const items = await Promise.all(characters.map(async (char: string) => {
+        const rows = await db.execute(sql`
+          SELECT pinyin, numbered_pinyin FROM chinese_characters
+          WHERE simplified = ${char} OR traditional = ${char}
+          LIMIT 1
+        `);
+        const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+        return { character: char, pinyin: row?.pinyin ?? null, numberedPinyin: row?.numbered_pinyin ?? null };
+      }));
+      const checkup = await storage.createCheckup(
+        req.user.id, studentId, items,
+        displayMode ?? 'pinyin', gridType ?? 'field',
+        maxPointsPerChar ?? 10
+      );
+      // Notify student via message
+      const student = await storage.getUser(studentId);
+      const teacherName = req.user.firstName ?? req.user.email;
+      await storage.sendMessage(
+        req.user.id, studentId,
+        `${teacherName} has created a writing check-up for you. Tap to open: /checkup/${checkup.id}`
+      );
+      res.status(201).json(checkup);
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/checkups', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const role = req.user.role === 'teacher' ? 'teacher' : 'student';
+      const list = await storage.getCheckupsForUser(req.user.id, role);
+      res.json(list);
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/checkups/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: 'Invalid id' });
+      const checkup = await storage.getCheckupWithItems(id);
+      if (!checkup) return res.status(404).json({ message: 'Not found' });
+      if (checkup.teacherId !== req.user.id && checkup.studentId !== req.user.id) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+      res.json(checkup);
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/checkups/:id/submit', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const checkup = await storage.getCheckupWithItems(id);
+      if (!checkup) return res.status(404).json({ message: 'Not found' });
+      if (checkup.studentId !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+      if (checkup.status !== 'pending') return res.status(400).json({ message: 'Already submitted' });
+      const { drawings } = req.body; // [{id, drawing}]
+      if (!Array.isArray(drawings)) return res.status(400).json({ message: 'drawings[] required' });
+      await storage.submitCheckupDrawings(id, drawings);
+      // Notify teacher
+      const student = await storage.getUser(req.user.id);
+      const studentName = (student as any)?.firstName ?? (student as any)?.email;
+      await storage.sendMessage(
+        req.user.id, checkup.teacherId,
+        `${studentName} has submitted check-up #${id}. Tap to score: /checkup/${id}`
+      );
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/checkups/:id/score', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const checkup = await storage.getCheckupWithItems(id);
+      if (!checkup) return res.status(404).json({ message: 'Not found' });
+      if (checkup.teacherId !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+      if (checkup.status !== 'submitted') return res.status(400).json({ message: 'Not submitted yet' });
+      const { scores } = req.body; // [{id, pointsAwarded, feedback?}]
+      if (!Array.isArray(scores)) return res.status(400).json({ message: 'scores[] required' });
+      await storage.scoreCheckup(id, scores);
+      // Notify student
+      const totalPoints = scores.reduce((s: number, x: any) => s + (x.pointsAwarded ?? 0), 0);
+      const maxPoints = checkup.items.length * checkup.maxPointsPerChar;
+      await storage.sendMessage(
+        req.user.id, checkup.studentId,
+        `Your check-up has been scored: ${totalPoints}/${maxPoints} points. Tap to see your results: /checkup/${id}`
+      );
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  // ─── Teacher endpoints ────────────────────────────────────────────────────
+
+  function isTeacher(req: any, res: any, next: any) {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: 'Unauthorized' });
+    if (req.user.role !== 'teacher') return res.status(403).json({ message: 'Forbidden' });
+    next();
+  }
+
+  app.get('/api/teacher/students', isTeacher, async (req: any, res, next) => {
+    try {
+      const students = await storage.getStudents(req.user.id);
+      res.json(students.map(({ passwordHash, ...s }) => s));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/teacher/students', isTeacher, async (req: any, res, next) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: 'email is required' });
+      const student = await storage.getUserByEmail(email);
+      if (!student) return res.status(404).json({ message: 'No account with that email address' });
+      if (student.id === req.user.id) return res.status(400).json({ message: 'You cannot add yourself as a student' });
+      await storage.addStudent(req.user.id, student.id);
+      const { passwordHash, ...safe } = student;
+      res.status(201).json(safe);
+    } catch (err) { next(err); }
+  });
+
+  app.delete('/api/teacher/students/:studentId', isTeacher, async (req: any, res, next) => {
+    try {
+      await storage.removeStudent(req.user.id, req.params.studentId);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/teacher/students/:studentId/activity', isTeacher, async (req: any, res, next) => {
+    try {
+      const students = await storage.getStudents(req.user.id);
+      const isOwned = students.some(s => s.id === req.params.studentId);
+      if (!isOwned) return res.status(403).json({ message: 'That student is not in your list' });
+      const { from, to } = req.query as { from?: string; to?: string };
+      const logs = await storage.getActivityLogs(req.params.studentId, from, to);
+      res.json(logs);
+    } catch (err) { next(err); }
+  });
+
+  // ─── Messaging ────────────────────────────────────────────────────────────
+
+  // Returns the list of users this person is allowed to message
+  async function getAllowedPartners(user: any): Promise<string[]> {
+    if (user.role === 'teacher') {
+      const students = await storage.getStudents(user.id);
+      return students.map((s: any) => s.id);
+    }
+    // students (and regular users added as students) can message their teachers
+    const teachers = await storage.getTeachersOf(user.id);
+    return teachers.map((t: any) => t.id);
+  }
+
+  app.get('/api/messages/unread-count', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const count = await storage.getUnreadCount(req.user.id);
+      res.json({ count });
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/messages/conversations', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const allowed = await getAllowedPartners(req.user);
+      const previews = await storage.getConversationPreviews(req.user.id);
+      // Only expose conversations with allowed partners; also include partners
+      // with no messages yet so the list is always complete
+      const previewMap = new Map(previews.map(p => [p.partnerId, p]));
+      const result = allowed.map(partnerId => previewMap.get(partnerId) ?? { partnerId, lastMessage: null, unreadCount: 0 });
+      // Enrich with user info
+      const partnerUsers = await Promise.all(
+        allowed.map(id => storage.getUser(id))
+      );
+      const userMap = new Map(partnerUsers.filter(Boolean).map(u => [u!.id, u!]));
+      res.json(result.map(r => {
+        const u = userMap.get(r.partnerId);
+        const { passwordHash, ...safeUser } = u ?? {} as any;
+        return { ...r, partner: safeUser };
+      }));
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/messages/conversation/:partnerId', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const allowed = await getAllowedPartners(req.user);
+      if (!allowed.includes(req.params.partnerId)) {
+        return res.status(403).json({ message: 'Not allowed to message this user' });
+      }
+      const msgs = await storage.getConversation(req.user.id, req.params.partnerId);
+      res.json(msgs);
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/messages/conversation/:partnerId', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const allowed = await getAllowedPartners(req.user);
+      if (!allowed.includes(req.params.partnerId)) {
+        return res.status(403).json({ message: 'Not allowed to message this user' });
+      }
+      const { body } = req.body;
+      if (!body?.trim()) return res.status(400).json({ message: 'Message body is required' });
+      const msg = await storage.sendMessage(req.user.id, req.params.partnerId, body.trim());
+      res.status(201).json(msg);
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/messages/conversation/:partnerId/read', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.markConversationRead(req.user.id, req.params.partnerId);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  // ─── Activity logging ─────────────────────────────────────────────────────
+
+  app.post('/api/activity', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { date, view, seconds } = req.body;
+      if (!date || !view || typeof seconds !== 'number' || seconds <= 0) {
+        return res.status(400).json({ message: 'date, view, and positive seconds are required' });
+      }
+      if (!['standard', 'test'].includes(view)) {
+        return res.status(400).json({ message: 'view must be standard or test' });
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: 'date must be YYYY-MM-DD' });
+      }
+      await storage.logActivity(req.user.id, date, view, Math.round(seconds));
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.get('/api/activity', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const logs = await storage.getActivityLogs(req.user.id, from, to);
+      res.json(logs);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

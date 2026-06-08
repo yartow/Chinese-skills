@@ -17,10 +17,16 @@ import Search from "./pages/search";
 import CharacterBrowserPage from "./pages/character-browser-page";
 import Saved from "./pages/saved";
 import NotFound from "./pages/not-found";
+import TeacherPage from "./pages/teacher";
+import MessagesPage from "./pages/messages";
+import CheckupPage from "./pages/checkup";
+import CheckupCreatePage from "./pages/checkup-create";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen, GraduationCap, MessageCircle } from "lucide-react";
 import CommandPalette from "./components/CommandPalette";
 import TutorialOverlay from "./components/TutorialOverlay";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "./lib/queryClient";
 
 function useIsOnline() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -35,9 +41,18 @@ function useIsOnline() {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [location, setLocation] = useLocation();
   const isOnline = useIsOnline();
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/messages/unread-count"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+    staleTime: 0,
+  });
+  const unreadCount = unreadData?.count ?? 0;
   const [tutorialVisible, setTutorialVisible] = useState(
     () => localStorage.getItem("tutorialSeen") !== "1"
   );
@@ -127,6 +142,33 @@ function Router() {
             <Heart className="w-4 h-4" />
             <span className="hidden sm:inline">Saved</span>
           </Button>
+          <Button
+            variant={location === "/messages" ? "default" : "ghost"}
+            onClick={() => setLocation("/messages")}
+            className="gap-2 relative"
+            data-testid="nav-messages"
+          >
+            <span className="relative">
+              <MessageCircle className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </span>
+            <span className="hidden sm:inline">Messages</span>
+          </Button>
+          {(user as any)?.role === "teacher" && (
+            <Button
+              variant={location === "/teacher" ? "default" : "ghost"}
+              onClick={() => setLocation("/teacher")}
+              className="gap-2"
+              data-testid="nav-teacher"
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span className="hidden sm:inline">Students</span>
+            </Button>
+          )}
         </div>
       </nav>
 
@@ -148,6 +190,10 @@ function Router() {
           <Route path="/test" component={TestModePage} />
           <Route path="/browse" component={CharacterBrowserPage} />
           <Route path="/saved" component={Saved} />
+          <Route path="/teacher" component={TeacherPage} />
+          <Route path="/messages" component={MessagesPage} />
+          <Route path="/checkup/create" component={CheckupCreatePage} />
+          <Route path="/checkup/:id" component={CheckupPage} />
           <Route component={NotFound} />
         </Switch>
       </main>

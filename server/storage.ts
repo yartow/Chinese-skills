@@ -10,6 +10,14 @@ import {
   savedItems,
   generatedSentences,
   quizFeedbackCache,
+  activityLogs,
+  teacherStudents,
+  messages,
+  checkups,
+  checkupItems,
+  type Message,
+  type Checkup,
+  type CheckupItem,
   type User,
   type UpsertUser,
   type UserSettings,
@@ -20,6 +28,7 @@ import {
   type ChineseWord,
   type WordProgress,
   type SavedItem,
+  type ActivityLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, count } from "drizzle-orm";
@@ -740,6 +749,178 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(wordProgress)
       .where(and(eq(wordProgress.userId, userId), inArray(wordProgress.wordId, wordIds))) as Promise<WordProgress[]>;
+  }
+
+  async logActivity(userId: string, date: string, view: string, seconds: number): Promise<void> {
+    await db
+      .insert(activityLogs)
+      .values({ userId, date, view, seconds })
+      .onConflictDoUpdate({
+        target: [activityLogs.userId, activityLogs.date, activityLogs.view],
+        set: { seconds: sql`${activityLogs.seconds} + ${seconds}` },
+      });
+  }
+
+  async getActivityLogs(userId: string, fromDate?: string, toDate?: string): Promise<ActivityLog[]> {
+    const conditions = [eq(activityLogs.userId, userId)];
+    if (fromDate) conditions.push(gte(activityLogs.date, fromDate));
+    if (toDate) conditions.push(lte(activityLogs.date, toDate));
+    return db
+      .select()
+      .from(activityLogs)
+      .where(and(...conditions))
+      .orderBy(activityLogs.date);
+  }
+
+  async createCheckup(
+    teacherId: string, studentId: string,
+    items: { character: string; pinyin: string | null; numberedPinyin: string | null }[],
+    displayMode: string, gridType: string, maxPointsPerChar: number
+  ): Promise<Checkup> {
+    const [checkup] = await db.insert(checkups).values({
+      teacherId, studentId, displayMode, gridType, maxPointsPerChar,
+    }).returning();
+    if (items.length > 0) {
+      await db.insert(checkupItems).values(
+        items.map((item, i) => ({
+          checkupId: checkup.id,
+          position: i,
+          character: item.character,
+          pinyin: item.pinyin,
+          numberedPinyin: item.numberedPinyin,
+        }))
+      );
+    }
+    return checkup;
+  }
+
+  async getCheckupWithItems(id: number): Promise<(Checkup & { items: CheckupItem[] }) | null> {
+    const [checkup] = await db.select().from(checkups).where(eq(checkups.id, id));
+    if (!checkup) return null;
+    const items = await db.select().from(checkupItems)
+      .where(eq(checkupItems.checkupId, id))
+      .orderBy(checkupItems.position);
+    return { ...checkup, items };
+  }
+
+  async getCheckupsForUser(userId: string, role: 'teacher' | 'student'): Promise<Checkup[]> {
+    const col = role === 'teacher' ? checkups.teacherId : checkups.studentId;
+    return db.select().from(checkups).where(eq(col, userId)).orderBy(checkups.createdAt);
+  }
+
+  async submitCheckupDrawings(checkupId: number, drawings: { id: number; drawing: string }[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (const { id, drawing } of drawings) {
+        await tx.update(checkupItems).set({ drawing }).where(eq(checkupItems.id, id));
+      }
+      await tx.update(checkups).set({ status: 'submitted', submittedAt: new Date() })
+        .where(eq(checkups.id, checkupId));
+    });
+  }
+
+  async scoreCheckup(checkupId: number, scores: { id: number; pointsAwarded: number; feedback?: string }[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (const { id, pointsAwarded, feedback } of scores) {
+        await tx.update(checkupItems).set({ pointsAwarded, feedback: feedback ?? null })
+          .where(eq(checkupItems.id, id));
+      }
+      await tx.update(checkups).set({ status: 'scored', scoredAt: new Date() })
+        .where(eq(checkups.id, checkupId));
+    });
+  }
+
+  async getTeachersOf(studentId: string): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(teacherStudents)
+      .innerJoin(users, eq(teacherStudents.teacherId, users.id))
+      .where(eq(teacherStudents.studentId, studentId))
+      .orderBy(users.email);
+    return rows.map(r => r.user);
+  }
+
+  async sendMessage(senderId: string, recipientId: string, body: string): Promise<Message> {
+    const [msg] = await db.insert(messages).values({ senderId, recipientId, body }).returning();
+    return msg;
+  }
+
+  async getConversation(userA: string, userB: string, limit = 100): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(
+        or(
+          and(eq(messages.senderId, userA), eq(messages.recipientId, userB)),
+          and(eq(messages.senderId, userB), eq(messages.recipientId, userA))
+        )
+      )
+      .orderBy(messages.sentAt)
+      .limit(limit);
+  }
+
+  async markConversationRead(recipientId: string, senderId: string): Promise<void> {
+    await db
+      .update(messages)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(messages.recipientId, recipientId),
+          eq(messages.senderId, senderId),
+          isNull(messages.readAt)
+        )
+      );
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const [{ value }] = await db
+      .select({ value: sql<number>`COUNT(*)` })
+      .from(messages)
+      .where(and(eq(messages.recipientId, userId), isNull(messages.readAt)));
+    return Number(value);
+  }
+
+  async getConversationPreviews(userId: string): Promise<
+    Array<{ partnerId: string; lastMessage: Message; unreadCount: number }>
+  > {
+    // Get all messages involving this user
+    const all = await db
+      .select()
+      .from(messages)
+      .where(or(eq(messages.senderId, userId), eq(messages.recipientId, userId)))
+      .orderBy(messages.sentAt);
+
+    const byPartner = new Map<string, { messages: Message[] }>();
+    for (const m of all) {
+      const partner = m.senderId === userId ? m.recipientId : m.senderId;
+      if (!byPartner.has(partner)) byPartner.set(partner, { messages: [] });
+      byPartner.get(partner)!.messages.push(m);
+    }
+
+    return Array.from(byPartner.entries()).map(([partnerId, { messages: msgs }]) => ({
+      partnerId,
+      lastMessage: msgs[msgs.length - 1],
+      unreadCount: msgs.filter(m => m.recipientId === userId && !m.readAt).length,
+    }));
+  }
+
+  async addStudent(teacherId: string, studentId: string): Promise<void> {
+    await db.insert(teacherStudents).values({ teacherId, studentId }).onConflictDoNothing();
+  }
+
+  async removeStudent(teacherId: string, studentId: string): Promise<void> {
+    await db.delete(teacherStudents).where(
+      and(eq(teacherStudents.teacherId, teacherId), eq(teacherStudents.studentId, studentId))
+    );
+  }
+
+  async getStudents(teacherId: string): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(teacherStudents)
+      .innerJoin(users, eq(teacherStudents.studentId, users.id))
+      .where(eq(teacherStudents.teacherId, teacherId))
+      .orderBy(users.email);
+    return rows.map(r => r.user);
   }
 }
 
