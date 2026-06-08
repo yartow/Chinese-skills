@@ -22,9 +22,22 @@ import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Libra
 import CommandPalette from "./components/CommandPalette";
 import TutorialOverlay from "./components/TutorialOverlay";
 
+function useIsOnline() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  return isOnline;
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  const isOnline = useIsOnline();
   const [tutorialVisible, setTutorialVisible] = useState(
     () => localStorage.getItem("tutorialSeen") !== "1"
   );
@@ -118,6 +131,12 @@ function Router() {
       </nav>
 
       <CommandPalette />
+
+      {!isOnline && (
+        <div className="bg-yellow-500 text-yellow-950 text-center text-sm py-1.5 px-4 font-medium">
+          You are offline — changes may not be saved until you reconnect.
+        </div>
+      )}
 
       <main className="flex-1">
         <Switch>
