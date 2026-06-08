@@ -960,6 +960,30 @@ Be concise and encouraging.`;
     return (response.content[0] as { text: string }).text.trim();
   }
 
+  // POST /api/quiz/recognize-handwriting
+  app.post('/api/quiz/recognize-handwriting', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { image } = req.body;
+      if (!image) return res.status(400).json({ message: 'image is required' });
+      const client = await getAnthropicForUser(req.user.id);
+      if (!client) return res.status(402).json({ message: 'No Anthropic API key configured' });
+      const base64 = image.replace(/^data:image\/\w+;base64,/, '');
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 10,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } },
+            { type: 'text', text: 'This image shows a single handwritten Chinese character on a white square canvas with faint grid guidelines. Reply with ONLY the single character — no explanation, no punctuation. If you cannot identify it, reply with ?.' },
+          ],
+        }],
+      });
+      const character = (response.content[0] as { text: string }).text.trim();
+      res.json({ character });
+    } catch (err) { next(err); }
+  });
+
   // POST /api/quiz/prefetch
   // Pre-generates and caches feedback for a question when it loads.
   // Fire-and-forget from the client — no need to await the response.
@@ -1433,7 +1457,7 @@ Be concise and encouraging.`;
 
   app.get('/api/teacher/students', isTeacher, async (req: any, res, next) => {
     try {
-      const students = await storage.getStudents(req.user.id);
+      const students = await storage.getStudentsWithStatus(req.user.id);
       res.json(students.map(({ passwordHash, ...s }) => s));
     } catch (err) { next(err); }
   });
@@ -1466,6 +1490,29 @@ Be concise and encouraging.`;
       const { from, to } = req.query as { from?: string; to?: string };
       const logs = await storage.getActivityLogs(req.params.studentId, from, to);
       res.json(logs);
+    } catch (err) { next(err); }
+  });
+
+  // ─── Student-side teacher approval ────────────────────────────────────────
+
+  app.get('/api/student/pending-teachers', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const teachers = await storage.getPendingTeacherRequests(req.user.id);
+      res.json(teachers.map(({ passwordHash, ...t }) => t));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/student/pending-teachers/:teacherId/approve', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.approveTeacherRequest(req.params.teacherId, req.user.id);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  app.delete('/api/student/pending-teachers/:teacherId', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.removeStudent(req.params.teacherId, req.user.id);
+      res.json({ ok: true });
     } catch (err) { next(err); }
   });
 

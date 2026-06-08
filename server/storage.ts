@@ -834,7 +834,7 @@ export class DatabaseStorage implements IStorage {
       .select({ user: users })
       .from(teacherStudents)
       .innerJoin(users, eq(teacherStudents.teacherId, users.id))
-      .where(eq(teacherStudents.studentId, studentId))
+      .where(and(eq(teacherStudents.studentId, studentId), eq(teacherStudents.status, 'approved')))
       .orderBy(users.email);
     return rows.map(r => r.user);
   }
@@ -904,7 +904,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addStudent(teacherId: string, studentId: string): Promise<void> {
-    await db.insert(teacherStudents).values({ teacherId, studentId }).onConflictDoNothing();
+    await db.insert(teacherStudents).values({ teacherId, studentId, status: 'pending' }).onConflictDoNothing();
   }
 
   async removeStudent(teacherId: string, studentId: string): Promise<void> {
@@ -918,9 +918,35 @@ export class DatabaseStorage implements IStorage {
       .select({ user: users })
       .from(teacherStudents)
       .innerJoin(users, eq(teacherStudents.studentId, users.id))
-      .where(eq(teacherStudents.teacherId, teacherId))
+      .where(and(eq(teacherStudents.teacherId, teacherId), eq(teacherStudents.status, 'approved')))
       .orderBy(users.email);
     return rows.map(r => r.user);
+  }
+
+  async getStudentsWithStatus(teacherId: string): Promise<(User & { status: string })[]> {
+    const rows = await db
+      .select({ user: users, status: teacherStudents.status })
+      .from(teacherStudents)
+      .innerJoin(users, eq(teacherStudents.studentId, users.id))
+      .where(eq(teacherStudents.teacherId, teacherId))
+      .orderBy(users.email);
+    return rows.map(r => ({ ...r.user, status: r.status }));
+  }
+
+  async getPendingTeacherRequests(studentId: string): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(teacherStudents)
+      .innerJoin(users, eq(teacherStudents.teacherId, users.id))
+      .where(and(eq(teacherStudents.studentId, studentId), eq(teacherStudents.status, 'pending')));
+    return rows.map(r => r.user);
+  }
+
+  async approveTeacherRequest(teacherId: string, studentId: string): Promise<void> {
+    await db
+      .update(teacherStudents)
+      .set({ status: 'approved' })
+      .where(and(eq(teacherStudents.teacherId, teacherId), eq(teacherStudents.studentId, studentId)));
   }
 }
 

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { authenticatedFetch, apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -168,6 +169,75 @@ function ConversationView({
   );
 }
 
+function PendingTeacherRequests() {
+  const { data: pending = [], isLoading } = useQuery<SafeUser[]>({
+    queryKey: ["/api/student/pending-teachers"],
+    queryFn: async () => {
+      const res = await authenticatedFetch("/api/student/pending-teachers");
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (teacherId: string) =>
+      apiRequest("POST", `/api/student/pending-teachers/${teacherId}/approve`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/student/pending-teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (teacherId: string) =>
+      apiRequest("DELETE", `/api/student/pending-teachers/${teacherId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/student/pending-teachers"] });
+    },
+  });
+
+  if (isLoading || pending.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {pending.map((teacher) => {
+        const name = teacher.firstName
+          ? [teacher.firstName, teacher.lastName].filter(Boolean).join(" ")
+          : teacher.email;
+        return (
+          <Card key={teacher.id} className="border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700">
+            <CardContent className="pt-4 space-y-3">
+              <p className="text-sm">
+                <span className="font-semibold">{name}</span> has added you as a student. Click{" "}
+                <span className="font-semibold">Approve</span> if you allow this person as your
+                teacher. The teacher will be able to see your progress and time spent in the app,
+                and be able to send you check-ups.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => approveMutation.mutate(teacher.id)}
+                  disabled={approveMutation.isPending}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => rejectMutation.mutate(teacher.id)}
+                  disabled={rejectMutation.isPending}
+                >
+                  Decline
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const { user } = useAuth();
   const [openPartner, setOpenPartner] = useState<SafeUser | null>(null);
@@ -197,6 +267,7 @@ export default function MessagesPage() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
       <h1 className="text-2xl font-bold">Messages</h1>
+      <PendingTeacherRequests />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : conversations.length === 0 ? (
