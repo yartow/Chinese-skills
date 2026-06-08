@@ -34,6 +34,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  role: varchar("role", { length: 20 }).notNull().default("user"), // 'user' | 'teacher' | 'student'
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -65,6 +66,7 @@ export const userSettings = pgTable("user_settings", {
   anthropicApiKey: varchar("anthropic_api_key"), // User-supplied Anthropic API key (nullable)
   handwritingCandidates: integer("handwriting_candidates").notNull().default(8),
   advancedEditMode: boolean("advanced_edit_mode").notNull().default(false),
+  maxPointsPerChar: integer("max_points_per_char").notNull().default(10),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -185,6 +187,77 @@ export const generatedSentences = pgTable("generated_sentences", {
 }, (table) => [
   index("idx_generated_sentences_character").on(table.characterIndex),
 ]);
+
+// Teacher–student relationships
+export const teacherStudents = pgTable("teacher_students", {
+  teacherId: varchar("teacher_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  addedAt: timestamp("added_at").defaultNow(),
+}, (table) => [
+  unique("uq_teacher_student").on(table.teacherId, table.studentId),
+]);
+
+export type TeacherStudent = typeof teacherStudents.$inferSelect;
+
+// Activity logs — tracks time spent per view per day (seconds of active tab time)
+export const activityLogs = pgTable("activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD in user's local timezone
+  view: varchar("view", { length: 20 }).notNull(), // 'standard' | 'test'
+  seconds: integer("seconds").notNull().default(0),
+}, (table) => [
+  unique("uq_activity_user_date_view").on(table.userId, table.date, table.view),
+]);
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+
+// Check-ups — writing assessments created by teachers for students
+export const checkups = pgTable("checkups", {
+  id: serial("id").primaryKey(),
+  teacherId: varchar("teacher_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending | submitted | scored
+  displayMode: varchar("display_mode", { length: 10 }).notNull().default("pinyin"), // pinyin | zhuyin
+  gridType: varchar("grid_type", { length: 20 }).notNull().default("field"), // field (田字格) | cross (十字格) | blank
+  maxPointsPerChar: integer("max_points_per_char").notNull().default(10),
+  createdAt: timestamp("created_at").defaultNow(),
+  submittedAt: timestamp("submitted_at"),
+  scoredAt: timestamp("scored_at"),
+});
+
+export type Checkup = typeof checkups.$inferSelect;
+
+export const checkupItems = pgTable("checkup_items", {
+  id: serial("id").primaryKey(),
+  checkupId: integer("checkup_id").notNull().references(() => checkups.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  character: varchar("character", { length: 4 }).notNull(),
+  pinyin: varchar("pinyin"),
+  numberedPinyin: varchar("numbered_pinyin"),
+  drawing: text("drawing"),       // base64 PNG, filled on student submit
+  pointsAwarded: integer("points_awarded"), // filled on teacher score
+  feedback: text("feedback"),
+}, (table) => [
+  index("idx_checkup_items_checkup").on(table.checkupId, table.position),
+]);
+
+export type CheckupItem = typeof checkupItems.$inferSelect;
+
+// Messages between teachers and their students
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipientId: varchar("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  sentAt: timestamp("sent_at").defaultNow(),
+  readAt: timestamp("read_at"), // null = unread
+}, (table) => [
+  index("idx_messages_recipient").on(table.recipientId, table.sentAt),
+  index("idx_messages_sender").on(table.senderId, table.sentAt),
+]);
+
+export type Message = typeof messages.$inferSelect;
 
 // Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
 // so the same explanation can be reused without calling the AI again.

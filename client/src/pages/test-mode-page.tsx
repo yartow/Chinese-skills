@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { useSearch } from "wouter";
 import MultipleChoiceQuiz from "@/components/MultipleChoiceQuiz";
 import FillInBlankQuiz from "@/components/FillInBlankQuiz";
@@ -20,6 +21,7 @@ const TABS: { id: QuizTab; label: string; Icon: React.ElementType }[] = [
 const VALID_TABS: QuizTab[] = ["choice", "fill", "handwriting", "stroke", "words"];
 
 export default function TestModePage() {
+  useActivityTracker("test");
   const searchString = useSearch();
   const initialTab = new URLSearchParams(searchString).get("tab") as QuizTab | null;
   const [activeTab, setActiveTab] = useState<QuizTab>(

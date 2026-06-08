@@ -25,6 +25,8 @@ interface SettingsPanelProps {
   onAdvancedEditModeChange?: (value: boolean) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
   onAutoReloadDatabaseChange?: (value: boolean) => void;
+  maxPointsPerChar?: number;
+  onMaxPointsPerCharChange?: (value: number) => void;
 }
 
 export default function SettingsPanel({
@@ -46,6 +48,8 @@ export default function SettingsPanel({
   onHandwritingCandidatesChange,
   onAdvancedEditModeChange,
   onAutoReloadDatabaseChange,
+  maxPointsPerChar = 10,
+  onMaxPointsPerCharChange,
 }: SettingsPanelProps) {
   const [tempLevel, setTempLevel] = useState(currentLevel.toString());
   const [tempDailyCount, setTempDailyCount] = useState(dailyCharCount.toString());
@@ -281,6 +285,29 @@ export default function SettingsPanel({
             checked={advancedEditMode}
             onCheckedChange={onAdvancedEditModeChange}
             data-testid="toggle-advanced-edit-mode"
+          />
+        </div>
+      )}
+
+      {onMaxPointsPerCharChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="max-points-input" className="text-sm">Max points per character</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Default maximum score awarded per character in check-ups you create.
+            </p>
+          </div>
+          <Input
+            id="max-points-input"
+            type="number"
+            min={1}
+            max={100}
+            className="w-20 text-right"
+            value={maxPointsPerChar}
+            onChange={(e) => {
+              const v = parseInt(e.target.value);
+              if (!isNaN(v) && v >= 1) onMaxPointsPerCharChange(v);
+            }}
           />
         </div>
       )}
