@@ -1,0 +1,21 @@
+name: Deploy to Mac Mini
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        run: git -C ~/Documents/GitHub/chinese-skills pull
+
+      - name: Install dependencies
+        run: cd ~/Documents/GitHub/chinese-skills && npm ci
+
+      - name: Build
+        run: cd ~/Documents/GitHub/chinese-skills && npm run build
+
+      - name: Restart app
+        run: pm2 restart chinese-skills
