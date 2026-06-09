@@ -2,12 +2,13 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward, Settings2, Eye } from "lucide-react";
+import { CheckCircle, XCircle, ChevronRight, Eraser, BookOpen, Loader2, SkipForward, Settings2, Eye, Wand2 } from "lucide-react";
 import QuizShell from "./QuizShell";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
   type WrongAnswer, type QuizScores,
 } from "./quizTypes";
+import { apiRequest } from "@/lib/queryClient";
 import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
 interface Point { x: number; y: number; }
@@ -152,6 +153,8 @@ export default function HandwritingQuiz() {
   const [engineError, setEngineError] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [strokeCount, setStrokeCount] = useState(0);
+  const [aiRecognizing, setAiRecognizing] = useState(false);
 
   const { data: userSettings } = useQuery<{ handwritingCandidates?: number }>({
     queryKey: ["/api/settings"],
@@ -233,7 +236,7 @@ export default function HandwritingQuiz() {
     if (result || e.buttons !== 1) return;
     continueStroke(toCanvasPoint(e.clientX, e.clientY));
   };
-  const handleMouseUp = () => { if (!result) { endStroke(); recognize(); } };
+  const handleMouseUp = () => { if (!result) { endStroke(); setStrokeCount(c => c + 1); recognize(); } };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (result) return; e.preventDefault();
@@ -246,7 +249,7 @@ export default function HandwritingQuiz() {
     continueStroke(toCanvasPoint(t.clientX, t.clientY));
   };
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (result) return; e.preventDefault(); endStroke(); recognize();
+    if (result) return; e.preventDefault(); endStroke(); setStrokeCount(c => c + 1); recognize();
   };
 
   function selectCandidate(char: string) {
@@ -288,7 +291,7 @@ export default function HandwritingQuiz() {
   }
 
   const handleNext = useCallback(() => {
-    setResult(null); setCandidates([]); clearCanvas(); refetch();
+    setResult(null); setCandidates([]); clearCanvas(); setStrokeCount(0); refetch();
   }, [clearCanvas, refetch]);
 
   useEffect(() => {
@@ -313,7 +316,28 @@ export default function HandwritingQuiz() {
 
   function handleSkip() {
     setScores((s) => ({ ...s, skipped: s.skipped + 1, streak: 0 }));
-    setResult(null); setCandidates([]); clearCanvas(); refetch();
+    setResult(null); setCandidates([]); clearCanvas(); setStrokeCount(0); refetch();
+  }
+
+  async function handleAiCheck() {
+    if (!canvasRef.current || !question || result || aiRecognizing) return;
+    setAiRecognizing(true);
+    try {
+      // Composite strokes onto a white background so Claude sees black-on-white
+      const src = canvasRef.current;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = src.width;
+      offscreen.height = src.height;
+      const ctx = offscreen.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+      ctx.drawImage(src, 0, 0);
+      const image = offscreen.toDataURL("image/png");
+      const res = await apiRequest("POST", "/api/quiz/recognize-handwriting", { image });
+      const data = await res.json();
+      if (data.character && data.character !== "?") selectCandidate(data.character);
+    } catch { /* silent fail */ }
+    finally { setAiRecognizing(false); }
   }
 
   function handleShowAnswer() {
@@ -456,7 +480,7 @@ export default function HandwritingQuiz() {
             )}
             <Button
               variant="outline" size="sm"
-              onClick={() => { clearCanvas(); setCandidates([]); }}
+              onClick={() => { clearCanvas(); setCandidates([]); setStrokeCount(0); }}
               disabled={!!result}
               className="gap-1.5 text-xs"
             >
@@ -507,6 +531,16 @@ export default function HandwritingQuiz() {
               </div>
             </div>
           )}
+          {!result && (
+            <Button size="sm" variant="outline" onClick={handleAiCheck}
+              disabled={aiRecognizing || strokeCount === 0}
+              className={`gap-1.5 text-xs mt-2 ${strokeCount === 0 ? "invisible" : ""}`}>
+              {aiRecognizing
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <Wand2 className="w-3 h-3" />}
+              {aiRecognizing ? "Asking AI…" : "Check with AI"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -523,15 +557,30 @@ export default function HandwritingQuiz() {
             }
           </div>
           <p className="text-sm opacity-80">{question.definition.slice(0, 3).join(" · ")}</p>
-          <div className="font-serif text-base opacity-75">
-            {question.sentence}
-            <span className="not-italic text-xs ml-2 font-sans">— {question.translation}</span>
+          <div className="font-serif text-base opacity-75 space-y-1">
+            <div>{question.sentence}</div>
+            {question.sentencePinyin && (
+              <div className="font-sans text-xs opacity-80 tracking-wide not-italic">
+                {question.sentencePinyin}
+              </div>
+            )}
+            <div className="not-italic text-xs font-sans opacity-70">— {question.translation}</div>
           </div>
         </div>
       )}
 
       {result && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          {result === "wrong" && question ? (
+            <Button size="sm" variant="ghost"
+              className="text-xs text-muted-foreground"
+              onClick={() => {
+                saveProgress(question.characterIndex, "writing");
+                setResult("correct");
+              }}>
+              Count as correct
+            </Button>
+          ) : <div />}
           <Button onClick={handleNext} variant="outline" className="gap-1">
             Next <ChevronRight className="w-4 h-4" />
           </Button>

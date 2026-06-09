@@ -8,7 +8,7 @@ import { Trash2, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import { useLocation } from "wouter";
 import type { ActivityLog, User } from "@shared/schema";
 
-type SafeUser = Omit<User, "passwordHash">;
+type SafeUser = Omit<User, "passwordHash"> & { status?: string };
 
 function formatMinutes(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -182,40 +182,50 @@ export default function TeacherPage() {
             <p className="text-sm text-muted-foreground py-2">No students yet. Add one above.</p>
           ) : (
             <ul className="divide-y">
-              {students.map((s) => (
-                <li key={s.id} className="flex items-center justify-between py-3">
-                  <button
-                    className="text-left hover:underline flex-1"
-                    onClick={() => setSelectedStudent(s)}
-                  >
-                    <span className="font-medium">
-                      {s.firstName ?? s.email}
-                      {s.lastName ? ` ${s.lastName}` : ""}
-                    </span>
-                    {s.firstName && (
-                      <span className="text-sm text-muted-foreground ml-2">{s.email}</span>
+              {students.map((s) => {
+                const isPending = s.status === "pending";
+                return (
+                  <li key={s.id} className="flex items-center justify-between py-3">
+                    <button
+                      className={`text-left flex-1 ${isPending ? "opacity-60 cursor-default" : "hover:underline"}`}
+                      onClick={() => { if (!isPending) setSelectedStudent(s); }}
+                      disabled={isPending}
+                    >
+                      <span className="font-medium">
+                        {s.firstName ?? s.email}
+                        {s.lastName ? ` ${s.lastName}` : ""}
+                      </span>
+                      {s.firstName && (
+                        <span className="text-sm text-muted-foreground ml-2">{s.email}</span>
+                      )}
+                      {isPending ? (
+                        <span className="ml-2 text-xs text-amber-600 font-medium">awaiting approval</span>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 inline ml-1 text-muted-foreground" />
+                      )}
+                    </button>
+                    {!isPending && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setLocation(`/checkup/create?student=${s.id}`)}
+                        title="Create check-up"
+                      >
+                        <ClipboardList className="w-4 h-4 text-primary" />
+                      </Button>
                     )}
-                    <ChevronRight className="w-4 h-4 inline ml-1 text-muted-foreground" />
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setLocation(`/checkup/create?student=${s.id}`)}
-                    title="Create check-up"
-                  >
-                    <ClipboardList className="w-4 h-4 text-primary" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeMutation.mutate(s.id)}
-                    disabled={removeMutation.isPending}
-                    aria-label="Remove student"
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </li>
-              ))}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeMutation.mutate(s.id)}
+                      disabled={removeMutation.isPending}
+                      aria-label="Remove student"
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

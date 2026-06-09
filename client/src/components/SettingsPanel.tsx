@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HelpCircle, Download, Upload, Eye, EyeOff, PlayCircle } from "lucide-react";
+import { HelpCircle, Download, Upload, Eye, EyeOff, PlayCircle, CheckCircle2 } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -352,6 +352,11 @@ export default function SettingsPanel({
         <div className="space-y-3 pt-2 border-t">
           <div className="flex items-center gap-1">
             <Label className="text-sm font-semibold">Anthropic API Key</Label>
+            {anthropicApiKeySet && (
+              <span className="flex items-center gap-1 text-xs text-green-600 font-medium ml-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -361,14 +366,16 @@ export default function SettingsPanel({
               </TooltipContent>
             </Tooltip>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {anthropicApiKeySet ? "An API key is currently saved. Enter a new key below to replace it." : "No API key set. AI features (quiz feedback, generated sentences) will not work without one."}
-          </p>
+          {!anthropicApiKeySet && (
+            <p className="text-xs text-muted-foreground">
+              No API key set. AI features (quiz feedback, generated sentences) will not work without one.
+            </p>
+          )}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Input
                 type={showApiKey ? "text" : "password"}
-                placeholder="sk-ant-..."
+                placeholder={anthropicApiKeySet ? "Enter new key to replace…" : "sk-ant-..."}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 className="pr-9"

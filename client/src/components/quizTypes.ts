@@ -13,6 +13,7 @@ export interface QuizQuestion {
   sentence: string;
   blanked: string;
   translation: string;
+  sentencePinyin?: string;
 }
 
 export interface WrongAnswer {

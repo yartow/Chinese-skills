@@ -193,6 +193,7 @@ export const teacherStudents = pgTable("teacher_students", {
   teacherId: varchar("teacher_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   addedAt: timestamp("added_at").defaultNow(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending' | 'approved'
 }, (table) => [
   unique("uq_teacher_student").on(table.teacherId, table.studentId),
 ]);
