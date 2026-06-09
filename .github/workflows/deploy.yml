@@ -17,5 +17,8 @@ jobs:
       - name: Build
         run: cd ~/Documents/GitHub/chinese-skills && npm run build
 
+      - name: Run database migrations
+        run: cd ~/Documents/GitHub/chinese-skills && npm run db:push
+
       - name: Restart app
         run: pm2 restart chinese-skills
