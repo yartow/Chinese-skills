@@ -323,7 +323,16 @@ export default function HandwritingQuiz() {
     if (!canvasRef.current || !question || result || aiRecognizing) return;
     setAiRecognizing(true);
     try {
-      const image = canvasRef.current.toDataURL("image/png");
+      // Composite strokes onto a white background so Claude sees black-on-white
+      const src = canvasRef.current;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = src.width;
+      offscreen.height = src.height;
+      const ctx = offscreen.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+      ctx.drawImage(src, 0, 0);
+      const image = offscreen.toDataURL("image/png");
       const res = await apiRequest("POST", "/api/quiz/recognize-handwriting", { image });
       const data = await res.json();
       if (data.character && data.character !== "?") selectCandidate(data.character);
@@ -522,9 +531,10 @@ export default function HandwritingQuiz() {
               </div>
             </div>
           )}
-          {strokeCount > 0 && !result && (
+          {!result && (
             <Button size="sm" variant="outline" onClick={handleAiCheck}
-              disabled={aiRecognizing} className="gap-1.5 text-xs mt-2">
+              disabled={aiRecognizing || strokeCount === 0}
+              className={`gap-1.5 text-xs mt-2 ${strokeCount === 0 ? "invisible" : ""}`}>
               {aiRecognizing
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <Wand2 className="w-3 h-3" />}
@@ -547,9 +557,14 @@ export default function HandwritingQuiz() {
             }
           </div>
           <p className="text-sm opacity-80">{question.definition.slice(0, 3).join(" · ")}</p>
-          <div className="font-serif text-base opacity-75">
-            {question.sentence}
-            <span className="not-italic text-xs ml-2 font-sans">— {question.translation}</span>
+          <div className="font-serif text-base opacity-75 space-y-1">
+            <div>{question.sentence}</div>
+            {question.sentencePinyin && (
+              <div className="font-sans text-xs opacity-80 tracking-wide not-italic">
+                {question.sentencePinyin}
+              </div>
+            )}
+            <div className="not-italic text-xs font-sans opacity-70">— {question.translation}</div>
           </div>
         </div>
       )}

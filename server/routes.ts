@@ -11,6 +11,11 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import { pinyin } from "pinyin-pro";
+
+function getSentencePinyin(sentence: string): string {
+  return pinyin(sentence, { toneType: "symbol", type: "string", nonZh: "consecutive" });
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -776,6 +781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sentence: aiSentence.sentence,
             blanked: aiSentence.blanked,
             translation: aiSentence.translation,
+            sentencePinyin: getSentencePinyin(aiSentence.sentence),
           });
         }
         // Fall through to pre-stored examples if AI path failed
@@ -826,6 +832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sentence: chosenExample.chinese,
         blanked,
         translation: chosenExample.english,
+        sentencePinyin: getSentencePinyin(chosenExample.chinese),
       });
     } catch (error) {
       console.error("Error generating quiz question:", error);
@@ -975,7 +982,7 @@ Be concise and encouraging.`;
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } },
-            { type: 'text', text: 'This image shows a single handwritten Chinese character on a white square canvas with faint grid guidelines. Reply with ONLY the single character — no explanation, no punctuation. If you cannot identify it, reply with ?.' },
+            { type: 'text', text: 'This image shows a single handwritten Chinese character written in black ink on a white square background with faint grey grid guidelines. Identify the Chinese character. Reply with ONLY that single character — no explanation, no spaces, no punctuation. If you cannot identify it, reply with ?.' },
           ],
         }],
       });
