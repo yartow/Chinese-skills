@@ -75,6 +75,14 @@ function Router() {
     return location === '/auth' ? <AuthPage /> : <Landing />;
   }
 
+  // Authenticated users visiting /auth get redirected to home.
+  // This prevents the 404 that appears when stale IndexedDB cache
+  // makes isAuthenticated briefly true while navigating to /auth.
+  if (location === '/auth') {
+    setLocation('/');
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <nav className="border-b sticky top-0 z-50 bg-background">
