@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, unique, jsonb, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, unique, jsonb, serial, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -259,6 +259,24 @@ export const messages = pgTable("messages", {
 ]);
 
 export type Message = typeof messages.$inferSelect;
+
+// Character bug reports — submitted by any user from the character detail page
+export const characterReports = pgTable("character_reports", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index, { onDelete: "cascade" }),
+  explanation: text("explanation").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_character_reports_character").on(table.characterIndex),
+  index("idx_character_reports_user").on(table.userId),
+  unique("uq_report_user_char").on(table.userId, table.characterIndex),
+  check("chk_report_status", sql`"status" IN ('open', 'resolved')`),
+]);
+
+export type CharacterReport = typeof characterReports.$inferSelect;
 
 // Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
 // so the same explanation can be reused without calling the AI again.
