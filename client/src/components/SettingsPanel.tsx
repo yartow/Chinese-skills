@@ -63,18 +63,23 @@ export default function SettingsPanel({
   const [reportsOpen, setReportsOpen] = useState(false);
   const [reports, setReports] = useState<Array<{ id: number; characterIndex: number; explanation: string; userEmail: string | null; status: string; createdAt: string }> | null>(null);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleViewReports() {
     setReportsOpen(true);
     if (reports !== null) return;
     setReportsLoading(true);
+    setReportsError(null);
     try {
       const res = await fetch("/api/admin/reports", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load");
+      if (!res.ok) {
+        const msg = res.status === 403 ? "Access denied." : `Failed to load reports (${res.status}).`;
+        throw new Error(msg);
+      }
       setReports(await res.json());
-    } catch {
-      setReports([]);
+    } catch (err) {
+      setReportsError(err instanceof Error ? err.message : "Failed to load reports.");
     } finally {
       setReportsLoading(false);
     }
@@ -531,10 +536,11 @@ export default function SettingsPanel({
             <DialogTitle>Character bug reports</DialogTitle>
           </DialogHeader>
           {reportsLoading && <p className="text-sm text-muted-foreground py-4">Loading…</p>}
-          {!reportsLoading && reports !== null && reports.length === 0 && (
+          {reportsError && <p className="text-sm text-destructive py-4">{reportsError}</p>}
+          {!reportsLoading && !reportsError && reports !== null && reports.length === 0 && (
             <p className="text-sm text-muted-foreground py-4">No reports yet.</p>
           )}
-          {!reportsLoading && reports && reports.length > 0 && (
+          {!reportsLoading && !reportsError && reports && reports.length > 0 && (
             <div className="space-y-4">
               {reports.map((r) => (
                 <div key={r.id} className="rounded-md border p-3 space-y-1 text-sm">

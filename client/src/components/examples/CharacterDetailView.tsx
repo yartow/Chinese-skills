@@ -39,7 +39,7 @@ export default function CharacterDetailViewExample() {
     <CharacterDetailView
       character={mockCharacter}
       progress={{ reading: false, writing: false, radical: false }}
-      savedChinese={new Set()}
+      savedChinese={new Set<string>()}
       onToggleSave={() => {}}
       onBack={() => console.log("Back clicked")}
       isTraditional={isTraditional}
@@ -47,7 +47,7 @@ export default function CharacterDetailViewExample() {
       onToggleReading={() => {}}
       onToggleWriting={() => {}}
       onToggleRadical={() => {}}
-      onReport={() => {}}
+      onReport={() => Promise.resolve()}
     />
   );
 }

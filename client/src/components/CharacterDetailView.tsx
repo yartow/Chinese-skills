@@ -65,7 +65,7 @@ interface CharacterDetailViewProps {
   onToggleRadical: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
-  onReport: (explanation: string) => void;
+  onReport: (explanation: string) => Promise<void>;
 }
 
 export default function CharacterDetailView({
@@ -89,18 +89,29 @@ export default function CharacterDetailView({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
   const [reportSent, setReportSent] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  function handleReportSubmit() {
+  async function handleReportSubmit() {
     if (!reportText.trim()) return;
-    onReport(reportText.trim());
-    setReportSent(true);
-    setReportText("");
+    setReportSubmitting(true);
+    setReportError(null);
+    try {
+      await onReport(reportText.trim());
+      setReportSent(true);
+      setReportText("");
+    } catch {
+      setReportError("Failed to submit report. Please try again.");
+    } finally {
+      setReportSubmitting(false);
+    }
   }
 
   function handleReportOpenChange(open: boolean) {
     setReportOpen(open);
     if (!open) {
       setReportSent(false);
+      setReportError(null);
       setReportText("");
     }
   }
@@ -350,7 +361,7 @@ export default function CharacterDetailView({
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Describe what is incorrect about character #{index} ({displayChar}).
+                Describe what is incorrect about{index !== undefined ? ` character #${index}` : ""} ({displayChar}).
               </p>
               <Textarea
                 value={reportText}
@@ -360,7 +371,10 @@ export default function CharacterDetailView({
                 maxLength={1000}
                 data-testid="textarea-report"
               />
-              <p className="text-xs text-muted-foreground text-right">{reportText.length}/1000</p>
+              <p className="text-xs text-muted-foreground text-right">{reportText.trim().length}/1000</p>
+              {reportError && (
+                <p className="text-xs text-destructive">{reportError}</p>
+              )}
             </>
           )}
           <DialogFooter>
@@ -368,13 +382,13 @@ export default function CharacterDetailView({
               <Button onClick={() => handleReportOpenChange(false)}>Close</Button>
             ) : (
               <>
-                <Button variant="outline" onClick={() => handleReportOpenChange(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => handleReportOpenChange(false)} disabled={reportSubmitting}>Cancel</Button>
                 <Button
                   onClick={handleReportSubmit}
-                  disabled={!reportText.trim()}
+                  disabled={!reportText.trim() || reportSubmitting}
                   data-testid="button-report-submit"
                 >
-                  Submit report
+                  {reportSubmitting ? "Submitting…" : "Submit report"}
                 </Button>
               </>
             )}

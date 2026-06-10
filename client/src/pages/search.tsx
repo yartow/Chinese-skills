@@ -112,15 +112,7 @@ export default function Search() {
   };
 
   const getDisplayCharacter = (char: ChineseCharacter) => {
-    if (!isTraditional) {
-      return char.simplified;
-    }
-    
-    if (char.traditionalVariants && char.traditionalVariants.length > 0) {
-      return char.traditionalVariants.join('');
-    }
-    
-    return char.traditional;
+    return isTraditional ? char.traditional : char.simplified;
   };
 
   return (

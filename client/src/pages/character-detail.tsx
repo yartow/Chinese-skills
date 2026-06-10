@@ -143,7 +143,7 @@ export default function CharacterDetail() {
       onToggleRadical={() => handleToggleProgress("radical")}
       onPrevious={characterIndex > 0 ? () => setLocation(`/character/${characterIndex - 1}`) : undefined}
       onNext={characterIndex < 2999 ? () => setLocation(`/character/${characterIndex + 1}`) : undefined}
-      onReport={(explanation) => reportMutation.mutate(explanation)}
+      onReport={async (explanation) => { await reportMutation.mutateAsync(explanation); }}
     />
   );
 }

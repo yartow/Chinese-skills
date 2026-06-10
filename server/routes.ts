@@ -154,6 +154,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (explanation.trim().length > 1000) {
         return res.status(400).json({ message: 'Explanation must be 1000 characters or fewer' });
       }
+      const character = await storage.getCharacter(characterIndex);
+      if (!character) {
+        return res.status(404).json({ message: 'Character not found' });
+      }
       const report = await storage.createCharacterReport(req.user.id, characterIndex, explanation.trim());
       res.status(201).json(report);
     } catch (err) {
