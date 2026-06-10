@@ -130,6 +130,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/reports', isAdmin, async (_req, res, next) => {
+    try {
+      const reports = await storage.getCharacterReports();
+      res.json(reports);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ─── Character reports ────────────────────────────────────────────────────
+
+  app.post('/api/characters/:index/report', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const characterIndex = parseInt(req.params.index);
+      if (isNaN(characterIndex)) {
+        return res.status(400).json({ message: 'Invalid character index' });
+      }
+      const { explanation } = req.body;
+      if (!explanation || typeof explanation !== 'string' || explanation.trim().length === 0) {
+        return res.status(400).json({ message: 'Explanation is required' });
+      }
+      if (explanation.trim().length > 1000) {
+        return res.status(400).json({ message: 'Explanation must be 1000 characters or fewer' });
+      }
+      const report = await storage.createCharacterReport(req.user.id, characterIndex, explanation.trim());
+      res.status(201).json(report);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.id);

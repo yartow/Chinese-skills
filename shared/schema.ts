@@ -260,6 +260,21 @@ export const messages = pgTable("messages", {
 
 export type Message = typeof messages.$inferSelect;
 
+// Character bug reports — submitted by any user from the character detail page
+export const characterReports = pgTable("character_reports", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterIndex: integer("character_index").notNull(),
+  explanation: text("explanation").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("open"), // 'open' | 'resolved'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_character_reports_character").on(table.characterIndex),
+  index("idx_character_reports_user").on(table.userId),
+]);
+
+export type CharacterReport = typeof characterReports.$inferSelect;
+
 // Quiz feedback cache — stores AI-generated feedback per (blanked, character) pair
 // so the same explanation can be reused without calling the AI again.
 export const quizFeedbackCache = pgTable("quiz_feedback_cache", {

@@ -68,6 +68,11 @@ export default function CharacterDetail() {
     },
   });
 
+  const reportMutation = useMutation({
+    mutationFn: (explanation: string) =>
+      apiRequest("POST", `/api/characters/${characterIndex}/report`, { explanation }),
+  });
+
   const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
     // Use functional updater so every rapid click sees the latest local state
     setLocalProgress(prev => {
@@ -138,6 +143,7 @@ export default function CharacterDetail() {
       onToggleRadical={() => handleToggleProgress("radical")}
       onPrevious={characterIndex > 0 ? () => setLocation(`/character/${characterIndex - 1}`) : undefined}
       onNext={characterIndex < 2999 ? () => setLocation(`/character/${characterIndex + 1}`) : undefined}
+      onReport={(explanation) => reportMutation.mutate(explanation)}
     />
   );
 }
