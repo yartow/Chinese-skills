@@ -160,7 +160,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const report = await storage.createCharacterReport(req.user.id, characterIndex, explanation.trim());
       res.status(201).json(report);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        return res.status(409).json({ message: 'You have already reported this character' });
+      }
       next(err);
     }
   });

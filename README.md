@@ -163,11 +163,15 @@ The app runs on Replit with the `Start application` workflow (`npm run dev`), wh
 
 Environment variables required:
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `SESSION_SECRET` | Secret for session signing |
-| `ANTHROPIC_API_KEY` | *(Optional)* Server-level fallback API key for AI features. Users can supply their own key via the Settings panel instead. |
+| Variable | Docker Compose | Cloud/bare | Description |
+|---|---|---|---|
+| `POSTGRES_PASSWORD` | ✅ required | — | Password for the Docker-managed Postgres container. `docker-compose.yml` builds `DATABASE_URL` from this automatically. Generate with `openssl rand -hex 32`. |
+| `SESSION_SECRET` | ✅ required | ✅ required | Secret used by express-session to sign cookies. Generate with `openssl rand -hex 32`. |
+| `ADMIN_EMAILS` | ✅ required | ✅ required | Comma-separated list of admin email addresses. Controls access to character export/import and bug-report viewing. Must not be empty if you need admin access. |
+| `DATABASE_URL` | — (auto-built) | ✅ required | Full Postgres connection string. Not needed for Docker Compose — it is constructed from `POSTGRES_PASSWORD` inside `docker-compose.yml`. |
+| `ANTHROPIC_API_KEY` | *(optional)* | *(optional)* | Server-level fallback API key for AI features. Users can supply their own key via the Settings panel instead. |
+
+Copy `.env.example` to `.env` and fill in the values before running `docker compose up`.
 
 In production, the server automatically runs `npm run db:push` on startup to sync any schema changes to the database.
 
