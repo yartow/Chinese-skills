@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import ScriptToggle from "./ScriptToggle";
 import StrokeOrder from "./StrokeOrder";
 
@@ -63,6 +65,7 @@ interface CharacterDetailViewProps {
   onToggleRadical: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
+  onReport: (explanation: string) => void;
 }
 
 export default function CharacterDetailView({
@@ -80,8 +83,27 @@ export default function CharacterDetailView({
   onToggleRadical,
   onPrevious,
   onNext,
+  onReport,
 }: CharacterDetailViewProps) {
   const [showAllExamples, setShowAllExamples] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportSent, setReportSent] = useState(false);
+
+  function handleReportSubmit() {
+    if (!reportText.trim()) return;
+    onReport(reportText.trim());
+    setReportSent(true);
+    setReportText("");
+  }
+
+  function handleReportOpenChange(open: boolean) {
+    setReportOpen(open);
+    if (!open) {
+      setReportSent(false);
+      setReportText("");
+    }
+  }
   const displayChar = isTraditional ? character.traditional : character.simplified;
 
   // Use traditional variants when toggle is on and data is available, else fall back to simplified
@@ -301,7 +323,64 @@ export default function CharacterDetailView({
             </Button>
           )}
         </Card>
+
+        <div className="flex justify-center pb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-muted-foreground hover:text-destructive"
+            onClick={() => setReportOpen(true)}
+            data-testid="button-report-character"
+          >
+            <Flag className="w-4 h-4" />
+            Report an error
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={reportOpen} onOpenChange={handleReportOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report an error</DialogTitle>
+          </DialogHeader>
+          {reportSent ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Thank you — your report has been submitted and will be reviewed.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Describe what is incorrect about character #{index} ({displayChar}).
+              </p>
+              <Textarea
+                value={reportText}
+                onChange={(e) => setReportText(e.target.value)}
+                placeholder="e.g. The pinyin is wrong, it should be ..."
+                rows={4}
+                maxLength={1000}
+                data-testid="textarea-report"
+              />
+              <p className="text-xs text-muted-foreground text-right">{reportText.length}/1000</p>
+            </>
+          )}
+          <DialogFooter>
+            {reportSent ? (
+              <Button onClick={() => handleReportOpenChange(false)}>Close</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => handleReportOpenChange(false)}>Cancel</Button>
+                <Button
+                  onClick={handleReportSubmit}
+                  disabled={!reportText.trim()}
+                  data-testid="button-report-submit"
+                >
+                  Submit report
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

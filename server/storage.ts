@@ -15,6 +15,7 @@ import {
   messages,
   checkups,
   checkupItems,
+  characterReports,
   type Message,
   type Checkup,
   type CheckupItem,
@@ -29,6 +30,7 @@ import {
   type WordProgress,
   type SavedItem,
   type ActivityLog,
+  type CharacterReport,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, count } from "drizzle-orm";
@@ -947,6 +949,23 @@ export class DatabaseStorage implements IStorage {
       .update(teacherStudents)
       .set({ status: 'approved' })
       .where(and(eq(teacherStudents.teacherId, teacherId), eq(teacherStudents.studentId, studentId)));
+  }
+
+  async createCharacterReport(userId: string, characterIndex: number, explanation: string): Promise<CharacterReport> {
+    const [report] = await db
+      .insert(characterReports)
+      .values({ userId, characterIndex, explanation })
+      .returning();
+    return report;
+  }
+
+  async getCharacterReports(): Promise<(CharacterReport & { userEmail: string | null })[]> {
+    const rows = await db
+      .select({ report: characterReports, userEmail: users.email })
+      .from(characterReports)
+      .innerJoin(users, eq(characterReports.userId, users.id))
+      .orderBy(characterReports.createdAt);
+    return rows.map(r => ({ ...r.report, userEmail: r.userEmail }));
   }
 }
 

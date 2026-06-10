@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { HelpCircle, Download, Upload, Eye, EyeOff, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HelpCircle, Download, Upload, Eye, EyeOff, PlayCircle, CheckCircle2, Flag } from "lucide-react";
 
 interface SettingsPanelProps {
   currentLevel: number;
@@ -59,7 +60,25 @@ export default function SettingsPanel({
   const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [reports, setReports] = useState<Array<{ id: number; characterIndex: number; explanation: string; userEmail: string | null; status: string; createdAt: string }> | null>(null);
+  const [reportsLoading, setReportsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleViewReports() {
+    setReportsOpen(true);
+    if (reports !== null) return;
+    setReportsLoading(true);
+    try {
+      const res = await fetch("/api/admin/reports", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load");
+      setReports(await res.json());
+    } catch {
+      setReports([]);
+    } finally {
+      setReportsLoading(false);
+    }
+  }
 
   const handleLevelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -490,7 +509,47 @@ export default function SettingsPanel({
             You can export the full set of Chinese characters, edit them and even add new characters by importing them back into the application. Only the changes you have made will be added to the database.
           </p>
         </div>
+
+        <div className="space-y-2 pt-2 border-t">
+          <p className="text-xs text-muted-foreground">Bug reports submitted by users for incorrect character data.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleViewReports}
+            data-testid="button-view-reports"
+          >
+            <Flag className="h-4 w-4" />
+            View bug reports
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={reportsOpen} onOpenChange={setReportsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Character bug reports</DialogTitle>
+          </DialogHeader>
+          {reportsLoading && <p className="text-sm text-muted-foreground py-4">Loading…</p>}
+          {!reportsLoading && reports !== null && reports.length === 0 && (
+            <p className="text-sm text-muted-foreground py-4">No reports yet.</p>
+          )}
+          {!reportsLoading && reports && reports.length > 0 && (
+            <div className="space-y-4">
+              {reports.map((r) => (
+                <div key={r.id} className="rounded-md border p-3 space-y-1 text-sm">
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Character #{r.characterIndex}</span>
+                    <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{r.userEmail ?? "Unknown user"}</p>
+                  <p>{r.explanation}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
