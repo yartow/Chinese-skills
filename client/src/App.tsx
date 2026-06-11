@@ -19,10 +19,12 @@ import Saved from "./pages/saved";
 import NotFound from "./pages/not-found";
 import TeacherPage from "./pages/teacher";
 import MessagesPage from "./pages/messages";
+import CustomizePage from "./pages/customize";
+import CustomizeMatchPage from "./pages/customize-match";
 import CheckupPage from "./pages/checkup";
 import CheckupCreatePage from "./pages/checkup-create";
 import { Button } from "./components/ui/button";
-import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen, GraduationCap, MessageCircle } from "lucide-react";
+import { Home as HomeIcon, FlaskConical, BookMarked, Search as SearchIcon, Library, Heart, BookOpen, GraduationCap, MessageCircle, Layers } from "lucide-react";
 import CommandPalette from "./components/CommandPalette";
 import TutorialOverlay from "./components/TutorialOverlay";
 import { useQuery } from "@tanstack/react-query";
@@ -166,6 +168,15 @@ function Router() {
             </span>
             <span className="hidden sm:inline">Messages</span>
           </Button>
+          <Button
+            variant={location.startsWith("/customize") ? "default" : "ghost"}
+            onClick={() => setLocation("/customize")}
+            className="gap-2"
+            data-testid="nav-customize"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="hidden sm:inline">Customize</span>
+          </Button>
           {(user as any)?.role === "teacher" && (
             <Button
               variant={location === "/teacher" ? "default" : "ghost"}
@@ -202,6 +213,8 @@ function Router() {
           <Route path="/messages" component={MessagesPage} />
           <Route path="/checkup/create" component={CheckupCreatePage} />
           <Route path="/checkup/:id" component={CheckupPage} />
+          <Route path="/customize/match" component={CustomizeMatchPage} />
+          <Route path="/customize" component={CustomizePage} />
           <Route component={NotFound} />
         </Switch>
       </main>
