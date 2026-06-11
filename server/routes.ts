@@ -1664,6 +1664,77 @@ Be concise and encouraging.`;
     }
   });
 
+  // ─── Customize feature ────────────────────────────────────────────────────
+
+  app.get('/api/sources', isAuthenticated, async (req: any, res, next) => {
+    try {
+      res.json(await storage.getSources(req.user.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/sources', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { name } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+      res.json(await storage.createSource(req.user.id, name.trim()));
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/classes', isAuthenticated, async (req: any, res, next) => {
+    try {
+      res.json(await storage.getClasses(req.user.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/classes', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { name, sourceId } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+      if (!sourceId) return res.status(400).json({ message: 'sourceId is required' });
+      res.json(await storage.createClass(req.user.id, name.trim(), Number(sourceId)));
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/lessons', isAuthenticated, async (req: any, res, next) => {
+    try {
+      res.json(await storage.getLessons(req.user.id));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/lessons', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { lesson, classId, sourceId } = req.body;
+      if (!lesson?.trim()) return res.status(400).json({ message: 'lesson is required' });
+      if (!classId) return res.status(400).json({ message: 'classId is required' });
+      if (!sourceId) return res.status(400).json({ message: 'sourceId is required' });
+      res.json(await storage.createLesson(req.user.id, lesson.trim(), Number(classId), Number(sourceId)));
+    } catch (err) { next(err); }
+  });
+
+  app.post('/api/custom-matching', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { characters, lessonId } = req.body;
+      if (!characters || typeof characters !== 'string')
+        return res.status(400).json({ message: 'characters string is required' });
+      if (!lessonId)
+        return res.status(400).json({ message: 'lessonId is required' });
+
+      const chars = [...characters].filter(c => /\p{Script=Han}/u.test(c));
+      const unique = [...new Set(chars)];
+
+      const entries: { characterIndex: number; lessonId: number }[] = [];
+      const notFound: string[] = [];
+      for (const char of unique) {
+        const idx = await storage.getCharacterIndexByString(char);
+        if (idx !== null) entries.push({ characterIndex: idx, lessonId: Number(lessonId) });
+        else notFound.push(char);
+      }
+
+      const { matched } = await storage.createCustomMatchings(req.user.id, entries);
+      res.json({ matched, notFound });
+    } catch (err) { next(err); }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

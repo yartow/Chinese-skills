@@ -16,6 +16,10 @@ import {
   checkups,
   checkupItems,
   characterReports,
+  sources,
+  customClasses,
+  lessons,
+  customMatching,
   type Message,
   type Checkup,
   type CheckupItem,
@@ -31,6 +35,9 @@ import {
   type SavedItem,
   type ActivityLog,
   type CharacterReport,
+  type Source,
+  type CustomClass,
+  type Lesson,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, count } from "drizzle-orm";
@@ -126,6 +133,16 @@ export interface IStorage {
   // Word browse operations
   getFilteredWords(userId: string, page: number, pageSize: number, hskLevels?: number[], filterUnknown?: boolean): Promise<{ words: ChineseWord[]; total: number }>;
   getWordBatchProgress(userId: string, wordIds: number[]): Promise<WordProgress[]>;
+
+  // Customize feature
+  getSources(userId: string): Promise<Source[]>;
+  createSource(userId: string, name: string): Promise<Source>;
+  getClasses(userId: string): Promise<(CustomClass & { sourceName: string })[]>;
+  createClass(userId: string, name: string, sourceId: number): Promise<CustomClass>;
+  getLessons(userId: string): Promise<(Lesson & { className: string; sourceName: string })[]>;
+  createLesson(userId: string, lesson: string, classId: number, sourceId: number): Promise<Lesson>;
+  getCharacterIndexByString(char: string): Promise<number | null>;
+  createCustomMatchings(userId: string, entries: { characterIndex: number; lessonId: number }[]): Promise<{ matched: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -966,6 +983,71 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(characterReports.userId, users.id))
       .orderBy(characterReports.createdAt);
     return rows.map(r => ({ ...r.report, userEmail: r.userEmail }));
+  }
+
+  // ─── Customize feature ──────────────────────────────────────────────────────
+
+  async getSources(userId: string): Promise<Source[]> {
+    return db.select().from(sources).where(eq(sources.userId, userId)).orderBy(sources.createdAt);
+  }
+
+  async createSource(userId: string, name: string): Promise<Source> {
+    const [row] = await db.insert(sources).values({ userId, name }).returning();
+    return row;
+  }
+
+  async getClasses(userId: string): Promise<(CustomClass & { sourceName: string })[]> {
+    const rows = await db
+      .select({ cls: customClasses, sourceName: sources.name })
+      .from(customClasses)
+      .innerJoin(sources, eq(customClasses.sourceId, sources.id))
+      .where(eq(customClasses.userId, userId))
+      .orderBy(customClasses.createdAt);
+    return rows.map(r => ({ ...r.cls, sourceName: r.sourceName }));
+  }
+
+  async createClass(userId: string, name: string, sourceId: number): Promise<CustomClass> {
+    const [row] = await db.insert(customClasses).values({ userId, name, sourceId }).returning();
+    return row;
+  }
+
+  async getLessons(userId: string): Promise<(Lesson & { className: string; sourceName: string })[]> {
+    const rows = await db
+      .select({ lesson: lessons, className: customClasses.name, sourceName: sources.name })
+      .from(lessons)
+      .innerJoin(customClasses, eq(lessons.classId, customClasses.id))
+      .innerJoin(sources, eq(lessons.sourceId, sources.id))
+      .where(eq(lessons.userId, userId))
+      .orderBy(lessons.createdAt);
+    return rows.map(r => ({ ...r.lesson, className: r.className, sourceName: r.sourceName }));
+  }
+
+  async createLesson(userId: string, lesson: string, classId: number, sourceId: number): Promise<Lesson> {
+    const [row] = await db.insert(lessons).values({ userId, lesson, classId, sourceId }).returning();
+    return row;
+  }
+
+  async getCharacterIndexByString(char: string): Promise<number | null> {
+    const [row] = await db
+      .select({ index: chineseCharacters.index })
+      .from(chineseCharacters)
+      .where(eq(chineseCharacters.traditional, char))
+      .limit(1);
+    return row?.index ?? null;
+  }
+
+  async createCustomMatchings(
+    userId: string,
+    entries: { characterIndex: number; lessonId: number }[],
+  ): Promise<{ matched: number }> {
+    if (entries.length === 0) return { matched: 0 };
+    const values = entries.map(e => ({ userId, characterIndex: e.characterIndex, lessonId: e.lessonId }));
+    const result = await db
+      .insert(customMatching)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: customMatching.id });
+    return { matched: result.length };
   }
 }
 

@@ -289,3 +289,54 @@ export const quizFeedbackCache = pgTable("quiz_feedback_cache", {
 }, (table) => [
   uniqueIndex("idx_feedback_blanked_char").on(table.blanked, table.character),
 ]);
+
+// ─── Customize feature ────────────────────────────────────────────────────────
+
+// Sources — e.g. "Oxford Publishing", "My own notes"
+export const sources = pgTable("sources", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [index("idx_sources_user").on(t.userId)]);
+
+export type Source = typeof sources.$inferSelect;
+
+// Classes — e.g. "Class 101", "Chinese for Advanced Students"
+export const customClasses = pgTable("classes", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sourceId: integer("source_id").notNull().references(() => sources.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [index("idx_classes_user").on(t.userId)]);
+
+export type CustomClass = typeof customClasses.$inferSelect;
+
+// Lessons — e.g. "Lesson 1", "1". One class has many lessons.
+export const lessons = pgTable("lessons", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lesson: text("lesson").notNull(),
+  classId: integer("class_id").notNull().references(() => customClasses.id, { onDelete: "cascade" }),
+  sourceId: integer("source_id").notNull().references(() => sources.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [index("idx_lessons_user").on(t.userId)]);
+
+export type Lesson = typeof lessons.$inferSelect;
+
+// Custom_Matching — maps characters to lessons
+export const customMatching = pgTable("custom_matching", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterIndex: integer("character_index").notNull()
+    .references(() => chineseCharacters.index, { onDelete: "cascade" }),
+  lessonId: integer("lesson_id").notNull()
+    .references(() => lessons.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("idx_custom_matching_user").on(t.userId),
+  unique("uq_char_lesson").on(t.characterIndex, t.lessonId),
+]);
+
+export type CustomMatching = typeof customMatching.$inferSelect;
