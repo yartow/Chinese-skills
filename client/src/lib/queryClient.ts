@@ -6,13 +6,17 @@ import { get, set, del } from "idb-keyval";
 // Redirect to login and clear stale cache when the session has expired.
 // Guard flag prevents multiple parallel 401s from each triggering a redirect.
 let sessionExpiredHandled = false;
+
 function handleSessionExpired() {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
-  // Wipe the IndexedDB persisted cache so stale auth state isn't restored
-  // on the next page load after the user logs back in.
-  del("hanzi-query-cache").catch(() => {});
-  window.location.href = "/auth";
+  // Clear in-memory cache first so any pending persistQueryClient write uses
+  // empty state rather than stale user data (belt-and-suspenders alongside
+  // the service-worker fix that is the real guard against the redirect loop).
+  queryClient.clear();
+  del("hanzi-query-cache")
+    .catch(() => {})
+    .finally(() => { window.location.href = "/auth"; });
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -108,6 +112,9 @@ persistQueryClient({
     shouldDehydrateQuery: (query) => {
       if (query.state.status !== "success") return false;
       const key = String(query.queryKey[0]);
+      // Never persist auth state — always verify with the server on load so a
+      // stale cached user can't cause the auth ↔ / infinite redirect loop.
+      if (key === "/api/auth/user") return false;
       // Skip quiz questions (need fresh picks) and AI feedback (large, session-specific)
       if (key.startsWith("quiz-") || key.startsWith("ai-feedback")) return false;
       return true;

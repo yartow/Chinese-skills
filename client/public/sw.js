@@ -25,6 +25,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
+  // Auth check must never be served from cache. A stale "logged-in" response
+  // causes an infinite /auth ↔ / redirect loop when the session has expired.
+  if (url.pathname === '/api/auth/user') return;
+
   // Quiz question endpoints need a fresh answer every time — keep network-first
   // so refetch() after each answer doesn't serve the same question from cache.
   if (url.pathname.startsWith('/api/quiz/')) {
