@@ -52,6 +52,9 @@ export interface CharacterFilters {
   filterReading?: boolean;
   filterWriting?: boolean;
   filterRadical?: boolean;
+  lessonId?: number;
+  filterCore?: boolean;
+  filterOther?: boolean;
 }
 
 export interface FilteredCharactersResult {
@@ -137,12 +140,21 @@ export interface IStorage {
   // Customize feature
   getSources(userId: string): Promise<Source[]>;
   createSource(userId: string, name: string): Promise<Source>;
+  updateSource(id: number, userId: string, name: string): Promise<Source | undefined>;
+  deleteSource(id: number, userId: string): Promise<void>;
   getClasses(userId: string): Promise<(CustomClass & { sourceName: string })[]>;
   createClass(userId: string, name: string, sourceId: number): Promise<CustomClass>;
+  updateClass(id: number, userId: string, name: string): Promise<CustomClass | undefined>;
+  deleteClass(id: number, userId: string): Promise<void>;
   getLessons(userId: string): Promise<(Lesson & { className: string; sourceName: string })[]>;
   createLesson(userId: string, lesson: string, classId: number, sourceId: number): Promise<Lesson>;
+  updateLesson(id: number, userId: string, lesson: string): Promise<Lesson | undefined>;
+  deleteLesson(id: number, userId: string): Promise<void>;
+  setUserRole(userId: string, role: string): Promise<void>;
   getCharacterIndexByString(char: string): Promise<number | null>;
-  createCustomMatchings(userId: string, entries: { characterIndex: number; lessonId: number }[]): Promise<{ matched: number }>;
+  getRelationshipsForUser(userId: string): Promise<{ id: number; teacherId: string; studentId: string; teacherName: string; studentName: string }[]>;
+  createCustomMatchings(teacherStudentId: number | null, userId: string, entries: { characterIndex: number; lessonId: number }[], core: boolean): Promise<{ matched: number }>;
+  linkPersonalMatchesToRelationship(teacherId: string, teacherStudentId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -474,6 +486,39 @@ export class DatabaseStorage implements IStorage {
     // HSK level filter
     if (filters.hskLevels && filters.hskLevels.length > 0) {
       conditions.push(inArray(chineseCharacters.hskLevel, filters.hskLevels));
+    }
+
+    // Lesson filter — restrict to characters matched to the selected lesson in custom_matching.
+    // Uses a two-step approach: first resolve the allowed character indices, then filter.
+    if (filters.lessonId) {
+      // Step 1a: find all teacher_student relationship IDs the user belongs to.
+      const relRows = await db.select({ id: teacherStudents.id })
+        .from(teacherStudents)
+        .where(or(eq(teacherStudents.teacherId, userId), eq(teacherStudents.studentId, userId)));
+      const relIds = relRows.map(r => r.id);
+
+      // Step 1b: access condition — personal matches (userId) OR shared matches (relationshipId).
+      const accessCondition = relIds.length > 0
+        ? or(eq(customMatching.userId, userId), inArray(customMatching.teacherStudentId, relIds))
+        : eq(customMatching.userId, userId);
+
+      const coreFilter =
+        filters.filterCore && !filters.filterOther ? eq(customMatching.core, true)
+        : filters.filterOther && !filters.filterCore ? eq(customMatching.core, false)
+        : undefined;
+
+      // Step 1c: fetch character indices that match this lesson (and optional core filter).
+      const matchRows = await db.select({ characterIndex: customMatching.characterIndex })
+        .from(customMatching)
+        .where(and(eq(customMatching.lessonId, filters.lessonId), coreFilter, accessCondition));
+
+      const lessonIndices = matchRows.map(r => r.characterIndex);
+      if (lessonIndices.length === 0) {
+        return { characters: [], total: 0 };
+      }
+
+      // Step 2: restrict the main query to those indices.
+      conditions.push(inArray(chineseCharacters.index, lessonIndices));
     }
     
     // Progress filters - we need to LEFT JOIN with characterProgress
@@ -1027,6 +1072,37 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async updateSource(id: number, userId: string, name: string): Promise<Source | undefined> {
+    const [row] = await db.update(sources).set({ name }).where(and(eq(sources.id, id), eq(sources.userId, userId))).returning();
+    return row;
+  }
+
+  async deleteSource(id: number, userId: string): Promise<void> {
+    await db.delete(sources).where(and(eq(sources.id, id), eq(sources.userId, userId)));
+  }
+
+  async updateClass(id: number, userId: string, name: string): Promise<CustomClass | undefined> {
+    const [row] = await db.update(customClasses).set({ name }).where(and(eq(customClasses.id, id), eq(customClasses.userId, userId))).returning();
+    return row;
+  }
+
+  async deleteClass(id: number, userId: string): Promise<void> {
+    await db.delete(customClasses).where(and(eq(customClasses.id, id), eq(customClasses.userId, userId)));
+  }
+
+  async updateLesson(id: number, userId: string, lesson: string): Promise<Lesson | undefined> {
+    const [row] = await db.update(lessons).set({ lesson }).where(and(eq(lessons.id, id), eq(lessons.userId, userId))).returning();
+    return row;
+  }
+
+  async deleteLesson(id: number, userId: string): Promise<void> {
+    await db.delete(lessons).where(and(eq(lessons.id, id), eq(lessons.userId, userId)));
+  }
+
+  async setUserRole(userId: string, role: string): Promise<void> {
+    await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
+  }
+
   async getCharacterIndexByString(char: string): Promise<number | null> {
     const [row] = await db
       .select({ index: chineseCharacters.index })
@@ -1036,18 +1112,66 @@ export class DatabaseStorage implements IStorage {
     return row?.index ?? null;
   }
 
+  async getRelationshipsForUser(userId: string): Promise<{ id: number; teacherId: string; studentId: string; teacherName: string; studentName: string }[]> {
+    const teacher = alias(users, 'teacher');
+    const student = alias(users, 'student');
+    const rows = await db
+      .select({
+        id: teacherStudents.id,
+        teacherId: teacherStudents.teacherId,
+        studentId: teacherStudents.studentId,
+        teacherFirst: teacher.firstName,
+        teacherLast: teacher.lastName,
+        teacherEmail: teacher.email,
+        studentFirst: student.firstName,
+        studentLast: student.lastName,
+        studentEmail: student.email,
+      })
+      .from(teacherStudents)
+      .innerJoin(teacher, eq(teacher.id, teacherStudents.teacherId))
+      .innerJoin(student, eq(student.id, teacherStudents.studentId))
+      .where(
+        and(
+          eq(teacherStudents.status, 'approved'),
+          or(eq(teacherStudents.teacherId, userId), eq(teacherStudents.studentId, userId)),
+        ),
+      );
+    return rows.map(r => ({
+      id: r.id,
+      teacherId: r.teacherId,
+      studentId: r.studentId,
+      teacherName: [r.teacherFirst, r.teacherLast].filter(Boolean).join(' ') || r.teacherEmail || r.teacherId,
+      studentName: [r.studentFirst, r.studentLast].filter(Boolean).join(' ') || r.studentEmail || r.studentId,
+    }));
+  }
+
   async createCustomMatchings(
+    teacherStudentId: number | null,
     userId: string,
     entries: { characterIndex: number; lessonId: number }[],
+    core: boolean,
   ): Promise<{ matched: number }> {
     if (entries.length === 0) return { matched: 0 };
-    const values = entries.map(e => ({ userId, characterIndex: e.characterIndex, lessonId: e.lessonId }));
+    const values = entries.map(e => ({
+      userId,
+      teacherStudentId: teacherStudentId ?? undefined,
+      characterIndex: e.characterIndex,
+      lessonId: e.lessonId,
+      core,
+    }));
     const result = await db
       .insert(customMatching)
       .values(values)
       .onConflictDoNothing()
       .returning({ id: customMatching.id });
     return { matched: result.length };
+  }
+
+  async linkPersonalMatchesToRelationship(teacherId: string, teacherStudentId: number): Promise<void> {
+    await db
+      .update(customMatching)
+      .set({ teacherStudentId })
+      .where(and(eq(customMatching.userId, teacherId), isNull(customMatching.teacherStudentId)));
   }
 }
 
