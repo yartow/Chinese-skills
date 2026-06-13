@@ -19,6 +19,7 @@ import Saved from "./pages/saved";
 import NotFound from "./pages/not-found";
 import TeacherPage from "./pages/teacher";
 import MessagesPage from "./pages/messages";
+import OnboardingPage from "./pages/onboarding";
 import CustomizePage from "./pages/customize";
 import CustomizeMatchPage from "./pages/customize-match";
 import CheckupPage from "./pages/checkup";
@@ -55,6 +56,12 @@ function Router() {
     staleTime: 0,
   });
   const unreadCount = unreadData?.count ?? 0;
+
+  const { data: relationships = [] } = useQuery<{ id: number }[]>({
+    queryKey: ["/api/relationships"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: isAuthenticated,
+  });
   const [tutorialVisible, setTutorialVisible] = useState(
     () => localStorage.getItem("tutorialSeen") !== "1"
   );
@@ -84,6 +91,20 @@ function Router() {
     setLocation('/');
     return null;
   }
+
+  // New users haven't picked a role yet — send them to onboarding.
+  // admin is exempt (manually assigned, always fully set up).
+  const role = (user as any)?.role;
+  if (role === 'user' && location !== '/onboarding') {
+    setLocation('/onboarding');
+    return null;
+  }
+  if (location === '/onboarding') {
+    return <OnboardingPage />;
+  }
+
+  const studentHasTeacher = role === 'student' && relationships.length > 0;
+  const showCustomize = role === 'teacher' || role === 'solo' || role === 'admin' || studentHasTeacher;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -152,32 +173,36 @@ function Router() {
             <Heart className="w-4 h-4" />
             <span className="hidden sm:inline">Saved</span>
           </Button>
-          <Button
-            variant={location === "/messages" ? "default" : "ghost"}
-            onClick={() => setLocation("/messages")}
-            className="gap-2 relative"
-            data-testid="nav-messages"
-          >
-            <span className="relative">
-              <MessageCircle className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </span>
-            <span className="hidden sm:inline">Messages</span>
-          </Button>
-          <Button
-            variant={location.startsWith("/customize") ? "default" : "ghost"}
-            onClick={() => setLocation("/customize")}
-            className="gap-2"
-            data-testid="nav-customize"
-          >
-            <Layers className="w-4 h-4" />
-            <span className="hidden sm:inline">Customize</span>
-          </Button>
-          {(user as any)?.role === "teacher" && (
+          {['teacher', 'student'].includes(role) && (
+            <Button
+              variant={location === "/messages" ? "default" : "ghost"}
+              onClick={() => setLocation("/messages")}
+              className="gap-2 relative"
+              data-testid="nav-messages"
+            >
+              <span className="relative">
+                <MessageCircle className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </span>
+              <span className="hidden sm:inline">Messages</span>
+            </Button>
+          )}
+          {showCustomize && (
+            <Button
+              variant={location.startsWith("/customize") ? "default" : "ghost"}
+              onClick={() => setLocation("/customize")}
+              className="gap-2"
+              data-testid="nav-customize"
+            >
+              <Layers className="w-4 h-4" />
+              <span className="hidden sm:inline">Customize</span>
+            </Button>
+          )}
+          {role === "teacher" && (
             <Button
               variant={location === "/teacher" ? "default" : "ghost"}
               onClick={() => setLocation("/teacher")}

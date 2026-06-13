@@ -8,7 +8,7 @@ A full-stack Progressive Web App for learning the 3000 most common Chinese chara
 
 ### Study Modes
 - **Daily Mode** — Presents characters based on your current level and daily character limit. Automatically advances to the first unmastered character when you open it.
-- **Standard Mode** — Browse all 3000 characters with pagination, HSK level filtering, and progress filtering (show only unmastered characters).
+- **Standard Mode** — Browse all 3000 characters with pagination, HSK level filtering, progress filtering (show only unmastered characters), and lesson filtering (filter by your custom source → class → lesson, with optional Core / Other sub-filter).
 - **Search Mode** — Search by Chinese character, pinyin, or English definition.
 
 ### Character Details
@@ -61,6 +61,30 @@ Your key is stored securely on the server and is never returned to the browser. 
 - **Simplified / Traditional toggle** — Switch script globally at any time.
 - **Installable PWA** — Add to home screen on Android or iOS for an app-like experience with offline caching.
 - **Admin tools** — Export all 3000 characters to Excel; import updates for lesson numbers, HSK levels, pinyin, and more.
+
+### Roles & Onboarding
+When a new account is created the user is asked to pick a role:
+- **Student** — can request a teacher; the Customize tab appears once an approved teacher relationship exists.
+- **Teacher** — can add students by email; character matching is shared with all approved students.
+- **Solo** — no teacher/student relationship; has full access to the Customize tab independently.
+- **Admin** — set by the server administrator via `ADMIN_EMAILS`; never selectable at onboarding.
+
+### Customize
+Teachers (and solo users) can build their own character curriculum:
+
+1. **Sources** — top-level grouping, e.g. a textbook publisher or course name.
+2. **Classes** — belong to a source, e.g. "3下". Sorting is aware of the 上/下 suffix (上 = first half, 下 = second half).
+3. **Lessons** — belong to a class. Duplicate (class, lesson) combinations are rejected. All three levels support renaming and deletion.
+4. **Match characters** — paste Chinese text into two boxes on the Match Characters page:
+   - **Core** — new vocabulary introduced in this lesson.
+   - **Other** — revision characters that appear but were taught in earlier lessons.
+   - Characters recognised in the app's database are matched; unrecognised ones are listed back to the user.
+   - If a character appears in both boxes, an interactive dialog asks which category it belongs to.
+
+Matched characters are shared between a teacher and all their approved students. A solo user's matches are personal.
+
+### Messages
+Teachers and students can exchange messages through the Messages tab. The tab is not shown to Solo users.
 
 ---
 
@@ -123,6 +147,23 @@ Your key is stored securely on the server and is never returned to the browser. 
 | POST | `/api/admin/characters/import` | Upload `.xlsx` to update character fields |
 | GET | `/api/admin/users` | List all registered users (admin only) |
 | POST | `/api/admin/reset-password` | Reset any user's password (admin only) |
+| PATCH | `/api/user/role` | Set the current user's role (`teacher` / `student` / `solo`) |
+| GET | `/api/relationships` | Approved teacher–student relationships for the current user |
+| POST | `/api/teacher/students` | Teacher adds a student by email |
+| POST | `/api/student/pending-teachers/:teacherId/approve` | Student approves a pending teacher request |
+| GET | `/api/sources` | List the current user's sources |
+| POST | `/api/sources` | Create a source |
+| PATCH | `/api/sources/:id` | Rename a source |
+| DELETE | `/api/sources/:id` | Delete a source (cascades to classes, lessons, and matchings) |
+| GET | `/api/classes` | List classes with source name |
+| POST | `/api/classes` | Create a class |
+| PATCH | `/api/classes/:id` | Rename a class |
+| DELETE | `/api/classes/:id` | Delete a class |
+| GET | `/api/lessons` | List lessons with class and source names |
+| POST | `/api/lessons` | Create a lesson (rejects duplicate class + lesson name) |
+| PATCH | `/api/lessons/:id` | Rename a lesson |
+| DELETE | `/api/lessons/:id` | Delete a lesson |
+| POST | `/api/custom-matching` | Match characters to a lesson (core or other) |
 
 ---
 

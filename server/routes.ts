@@ -284,6 +284,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.filterReading === 'true') filters.filterReading = true;
       if (req.query.filterWriting === 'true') filters.filterWriting = true;
       if (req.query.filterRadical === 'true') filters.filterRadical = true;
+      if (req.query.lessonId) filters.lessonId = parseInt(req.query.lessonId as string);
+      if (req.query.filterCore === 'true') filters.filterCore = true;
+      if (req.query.filterOther === 'true') filters.filterOther = true;
       const result = await storage.getFilteredCharacters(userId, page, pageSize, filters);
       res.json(result);
     } catch (error) {
@@ -1514,6 +1517,12 @@ Be concise and encouraging.`;
       const student = await storage.getUserByEmail(email);
       if (!student) return res.status(404).json({ message: 'No account with that email address' });
       if (student.id === req.user.id) return res.status(400).json({ message: 'You cannot add yourself as a student' });
+      if (student.role === 'solo') return res.status(403).json({ message: 'Solo users cannot join a teacher–student relationship' });
+      // Enforce one-teacher-per-student: check if student already has an approved teacher
+      const existing = await storage.getRelationshipsForUser(student.id);
+      if (existing.some(r => r.studentId === student.id)) {
+        return res.status(409).json({ message: 'This student already has a teacher' });
+      }
       await storage.addStudent(req.user.id, student.id);
       const { passwordHash, ...safe } = student;
       res.status(201).json(safe);
@@ -1549,7 +1558,19 @@ Be concise and encouraging.`;
 
   app.post('/api/student/pending-teachers/:teacherId/approve', isAuthenticated, async (req: any, res, next) => {
     try {
+      if (req.user.role === 'solo') return res.status(403).json({ message: 'Solo users cannot join a teacher–student relationship' });
+      // One-teacher-per-student check
+      const existing = await storage.getRelationshipsForUser(req.user.id);
+      if (existing.some(r => r.studentId === req.user.id)) {
+        return res.status(409).json({ message: 'You already have an approved teacher' });
+      }
       await storage.approveTeacherRequest(req.params.teacherId, req.user.id);
+      // Link the teacher's personal matches to the new relationship
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const newRel = rels.find(r => r.teacherId === req.params.teacherId && r.studentId === req.user.id);
+      if (newRel) {
+        await storage.linkPersonalMatchesToRelationship(req.params.teacherId, newRel.id);
+      }
       res.json({ ok: true });
     } catch (err) { next(err); }
   });
@@ -1680,6 +1701,23 @@ Be concise and encouraging.`;
     } catch (err) { next(err); }
   });
 
+  app.patch('/api/sources/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { name } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+      const row = await storage.updateSource(Number(req.params.id), req.user.id, name.trim());
+      if (!row) return res.status(404).json({ message: 'Not found' });
+      res.json(row);
+    } catch (err) { next(err); }
+  });
+
+  app.delete('/api/sources/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.deleteSource(Number(req.params.id), req.user.id);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
   app.get('/api/classes', isAuthenticated, async (req: any, res, next) => {
     try {
       res.json(await storage.getClasses(req.user.id));
@@ -1695,6 +1733,23 @@ Be concise and encouraging.`;
     } catch (err) { next(err); }
   });
 
+  app.patch('/api/classes/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { name } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: 'name is required' });
+      const row = await storage.updateClass(Number(req.params.id), req.user.id, name.trim());
+      if (!row) return res.status(404).json({ message: 'Not found' });
+      res.json(row);
+    } catch (err) { next(err); }
+  });
+
+  app.delete('/api/classes/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.deleteClass(Number(req.params.id), req.user.id);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
   app.get('/api/lessons', isAuthenticated, async (req: any, res, next) => {
     try {
       res.json(await storage.getLessons(req.user.id));
@@ -1707,17 +1762,82 @@ Be concise and encouraging.`;
       if (!lesson?.trim()) return res.status(400).json({ message: 'lesson is required' });
       if (!classId) return res.status(400).json({ message: 'classId is required' });
       if (!sourceId) return res.status(400).json({ message: 'sourceId is required' });
+      // Duplicate check: same lesson name within the same class is not allowed
+      const existing = await storage.getLessons(req.user.id);
+      const isDuplicate = existing.some(l => l.classId === Number(classId) && l.lesson.toLowerCase() === lesson.trim().toLowerCase());
+      if (isDuplicate) return res.status(409).json({ message: `Lesson "${lesson.trim()}" already exists in this class` });
       res.json(await storage.createLesson(req.user.id, lesson.trim(), Number(classId), Number(sourceId)));
+    } catch (err) { next(err); }
+  });
+
+  app.patch('/api/lessons/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { lesson } = req.body;
+      if (!lesson?.trim()) return res.status(400).json({ message: 'lesson is required' });
+      // Duplicate check against other lessons in the same class
+      const existing = await storage.getLessons(req.user.id);
+      const target = existing.find(l => l.id === Number(req.params.id));
+      if (!target) return res.status(404).json({ message: 'Not found' });
+      const isDuplicate = existing.some(l => l.id !== Number(req.params.id) && l.classId === target.classId && l.lesson.toLowerCase() === lesson.trim().toLowerCase());
+      if (isDuplicate) return res.status(409).json({ message: `Lesson "${lesson.trim()}" already exists in this class` });
+      const row = await storage.updateLesson(Number(req.params.id), req.user.id, lesson.trim());
+      if (!row) return res.status(404).json({ message: 'Not found' });
+      res.json(row);
+    } catch (err) { next(err); }
+  });
+
+  app.delete('/api/lessons/:id', isAuthenticated, async (req: any, res, next) => {
+    try {
+      await storage.deleteLesson(Number(req.params.id), req.user.id);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  app.patch('/api/user/role', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { role } = req.body;
+      if (!['teacher', 'student', 'solo'].includes(role))
+        return res.status(400).json({ message: 'role must be teacher, student, or solo' });
+      await storage.setUserRole(req.user.id, role);
+      const user = await storage.getUser(req.user.id);
+      res.json(user);
+    } catch (err) { next(err); }
+  });
+
+  app.get('/api/relationships', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const relationships = await storage.getRelationshipsForUser(req.user.id);
+      res.json(relationships);
     } catch (err) { next(err); }
   });
 
   app.post('/api/custom-matching', isAuthenticated, async (req: any, res, next) => {
     try {
-      const { characters, lessonId } = req.body;
+      const { characters, lessonId, teacherStudentId, core = false } = req.body;
       if (!characters || typeof characters !== 'string')
         return res.status(400).json({ message: 'characters string is required' });
       if (!lessonId)
         return res.status(400).json({ message: 'lessonId is required' });
+
+      let resolvedRelId: number | null = null;
+
+      if (teacherStudentId) {
+        // Relationship-scoped match: verify caller belongs to it
+        const relationships = await storage.getRelationshipsForUser(req.user.id);
+        const rel = relationships.find(r => r.id === Number(teacherStudentId));
+        if (!rel) return res.status(403).json({ message: 'Not a member of this relationship' });
+        resolvedRelId = rel.id;
+      } else {
+        // Personal match: only allowed for solo users or teachers with no approved students
+        const role = req.user.role;
+        if (role !== 'solo' && role !== 'teacher')
+          return res.status(403).json({ message: 'A relationship must be selected' });
+        if (role === 'teacher') {
+          const rels = await storage.getRelationshipsForUser(req.user.id);
+          if (rels.length > 0) return res.status(400).json({ message: 'Please select a relationship' });
+        }
+        resolvedRelId = null;
+      }
 
       const chars = [...characters].filter(c => /\p{Script=Han}/u.test(c));
       const unique = [...new Set(chars)];
@@ -1730,7 +1850,7 @@ Be concise and encouraging.`;
         else notFound.push(char);
       }
 
-      const { matched } = await storage.createCustomMatchings(req.user.id, entries);
+      const { matched } = await storage.createCustomMatchings(resolvedRelId, req.user.id, entries, Boolean(core));
       res.json({ matched, notFound });
     } catch (err) { next(err); }
   });

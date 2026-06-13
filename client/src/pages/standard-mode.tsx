@@ -42,6 +42,24 @@ export default function StandardMode() {
     const hskLevelsStr = new URLSearchParams(window.location.search).get('hskLevels');
     return hskLevelsStr ? hskLevelsStr.split(',').map(Number) : [];
   });
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('sourceId');
+    return v ? parseInt(v) : null;
+  });
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('classId');
+    return v ? parseInt(v) : null;
+  });
+  const [selectedLessonId, setSelectedLessonId] = useState<number | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('lessonId');
+    return v ? parseInt(v) : null;
+  });
+  const [filterCore, setFilterCore] = useState(() =>
+    new URLSearchParams(window.location.search).get('filterCore') === 'true'
+  );
+  const [filterOther, setFilterOther] = useState(() =>
+    new URLSearchParams(window.location.search).get('filterOther') === 'true'
+  );
   const [showFilters, setShowFilters] = useState(false);
   const [jumpInput, setJumpInput] = useState("");
   const [jumpFocused, setJumpFocused] = useState(false);
@@ -53,6 +71,10 @@ export default function StandardMode() {
   const { data: settings } = useQuery<UserSettings>({
     queryKey: ["/api/settings"],
   });
+
+  const { data: sources = [] } = useQuery<{ id: number; name: string }[]>({ queryKey: ["/api/sources"] });
+  const { data: allClasses = [] } = useQuery<{ id: number; name: string; sourceId: number }[]>({ queryKey: ["/api/classes"] });
+  const { data: allLessons = [] } = useQuery<{ id: number; lesson: string; classId: number }[]>({ queryKey: ["/api/lessons"] });
 
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
@@ -74,6 +96,11 @@ export default function StandardMode() {
     if (filterWriting) params.set('filterWriting', 'true');
     if (filterRadical) params.set('filterRadical', 'true');
     if (selectedHskLevels.length > 0) params.set('hskLevels', selectedHskLevels.join(','));
+    if (selectedSourceId) params.set('sourceId', String(selectedSourceId));
+    if (selectedClassId) params.set('classId', String(selectedClassId));
+    if (selectedLessonId) params.set('lessonId', String(selectedLessonId));
+    if (filterCore) params.set('filterCore', 'true');
+    if (filterOther) params.set('filterOther', 'true');
 
     const queryString = params.toString();
     const newPath = queryString ? `/standard?${queryString}` : '/standard';
@@ -82,7 +109,7 @@ export default function StandardMode() {
     if (currentPath !== newPath) {
       setLocation(newPath, { replace: true });
     }
-  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels]);
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedSourceId, selectedClassId, selectedLessonId, filterCore, filterOther]);
 
   // Reset to first page when filters change — but not on the initial render,
   // because the filters were already restored from the URL.
@@ -92,13 +119,13 @@ export default function StandardMode() {
       return;
     }
     setCurrentPage(0);
-  }, [filterReading, filterWriting, filterRadical, selectedHskLevels]);
+  }, [filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther]);
 
   // Clear selection when navigating to a different page or changing filters
   useEffect(() => {
     setSelectedIndices(new Set());
     lastClickedPos.current = null;
-  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels]);
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther]);
 
   const { data, isLoading } = useQuery<FilteredCharactersResponse>({
     queryKey: [
@@ -108,11 +135,14 @@ export default function StandardMode() {
       selectedHskLevels,
       filterReading,
       filterWriting,
-      filterRadical
+      filterRadical,
+      selectedLessonId,
+      filterCore,
+      filterOther,
     ],
     queryFn: async ({ queryKey }) => {
       // Destructure fresh values from queryKey instead of closing over stale component state
-      const [_, page, size, hskLevels, reading, writing, radical] = queryKey;
+      const [_, page, size, hskLevels, reading, writing, radical, lessonId, core, other] = queryKey;
 
       const queryParams = new URLSearchParams({
         page: String(page),
@@ -122,15 +152,12 @@ export default function StandardMode() {
       if (Array.isArray(hskLevels) && hskLevels.length > 0) {
         queryParams.set('hskLevels', hskLevels.join(','));
       }
-      if (reading) {
-        queryParams.set('filterReading', 'true');
-      }
-      if (writing) {
-        queryParams.set('filterWriting', 'true');
-      }
-      if (radical) {
-        queryParams.set('filterRadical', 'true');
-      }
+      if (reading) queryParams.set('filterReading', 'true');
+      if (writing) queryParams.set('filterWriting', 'true');
+      if (radical) queryParams.set('filterRadical', 'true');
+      if (lessonId) queryParams.set('lessonId', String(lessonId));
+      if (core) queryParams.set('filterCore', 'true');
+      if (other) queryParams.set('filterOther', 'true');
 
       const res = await authenticatedFetch(`/api/characters/filtered?${queryParams.toString()}`);
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -315,6 +342,21 @@ export default function StandardMode() {
     );
   };
 
+  const handleSelectSource = (id: number | null) => {
+    setSelectedSourceId(id);
+    setSelectedClassId(null);
+    setSelectedLessonId(null);
+    if (!id) { setFilterCore(false); setFilterOther(false); }
+  };
+  const handleSelectClass = (id: number | null) => {
+    setSelectedClassId(id);
+    setSelectedLessonId(null);
+  };
+  const handleSelectLesson = (id: number | null) => {
+    setSelectedLessonId(id);
+    if (!id) { setFilterCore(false); setFilterOther(false); }
+  };
+
   const totalPages = Math.ceil(totalCharacters / pageSize);
   const hasNext = currentPage < totalPages - 1;
   const hasPrevious = currentPage > 0;
@@ -384,6 +426,19 @@ export default function StandardMode() {
                 onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
                 selectedHskLevels={selectedHskLevels}
                 onToggleHskLevel={handleToggleHskLevel}
+                sources={sources}
+                classes={allClasses}
+                lessons={allLessons}
+                selectedSourceId={selectedSourceId}
+                selectedClassId={selectedClassId}
+                selectedLessonId={selectedLessonId}
+                filterCore={filterCore}
+                filterOther={filterOther}
+                onSelectSource={handleSelectSource}
+                onSelectClass={handleSelectClass}
+                onSelectLesson={handleSelectLesson}
+                onToggleFilterCore={() => setFilterCore(v => !v)}
+                onToggleFilterOther={() => setFilterOther(v => !v)}
               />
             </Card>
           </div>
@@ -574,6 +629,19 @@ export default function StandardMode() {
                 onToggleFilterRadical={() => setFilterRadical(!filterRadical)}
                 selectedHskLevels={selectedHskLevels}
                 onToggleHskLevel={handleToggleHskLevel}
+                sources={sources}
+                classes={allClasses}
+                lessons={allLessons}
+                selectedSourceId={selectedSourceId}
+                selectedClassId={selectedClassId}
+                selectedLessonId={selectedLessonId}
+                filterCore={filterCore}
+                filterOther={filterOther}
+                onSelectSource={handleSelectSource}
+                onSelectClass={handleSelectClass}
+                onSelectLesson={handleSelectLesson}
+                onToggleFilterCore={() => setFilterCore(v => !v)}
+                onToggleFilterOther={() => setFilterOther(v => !v)}
               />
             </Card>
           </div>

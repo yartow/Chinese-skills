@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, isNull, isNotNull } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, integer, smallint, boolean, index, uniqueIndex, unique, jsonb, serial, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -190,6 +190,7 @@ export const generatedSentences = pgTable("generated_sentences", {
 
 // Teacher–student relationships
 export const teacherStudents = pgTable("teacher_students", {
+  id: serial("id").primaryKey(),
   teacherId: varchar("teacher_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   studentId: varchar("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   addedAt: timestamp("added_at").defaultNow(),
@@ -321,22 +322,37 @@ export const lessons = pgTable("lessons", {
   classId: integer("class_id").notNull().references(() => customClasses.id, { onDelete: "cascade" }),
   sourceId: integer("source_id").notNull().references(() => sources.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (t) => [index("idx_lessons_user").on(t.userId)]);
+}, (t) => [
+  index("idx_lessons_user").on(t.userId),
+  uniqueIndex("uq_class_lesson").on(t.classId, t.lesson),
+]);
 
 export type Lesson = typeof lessons.$inferSelect;
 
-// Custom_Matching — maps characters to lessons
+// Custom_Matching — maps characters to lessons.
+// teacherStudentId is NULL for personal (solo / teacher-without-students) matches;
+// set to the relationship id for shared matches. userId always records the creator.
 export const customMatching = pgTable("custom_matching", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  teacherStudentId: integer("teacher_student_id")
+    .references(() => teacherStudents.id, { onDelete: "cascade" }),
   characterIndex: integer("character_index").notNull()
     .references(() => chineseCharacters.index, { onDelete: "cascade" }),
   lessonId: integer("lesson_id").notNull()
     .references(() => lessons.id, { onDelete: "cascade" }),
+  core: boolean("core").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [
+  index("idx_custom_matching_rel").on(t.teacherStudentId),
   index("idx_custom_matching_user").on(t.userId),
-  unique("uq_char_lesson").on(t.characterIndex, t.lessonId),
+  uniqueIndex("uq_personal_char_lesson")
+    .on(t.userId, t.characterIndex, t.lessonId)
+    .where(isNull(t.teacherStudentId)),
+  uniqueIndex("uq_shared_char_lesson")
+    .on(t.teacherStudentId, t.characterIndex, t.lessonId)
+    .where(isNotNull(t.teacherStudentId)),
 ]);
 
 export type CustomMatching = typeof customMatching.$inferSelect;
