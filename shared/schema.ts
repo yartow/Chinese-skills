@@ -214,6 +214,17 @@ export const activityLogs = pgTable("activity_logs", {
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 
+export const progressHistory = pgTable("progress_history", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  characterIndex: integer("character_index").notNull(),
+  skillType: varchar("skill_type", { length: 10 }).notNull(), // 'reading' | 'writing' | 'radical'
+  gained: boolean("gained").notNull(), // true = mastered, false = lost mastery
+  changedAt: timestamp("changed_at").defaultNow().notNull(),
+});
+
+export type ProgressHistory = typeof progressHistory.$inferSelect;
+
 // Check-ups — writing assessments created by teachers for students
 export const checkups = pgTable("checkups", {
   id: serial("id").primaryKey(),

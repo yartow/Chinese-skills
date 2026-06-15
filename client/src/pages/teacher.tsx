@@ -4,11 +4,26 @@ import { apiRequest, queryClient, authenticatedFetch } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Trash2, ChevronLeft, ChevronRight, ClipboardList, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
+} from "recharts";
 import type { ActivityLog, User } from "@shared/schema";
 
 type SafeUser = Omit<User, "passwordHash"> & { status?: string };
+
+interface ProgressHistoryEntry {
+  characterIndex: number;
+  simplified: string;
+  skills: string[];
+}
+interface ProgressHistoryByDate {
+  date: string;
+  gained: ProgressHistoryEntry[];
+  lost: ProgressHistoryEntry[];
+}
 
 function formatMinutes(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -23,6 +38,43 @@ function last30Days(): { from: string; to: string } {
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return { from: fmt(from), to: fmt(to) };
+}
+
+function shortDate(date: string) {
+  const [, m, d] = date.split("-");
+  return `${Number(m)}/${Number(d)}`;
+}
+
+function ActivityChart({ logs }: { logs: ActivityLog[] }) {
+  const byDate = new Map<string, { standard: number; test: number }>();
+  for (const log of logs) {
+    const row = byDate.get(log.date) ?? { standard: 0, test: 0 };
+    if (log.view === "standard") row.standard += log.seconds;
+    if (log.view === "test") row.test += log.seconds;
+    byDate.set(log.date, row);
+  }
+  const data = Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { standard, test }]) => ({
+      date: shortDate(date),
+      Standard: Math.round(standard / 60),
+      Test: Math.round(test / 60),
+    }));
+
+  if (data.length === 0) return null;
+
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} unit="m" />
+        <Tooltip formatter={(v: number) => `${v}m`} />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        <Bar dataKey="Standard" fill="#6366f1" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="Test" fill="#a855f7" radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
 }
 
 function ActivityTable({ logs }: { logs: ActivityLog[] }) {
@@ -63,13 +115,143 @@ function ActivityTable({ logs }: { logs: ActivityLog[] }) {
   );
 }
 
+function ProgressChart({ history }: { history: ProgressHistoryByDate[] }) {
+  const data = history.map(({ date, gained, lost }) => ({
+    date: shortDate(date),
+    Gained: gained.reduce((n, e) => n + e.skills.length, 0),
+    Lost: lost.reduce((n, e) => n + e.skills.length, 0),
+  }));
+
+  if (data.length === 0) return null;
+
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+        <Tooltip />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        <Bar dataKey="Gained" radius={[3, 3, 0, 0]}>
+          {data.map((_, i) => <Cell key={i} fill="#22c55e" />)}
+        </Bar>
+        <Bar dataKey="Lost" radius={[3, 3, 0, 0]}>
+          {data.map((_, i) => <Cell key={i} fill="#ef4444" />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+const SKILL_LABEL: Record<string, string> = { reading: "Reading", writing: "Writing", radical: "Radical" };
+
+function ProgressTable({ history }: { history: ProgressHistoryByDate[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (date: string) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(date) ? next.delete(date) : next.add(date);
+      return next;
+    });
+
+  if (history.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4 text-center">No mastery changes recorded yet.</p>;
+  }
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b text-muted-foreground">
+          <th className="text-left py-2 font-medium w-8" />
+          <th className="text-left py-2 font-medium">Date</th>
+          <th className="text-right py-2 font-medium text-green-600">Gained</th>
+          <th className="text-right py-2 font-medium text-red-500">Lost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[...history].reverse().map(({ date, gained, lost }) => {
+          const gainedCount = gained.reduce((n, e) => n + e.skills.length, 0);
+          const lostCount = lost.reduce((n, e) => n + e.skills.length, 0);
+          const isOpen = expanded.has(date);
+          return (
+            <>
+              <tr
+                key={date}
+                className="border-b cursor-pointer hover:bg-muted/40"
+                onClick={() => toggle(date)}
+              >
+                <td className="py-2 pl-1">
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </td>
+                <td className="py-2 font-medium">{date}</td>
+                <td className="py-2 text-right text-green-600 font-medium">
+                  {gainedCount > 0 ? `+${gainedCount}` : "—"}
+                </td>
+                <td className="py-2 text-right text-red-500 font-medium">
+                  {lostCount > 0 ? `-${lostCount}` : "—"}
+                </td>
+              </tr>
+              {isOpen && (
+                <tr key={`${date}-detail`} className="border-b bg-muted/20">
+                  <td colSpan={4} className="px-4 py-3">
+                    <div className="space-y-2">
+                      {gained.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-green-700 mb-1">Gained</p>
+                          <div className="flex flex-wrap gap-2">
+                            {gained.map(e => (
+                              <span key={e.characterIndex} className="inline-flex items-center gap-1 rounded-md bg-green-50 border border-green-200 px-2 py-0.5 text-xs">
+                                <span className="text-base leading-none">{e.simplified}</span>
+                                <span className="text-muted-foreground">{e.skills.map(s => SKILL_LABEL[s]).join(", ")}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {lost.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-red-600 mb-1">Lost</p>
+                          <div className="flex flex-wrap gap-2">
+                            {lost.map(e => (
+                              <span key={e.characterIndex} className="inline-flex items-center gap-1 rounded-md bg-red-50 border border-red-200 px-2 py-0.5 text-xs">
+                                <span className="text-base leading-none">{e.simplified}</span>
+                                <span className="text-muted-foreground">{e.skills.map(s => SKILL_LABEL[s]).join(", ")}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 function StudentDetail({ student, onBack }: { student: SafeUser; onBack: () => void }) {
   const { from, to } = last30Days();
-  const { data: logs = [], isLoading } = useQuery<ActivityLog[]>({
+
+  const { data: logs = [], isLoading: activityLoading } = useQuery<ActivityLog[]>({
     queryKey: ["/api/teacher/students", student.id, "activity", from, to],
     queryFn: async () => {
       const res = await authenticatedFetch(
         `/api/teacher/students/${student.id}/activity?from=${from}&to=${to}`
+      );
+      return res.json();
+    },
+    staleTime: 0,
+  });
+
+  const { data: history = [], isLoading: historyLoading } = useQuery<ProgressHistoryByDate[]>({
+    queryKey: ["/api/teacher/students", student.id, "progress-history", from, to],
+    queryFn: async () => {
+      const res = await authenticatedFetch(
+        `/api/teacher/students/${student.id}/progress-history?from=${from}&to=${to}`
       );
       return res.json();
     },
@@ -81,23 +263,56 @@ function StudentDetail({ student, onBack }: { student: SafeUser; onBack: () => v
       <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
         <ChevronLeft className="w-4 h-4" /> Back
       </Button>
-      <h2 className="text-xl font-semibold">
-        {student.firstName ?? student.email}
-        {student.lastName ? ` ${student.lastName}` : ""}
-      </h2>
-      <p className="text-sm text-muted-foreground">{student.email}</p>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Activity — last 30 days</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <ActivityTable logs={logs} />
-          )}
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-xl font-semibold">
+          {student.firstName ?? student.email}
+          {student.lastName ? ` ${student.lastName}` : ""}
+        </h2>
+        <p className="text-sm text-muted-foreground">{student.email}</p>
+      </div>
+
+      <Tabs defaultValue="activity">
+        <TabsList>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="progress">Progress</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="activity" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Time spent — last 30 days</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {activityLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : (
+                <>
+                  <ActivityChart logs={logs} />
+                  <ActivityTable logs={logs} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="progress" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Mastery changes — last 30 days</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {historyLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : (
+                <>
+                  <ProgressChart history={history} />
+                  <ProgressTable history={history} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
