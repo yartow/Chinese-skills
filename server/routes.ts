@@ -1553,6 +1553,8 @@ Be concise and encouraging.`;
       const isOwned = students.some(s => s.id === req.params.studentId);
       if (!isOwned) return res.status(403).json({ message: 'That student is not in your list' });
       const { from, to } = req.query as { from?: string; to?: string };
+      if (from && isNaN(Date.parse(from))) return res.status(400).json({ message: 'Invalid "from" date' });
+      if (to   && isNaN(Date.parse(to)))   return res.status(400).json({ message: 'Invalid "to" date' });
       const history = await storage.getProgressHistory(req.params.studentId, from, to);
       res.json(history);
     } catch (err) { next(err); }

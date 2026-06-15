@@ -267,35 +267,43 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getCharacterProgress(progressData.userId, progressData.characterIndex);
 
     if (existing) {
-      const [updated] = await db
-        .update(characterProgress)
-        .set({
-          reading: progressData.reading,
-          writing: progressData.writing,
-          radical: progressData.radical,
-          updatedAt: new Date(),
-        })
-        .where(eq(characterProgress.id, existing.id))
-        .returning();
-      const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
-      for (const skill of ['reading', 'writing', 'radical'] as const) {
-        if (progressData[skill] !== existing[skill]) {
-          historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: progressData[skill] ?? false });
+      return await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(characterProgress)
+          .set({
+            reading: progressData.reading,
+            writing: progressData.writing,
+            radical: progressData.radical,
+            updatedAt: new Date(),
+          })
+          .where(eq(characterProgress.id, existing.id))
+          .returning();
+        const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
+        for (const skill of ['reading', 'writing', 'radical'] as const) {
+          if (updated[skill] !== existing[skill]) {
+            historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: updated[skill] });
+          }
         }
-      }
-      if (historyEntries.length > 0) await this.recordProgressHistory(progressData.userId, historyEntries);
-      return updated;
+        if (historyEntries.length > 0) {
+          await tx.insert(progressHistory).values(historyEntries.map(e => ({ userId: progressData.userId, ...e })));
+        }
+        return updated;
+      });
     } else {
-      const [created] = await db
-        .insert(characterProgress)
-        .values(progressData)
-        .returning();
-      const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
-      for (const skill of ['reading', 'writing', 'radical'] as const) {
-        if (progressData[skill]) historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: true });
-      }
-      if (historyEntries.length > 0) await this.recordProgressHistory(progressData.userId, historyEntries);
-      return created;
+      return await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(characterProgress)
+          .values(progressData)
+          .returning();
+        const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
+        for (const skill of ['reading', 'writing', 'radical'] as const) {
+          if (created[skill]) historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: true });
+        }
+        if (historyEntries.length > 0) {
+          await tx.insert(progressHistory).values(historyEntries.map(e => ({ userId: progressData.userId, ...e })));
+        }
+        return created;
+      });
     }
   }
 
@@ -313,26 +321,29 @@ export class DatabaseStorage implements IStorage {
 
     const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
 
-    if (toInsert.length > 0) {
-      await db.insert(characterProgress).values(toInsert.map(u => ({ userId, ...u })));
-      for (const u of toInsert) {
-        for (const skill of ['reading', 'writing', 'radical'] as const) {
-          if (u[skill]) historyEntries.push({ characterIndex: u.characterIndex, skillType: skill, gained: true });
+    await db.transaction(async (tx) => {
+      if (toInsert.length > 0) {
+        await tx.insert(characterProgress).values(toInsert.map(u => ({ userId, ...u })));
+        for (const u of toInsert) {
+          for (const skill of ['reading', 'writing', 'radical'] as const) {
+            if (u[skill]) historyEntries.push({ characterIndex: u.characterIndex, skillType: skill, gained: true });
+          }
         }
       }
-    }
-    await Promise.all(
-      toUpdate.map(u => {
+      const updateOps = toUpdate.map(u => {
         const prev = existingMap.get(u.characterIndex)!;
         for (const skill of ['reading', 'writing', 'radical'] as const) {
           if (u[skill] !== prev[skill]) historyEntries.push({ characterIndex: u.characterIndex, skillType: skill, gained: u[skill] });
         }
-        return db.update(characterProgress)
+        return tx.update(characterProgress)
           .set({ reading: u.reading, writing: u.writing, radical: u.radical, updatedAt: new Date() })
           .where(and(eq(characterProgress.userId, userId), eq(characterProgress.characterIndex, u.characterIndex)));
-      })
-    );
-    if (historyEntries.length > 0) await this.recordProgressHistory(userId, historyEntries);
+      });
+      await Promise.all(updateOps);
+      if (historyEntries.length > 0) {
+        await tx.insert(progressHistory).values(historyEntries.map(e => ({ userId, ...e })));
+      }
+    });
   }
 
   async recordProgressHistory(userId: string, entries: { characterIndex: number; skillType: string; gained: boolean }[]): Promise<void> {
@@ -342,8 +353,8 @@ export class DatabaseStorage implements IStorage {
 
   async getProgressHistory(studentId: string, from?: string, to?: string): Promise<ProgressHistoryByDate[]> {
     const conditions = [eq(progressHistory.userId, studentId)];
-    if (from) conditions.push(sql`DATE(${progressHistory.changedAt}) >= ${from}::date`);
-    if (to)   conditions.push(sql`DATE(${progressHistory.changedAt}) <= ${to}::date`);
+    if (from) conditions.push(sql`${progressHistory.changedAt} >= ${from}::date`);
+    if (to)   conditions.push(sql`${progressHistory.changedAt} < ${to}::date + interval '1 day'`);
 
     const rows = await db
       .select({

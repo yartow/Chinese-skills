@@ -221,7 +221,9 @@ export const progressHistory = pgTable("progress_history", {
   skillType: varchar("skill_type", { length: 10 }).notNull(), // 'reading' | 'writing' | 'radical'
   gained: boolean("gained").notNull(), // true = mastered, false = lost mastery
   changedAt: timestamp("changed_at").defaultNow().notNull(),
-});
+}, (t) => [
+  index("idx_progress_history_user_time").on(t.userId, t.changedAt),
+]);
 
 export type ProgressHistory = typeof progressHistory.$inferSelect;
 
