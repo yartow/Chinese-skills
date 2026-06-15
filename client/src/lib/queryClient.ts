@@ -7,16 +7,15 @@ import { get, set, del } from "idb-keyval";
 // Guard flag prevents multiple parallel 401s from each triggering a redirect.
 let sessionExpiredHandled = false;
 
+export async function clearPersistedCache() {
+  queryClient.clear();
+  await del("hanzi-query-cache").catch(() => {});
+}
+
 function handleSessionExpired() {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
-  // Clear in-memory cache first so any pending persistQueryClient write uses
-  // empty state rather than stale user data (belt-and-suspenders alongside
-  // the service-worker fix that is the real guard against the redirect loop).
-  queryClient.clear();
-  del("hanzi-query-cache")
-    .catch(() => {})
-    .finally(() => { window.location.href = "/auth"; });
+  clearPersistedCache().finally(() => { window.location.href = "/auth"; });
 }
 
 async function throwIfResNotOk(res: Response) {

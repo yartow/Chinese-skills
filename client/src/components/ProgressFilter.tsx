@@ -14,19 +14,19 @@ interface ProgressFilterProps {
   onToggleFilterRadical: () => void;
   selectedHskLevels: number[];
   onToggleHskLevel: (level: number) => void;
-  sources: { id: number; name: string }[];
-  classes: { id: number; name: string; sourceId: number }[];
-  lessons: { id: number; lesson: string; classId: number }[];
-  selectedSourceId: number | null;
-  selectedClassId: number | null;
-  selectedLessonId: number | null;
-  filterCore: boolean;
-  filterOther: boolean;
-  onSelectSource: (id: number | null) => void;
-  onSelectClass: (id: number | null) => void;
-  onSelectLesson: (id: number | null) => void;
-  onToggleFilterCore: () => void;
-  onToggleFilterOther: () => void;
+  sources?: { id: number; name: string }[];
+  classes?: { id: number; name: string; sourceId: number }[];
+  lessons?: { id: number; lesson: string; classId: number }[];
+  selectedSourceId?: number | null;
+  selectedClassId?: number | null;
+  selectedLessonId?: number | null;
+  filterCore?: boolean;
+  filterOther?: boolean;
+  onSelectSource?: (id: number | null) => void;
+  onSelectClass?: (id: number | null) => void;
+  onSelectLesson?: (id: number | null) => void;
+  onToggleFilterCore?: () => void;
+  onToggleFilterOther?: () => void;
 }
 
 export default function ProgressFilter({
@@ -38,19 +38,19 @@ export default function ProgressFilter({
   onToggleFilterRadical,
   selectedHskLevels,
   onToggleHskLevel,
-  sources,
-  classes,
-  lessons,
-  selectedSourceId,
-  selectedClassId,
-  selectedLessonId,
-  filterCore,
-  filterOther,
-  onSelectSource,
-  onSelectClass,
-  onSelectLesson,
-  onToggleFilterCore,
-  onToggleFilterOther,
+  sources = [],
+  classes = [],
+  lessons = [],
+  selectedSourceId = null,
+  selectedClassId = null,
+  selectedLessonId = null,
+  filterCore = false,
+  filterOther = false,
+  onSelectSource = () => {},
+  onSelectClass = () => {},
+  onSelectLesson = () => {},
+  onToggleFilterCore = () => {},
+  onToggleFilterOther = () => {},
 }: ProgressFilterProps) {
   return (
     <div className="space-y-4">

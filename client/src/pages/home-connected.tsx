@@ -11,7 +11,7 @@ import ScriptToggle from "@/components/ScriptToggle";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProgressFilter from "@/components/ProgressFilter";
 import { LogOut, Filter, MoreVertical, BookOpen, PenTool, Grid3x3, CheckCircle2 } from "lucide-react";
-import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, queryClient, clearPersistedCache } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
 import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
 
@@ -209,6 +209,7 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
+    await clearPersistedCache();
     await fetch("/api/logout", { method: "POST", credentials: "include" });
     window.location.href = "/auth";
   };

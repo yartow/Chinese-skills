@@ -72,6 +72,20 @@ function Router() {
     return () => window.removeEventListener("replayTutorial", handler);
   }, []);
 
+  const role = (user as any)?.role;
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && location === '/auth') {
+      setLocation('/');
+    }
+  }, [isLoading, isAuthenticated, location, setLocation]);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && role === 'user' && location !== '/onboarding') {
+      setLocation('/onboarding');
+    }
+  }, [isLoading, isAuthenticated, role, location, setLocation]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -84,21 +98,10 @@ function Router() {
     return location === '/auth' ? <AuthPage /> : <Landing />;
   }
 
-  // Authenticated users visiting /auth get redirected to home.
-  // This prevents the 404 that appears when stale IndexedDB cache
-  // makes isAuthenticated briefly true while navigating to /auth.
-  if (location === '/auth') {
-    setLocation('/');
+  if (location === '/auth' || (role === 'user' && location !== '/onboarding')) {
     return null;
   }
 
-  // New users haven't picked a role yet — send them to onboarding.
-  // admin is exempt (manually assigned, always fully set up).
-  const role = (user as any)?.role;
-  if (role === 'user' && location !== '/onboarding') {
-    setLocation('/onboarding');
-    return null;
-  }
   if (location === '/onboarding') {
     return <OnboardingPage />;
   }
