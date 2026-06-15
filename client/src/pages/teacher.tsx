@@ -177,8 +177,12 @@ function ProgressTable({ history }: { history: ProgressHistoryByDate[] }) {
             <>
               <tr
                 key={date}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
                 className="border-b cursor-pointer hover:bg-muted/40"
                 onClick={() => toggle(date)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(date); } }}
               >
                 <td className="py-2 pl-1">
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />

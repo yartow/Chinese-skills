@@ -50,6 +50,7 @@ function SidebarLink({
   return (
     <button
       onClick={() => setLocation(item.href)}
+      aria-label={!showLabel ? item.label : undefined}
       className={cn(
         "flex items-center rounded-lg text-sm transition-colors w-full",
         showLabel ? "gap-3 px-3 py-2" : "justify-center py-2.5",
@@ -109,13 +110,14 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
           <LogoBadge />
         </div>
         <nav className="flex-1 flex flex-col gap-0.5 p-2 pt-3">
-          {[...learnItems, ...exploreItems].map((item) => (
+          {[...learnItems, ...exploreItems, ...classroomItems].map((item) => (
             <SidebarLink key={item.href} item={item} location={location} setLocation={setLocation} showLabel={false} />
           ))}
         </nav>
         <div className="flex flex-col gap-0.5 p-2 pb-3 border-t">
           {showMessages && (
             <button
+              aria-label="Messages"
               onClick={() => setLocation("/messages")}
               className={cn(
                 "relative flex justify-center py-2.5 rounded-lg transition-colors",
@@ -250,6 +252,7 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
             <span className="font-semibold text-sm">Learn Chinese</span>
           </div>
           <button
+            aria-label="Search"
             onClick={() => setLocation("/search")}
             className="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
@@ -257,6 +260,7 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
           </button>
           {showMessages && (
             <button
+              aria-label="Messages"
               onClick={() => setLocation("/messages")}
               className="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors relative"
             >
@@ -320,7 +324,7 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
         >
           <span className="relative">
             <MoreHorizontal className="w-5 h-5" />
-            {showMessages && unreadCount > 0 && !showMessages && (
+            {showMessages && unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive" />
             )}
           </span>
