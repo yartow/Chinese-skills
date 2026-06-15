@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -30,11 +31,7 @@ export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const { user, isLoading } = useAuth();
 
-  if (!isLoading && user?.role !== "user") {
-    setLocation("/");
-    return null;
-  }
-
+  // All hooks must come before any conditional returns.
   const roleMutation = useMutation({
     mutationFn: async (role: typeof roles[number]["value"]) => {
       const res = await apiRequest("PATCH", "/api/user/role", { role });
@@ -45,6 +42,16 @@ export default function OnboardingPage() {
       setLocation("/");
     },
   });
+
+  useEffect(() => {
+    if (!isLoading && user && (user as any).role !== "user") {
+      setLocation("/");
+    }
+  }, [isLoading, user, setLocation]);
+
+  if (!isLoading && user && (user as any).role !== "user") {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
