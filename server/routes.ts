@@ -1547,6 +1547,17 @@ Be concise and encouraging.`;
     } catch (err) { next(err); }
   });
 
+  app.get('/api/teacher/students/:studentId/progress-history', isTeacher, async (req: any, res, next) => {
+    try {
+      const students = await storage.getStudents(req.user.id);
+      const isOwned = students.some(s => s.id === req.params.studentId);
+      if (!isOwned) return res.status(403).json({ message: 'That student is not in your list' });
+      const { from, to } = req.query as { from?: string; to?: string };
+      const history = await storage.getProgressHistory(req.params.studentId, from, to);
+      res.json(history);
+    } catch (err) { next(err); }
+  });
+
   // ─── Student-side teacher approval ────────────────────────────────────────
 
   app.get('/api/student/pending-teachers', isAuthenticated, async (req: any, res, next) => {

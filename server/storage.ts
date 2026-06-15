@@ -38,6 +38,7 @@ import {
   type Source,
   type CustomClass,
   type Lesson,
+  progressHistory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, lt, inArray, notInArray, or, isNull, like, sql, count } from "drizzle-orm";
@@ -60,6 +61,18 @@ export interface CharacterFilters {
 export interface FilteredCharactersResult {
   characters: ChineseCharacter[];
   total: number;
+}
+
+export interface ProgressHistoryEntry {
+  characterIndex: number;
+  simplified: string;
+  skills: string[];
+}
+
+export interface ProgressHistoryByDate {
+  date: string;
+  gained: ProgressHistoryEntry[];
+  lost: ProgressHistoryEntry[];
 }
 
 export interface MasteryStats {
@@ -108,6 +121,8 @@ export interface IStorage {
   batchUpsertCharacterProgress(userId: string, updates: Array<{ characterIndex: number; reading: boolean; writing: boolean; radical: boolean }>): Promise<void>;
   getMasteryStats(userId: string): Promise<MasteryStats>;
   getFirstNonMasteredIndex(userId: string, startIndex: number): Promise<number>;
+  recordProgressHistory(userId: string, entries: { characterIndex: number; skillType: string; gained: boolean }[]): Promise<void>;
+  getProgressHistory(studentId: string, from?: string, to?: string): Promise<ProgressHistoryByDate[]>;
 
   // Saved items operations
   getSavedItems(userId: string): Promise<SavedItem[]>;
@@ -249,9 +264,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertCharacterProgress(progressData: InsertCharacterProgress): Promise<CharacterProgress> {
-    // First try to find existing progress
     const existing = await this.getCharacterProgress(progressData.userId, progressData.characterIndex);
-    
+
     if (existing) {
       const [updated] = await db
         .update(characterProgress)
@@ -263,12 +277,24 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(characterProgress.id, existing.id))
         .returning();
+      const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
+      for (const skill of ['reading', 'writing', 'radical'] as const) {
+        if (progressData[skill] !== existing[skill]) {
+          historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: progressData[skill] ?? false });
+        }
+      }
+      if (historyEntries.length > 0) await this.recordProgressHistory(progressData.userId, historyEntries);
       return updated;
     } else {
       const [created] = await db
         .insert(characterProgress)
         .values(progressData)
         .returning();
+      const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
+      for (const skill of ['reading', 'writing', 'radical'] as const) {
+        if (progressData[skill]) historyEntries.push({ characterIndex: progressData.characterIndex, skillType: skill, gained: true });
+      }
+      if (historyEntries.length > 0) await this.recordProgressHistory(progressData.userId, historyEntries);
       return created;
     }
   }
@@ -285,16 +311,75 @@ export class DatabaseStorage implements IStorage {
     const toInsert = updates.filter(u => !existingMap.has(u.characterIndex));
     const toUpdate = updates.filter(u => existingMap.has(u.characterIndex));
 
+    const historyEntries: { characterIndex: number; skillType: string; gained: boolean }[] = [];
+
     if (toInsert.length > 0) {
       await db.insert(characterProgress).values(toInsert.map(u => ({ userId, ...u })));
+      for (const u of toInsert) {
+        for (const skill of ['reading', 'writing', 'radical'] as const) {
+          if (u[skill]) historyEntries.push({ characterIndex: u.characterIndex, skillType: skill, gained: true });
+        }
+      }
     }
     await Promise.all(
-      toUpdate.map(u =>
-        db.update(characterProgress)
+      toUpdate.map(u => {
+        const prev = existingMap.get(u.characterIndex)!;
+        for (const skill of ['reading', 'writing', 'radical'] as const) {
+          if (u[skill] !== prev[skill]) historyEntries.push({ characterIndex: u.characterIndex, skillType: skill, gained: u[skill] });
+        }
+        return db.update(characterProgress)
           .set({ reading: u.reading, writing: u.writing, radical: u.radical, updatedAt: new Date() })
-          .where(and(eq(characterProgress.userId, userId), eq(characterProgress.characterIndex, u.characterIndex)))
-      )
+          .where(and(eq(characterProgress.userId, userId), eq(characterProgress.characterIndex, u.characterIndex)));
+      })
     );
+    if (historyEntries.length > 0) await this.recordProgressHistory(userId, historyEntries);
+  }
+
+  async recordProgressHistory(userId: string, entries: { characterIndex: number; skillType: string; gained: boolean }[]): Promise<void> {
+    if (entries.length === 0) return;
+    await db.insert(progressHistory).values(entries.map(e => ({ userId, ...e })));
+  }
+
+  async getProgressHistory(studentId: string, from?: string, to?: string): Promise<ProgressHistoryByDate[]> {
+    const conditions = [eq(progressHistory.userId, studentId)];
+    if (from) conditions.push(sql`DATE(${progressHistory.changedAt}) >= ${from}::date`);
+    if (to)   conditions.push(sql`DATE(${progressHistory.changedAt}) <= ${to}::date`);
+
+    const rows = await db
+      .select({
+        date: sql<string>`TO_CHAR(${progressHistory.changedAt}, 'YYYY-MM-DD')`,
+        characterIndex: progressHistory.characterIndex,
+        skillType: progressHistory.skillType,
+        gained: progressHistory.gained,
+        simplified: chineseCharacters.simplified,
+      })
+      .from(progressHistory)
+      .innerJoin(chineseCharacters, eq(progressHistory.characterIndex, chineseCharacters.index))
+      .where(and(...conditions))
+      .orderBy(progressHistory.changedAt);
+
+    // Group by date → then by characterIndex
+    const dateMap = new Map<string, Map<number, { simplified: string; gainedSkills: string[]; lostSkills: string[] }>>();
+    for (const row of rows) {
+      if (!dateMap.has(row.date)) dateMap.set(row.date, new Map());
+      const charMap = dateMap.get(row.date)!;
+      if (!charMap.has(row.characterIndex)) charMap.set(row.characterIndex, { simplified: row.simplified, gainedSkills: [], lostSkills: [] });
+      const entry = charMap.get(row.characterIndex)!;
+      if (row.gained) entry.gainedSkills.push(row.skillType);
+      else entry.lostSkills.push(row.skillType);
+    }
+
+    return Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, charMap]) => {
+        const gained: ProgressHistoryEntry[] = [];
+        const lost: ProgressHistoryEntry[] = [];
+        for (const [characterIndex, { simplified, gainedSkills, lostSkills }] of Array.from(charMap.entries())) {
+          if (gainedSkills.length > 0) gained.push({ characterIndex, simplified, skills: gainedSkills });
+          if (lostSkills.length > 0) lost.push({ characterIndex, simplified, skills: lostSkills });
+        }
+        return { date, gained, lost };
+      });
   }
 
   async getMasteryStats(userId: string): Promise<MasteryStats> {
