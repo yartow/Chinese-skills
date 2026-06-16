@@ -18,6 +18,8 @@ interface CharacterCardProps {
   /** Selection mode — provide both to enable the selection circle */
   selected?: boolean;
   onSelect?: (shiftKey: boolean) => void;
+  /** When true, show a small badge indicating multiple traditional forms exist */
+  hasTraditionalAmbiguity?: boolean;
 }
 
 export default function CharacterCard({
@@ -34,6 +36,7 @@ export default function CharacterCard({
   className,
   selected,
   onSelect,
+  hasTraditionalAmbiguity,
 }: CharacterCardProps) {
   return (
     <Card
@@ -66,12 +69,20 @@ export default function CharacterCard({
           #{index}
         </span>
       )}
-      {hskLevel !== undefined && (
+      {hskLevel !== undefined && hskLevel > 0 && (
         <span
           className="absolute top-2 right-3 text-xs text-muted-foreground font-medium select-none"
           data-testid={`text-hsk-${index}`}
         >
           HSK {hskLevel}
+        </span>
+      )}
+      {hasTraditionalAmbiguity && (
+        <span
+          className="absolute top-2 right-3 mt-5 w-4 h-4 rounded-full bg-amber-100 border border-amber-300 text-amber-700 text-[9px] font-bold flex items-center justify-center select-none"
+          title="Multiple traditional forms"
+        >
+          2
         </span>
       )}
       <div className="text-8xl font-chinese text-center" data-testid={`text-character-${character}`}>

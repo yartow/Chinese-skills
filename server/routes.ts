@@ -5,9 +5,9 @@ import passport from "passport";
 import bcrypt from "bcryptjs";
 import { storage, type CharacterUpdate } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
-import { insertUserSettingsSchema, insertCharacterProgressSchema } from "@shared/schema";
+import { insertUserSettingsSchema, insertCharacterProgressSchema, radicals } from "@shared/schema";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -161,9 +161,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const report = await storage.createCharacterReport(req.user.id, characterIndex, explanation.trim());
       res.status(201).json(report);
     } catch (err: any) {
-      if (err?.code === '23505') {
-        return res.status(409).json({ message: 'You have already reported this character' });
+      next(err);
+    }
+  });
+
+  // ─── AI content generation ────────────────────────────────────────────────
+
+  app.post('/api/characters/:index/generate', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const characterIndex = parseInt(req.params.index);
+      if (isNaN(characterIndex)) return res.status(400).json({ message: 'Invalid character index' });
+
+      const { field } = req.body;
+      if (!['definition', 'examples', 'radical'].includes(field)) {
+        return res.status(400).json({ message: 'field must be definition, examples, or radical' });
       }
+
+      const character = await storage.getCharacter(characterIndex);
+      if (!character) return res.status(404).json({ message: 'Character not found' });
+
+      const anthropic = await getAnthropicForUser(req.user.id);
+      if (!anthropic) return res.status(503).json({ message: 'No Anthropic API key configured. Add one in Settings.' });
+
+      const update: CharacterUpdate = { index: characterIndex };
+
+      if (field === 'definition') {
+        const prompt = `You are a Chinese language educator creating content for a language learning app.\nThe character "${character.simplified}" (traditional: "${character.traditional}", pinyin: ${character.pinyin}) is missing its English definition.\nGenerate 3–5 concise English definitions or meanings as a JSON array of strings.\nFocus on the most common usages a learner would encounter.\nReturn ONLY a valid JSON array, for example: ["to go", "to walk", "to leave"]\nNo other text, no markdown.`;
+        const msg = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '[]';
+        update.definition = JSON.parse(text);
+      } else if (field === 'examples') {
+        const defs = Array.isArray(character.definition) && character.definition.length
+          ? character.definition.join(', ') : '';
+        const prompt = `You are a Chinese language educator. Generate 3 example sentences for this character.\nSimplified: "${character.simplified}", Traditional: "${character.traditional}", Pinyin: ${character.pinyin}${defs ? `, Meaning: ${defs}` : ''}.\nReturn ONLY a JSON object with two arrays (no markdown):\n{\n  "examples": [{"chinese":"simplified sentence","english":"translation"}, ...],\n  "examplesTraditional": [{"chinese":"traditional sentence","english":"translation"}, ...]\n}\nMake sentences natural and educational for Chinese learners.`;
+        const msg = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 800,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}';
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed.examples)) update.examples = parsed.examples;
+        if (Array.isArray(parsed.examplesTraditional)) update.examplesTraditional = parsed.examplesTraditional;
+      } else if (field === 'radical') {
+        const prompt = `Identify the Kangxi radical (部首) of the Chinese character "${character.simplified}".\nReturn ONLY a JSON object (no markdown): {"radical":"<the radical character>","pinyin":"<pinyin with tone mark>"}\nExample: {"radical":"木","pinyin":"mù"}`;
+        const msg = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 50,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}';
+        const parsed = JSON.parse(text);
+        if (parsed.radical) {
+          const found = await db.select().from(radicals).where(
+            or(eq(radicals.traditional, parsed.radical), eq(radicals.simplified, parsed.radical))
+          ).limit(1);
+          if (found.length > 0) {
+            update.radicalIndex = found[0].index;
+            update.radicalIndexTraditional = found[0].index;
+          }
+        }
+      }
+
+      await storage.updateCharactersBatch([update]);
+      const updated = await storage.getCharacter(characterIndex);
+      res.json(updated);
+    } catch (err: any) {
       next(err);
     }
   });

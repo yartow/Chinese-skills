@@ -531,6 +531,7 @@ export class DatabaseStorage implements IStorage {
       wordExamplesTraditional: chineseCharacters.wordExamplesTraditional,
       hskLevel: chineseCharacters.hskLevel,
       lesson: chineseCharacters.lesson,
+      traditionalMappings: chineseCharacters.traditionalMappings,
       radical: radicalsSimp.simplified,
       radicalPinyin: radicalsSimp.pinyin,
       // Traditional radical: use dedicated traditional radical if set, else fall back to simplified radical's traditional form

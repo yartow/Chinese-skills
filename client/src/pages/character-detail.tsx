@@ -5,6 +5,8 @@ import CharacterDetailView from "@/components/CharacterDetailView";
 import type { ChineseCharacter, UserSettings, CharacterProgress, SavedItem } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+type UserSettingsResponse = Omit<UserSettings, "anthropicApiKey"> & { anthropicApiKeySet: boolean };
+
 export default function CharacterDetail() {
   const [, setLocation] = useLocation();
   const { id } = useParams();
@@ -14,7 +16,7 @@ export default function CharacterDetail() {
     queryKey: ["/api/characters", characterIndex],
   });
 
-  const { data: settings } = useQuery<UserSettings>({
+  const { data: settings } = useQuery<UserSettingsResponse>({
     queryKey: ["/api/settings"],
   });
 
@@ -71,6 +73,14 @@ export default function CharacterDetail() {
   const reportMutation = useMutation({
     mutationFn: (explanation: string) =>
       apiRequest("POST", `/api/characters/${characterIndex}/report`, { explanation }),
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: (field: string) =>
+      apiRequest("POST", `/api/characters/${characterIndex}/generate`, { field }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/characters", characterIndex] });
+    },
   });
 
   const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
@@ -144,6 +154,9 @@ export default function CharacterDetail() {
       onPrevious={characterIndex > 0 ? () => setLocation(`/character/${characterIndex - 1}`) : undefined}
       onNext={characterIndex < 2999 ? () => setLocation(`/character/${characterIndex + 1}`) : undefined}
       onReport={async (explanation) => { await reportMutation.mutateAsync(explanation); }}
+      aiGenerationMode={settings?.aiGenerationMode ?? false}
+      anthropicApiKeySet={settings?.anthropicApiKeySet ?? false}
+      onGenerate={async (field) => { await generateMutation.mutateAsync(field); }}
     />
   );
 }

@@ -13,6 +13,7 @@ interface SettingsPanelProps {
   standardModePageSize?: number;
   useAiFeedback?: boolean;
   useAiSentences?: boolean;
+  aiGenerationMode?: boolean;
   anthropicApiKeySet?: boolean;
   advancedEditMode?: boolean;
   onLevelChange: (level: number) => void;
@@ -22,6 +23,7 @@ interface SettingsPanelProps {
   autoReloadDatabase?: boolean;
   onUseAiFeedbackChange?: (value: boolean) => void;
   onUseAiSentencesChange?: (value: boolean) => void;
+  onAiGenerationModeChange?: (value: boolean) => void;
   onAnthropicApiKeyChange?: (key: string) => void;
   onAdvancedEditModeChange?: (value: boolean) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
@@ -36,6 +38,7 @@ export default function SettingsPanel({
   standardModePageSize = 20,
   useAiFeedback = false,
   useAiSentences = false,
+  aiGenerationMode = false,
   anthropicApiKeySet = false,
   handwritingCandidates = 8,
   advancedEditMode = false,
@@ -45,6 +48,7 @@ export default function SettingsPanel({
   onStandardModePageSizeChange,
   onUseAiFeedbackChange,
   onUseAiSentencesChange,
+  onAiGenerationModeChange,
   onAnthropicApiKeyChange,
   onHandwritingCandidatesChange,
   onAdvancedEditModeChange,
@@ -368,6 +372,24 @@ export default function SettingsPanel({
             onCheckedChange={onUseAiFeedbackChange}
             disabled={!anthropicApiKeySet}
             data-testid="toggle-ai-feedback"
+          />
+        </div>
+      )}
+
+      {onAiGenerationModeChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-generation-toggle" className="text-sm">AI content generation</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Show a generate button on character pages to fill in missing definitions, radicals, and examples using Claude. Generated content is saved permanently.
+            </p>
+          </div>
+          <Switch
+            id="ai-generation-toggle"
+            checked={aiGenerationMode}
+            onCheckedChange={onAiGenerationModeChange}
+            disabled={!anthropicApiKeySet}
+            data-testid="toggle-ai-generation"
           />
         </div>
       )}

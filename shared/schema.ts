@@ -67,6 +67,7 @@ export const userSettings = pgTable("user_settings", {
   handwritingCandidates: integer("handwriting_candidates").notNull().default(8),
   advancedEditMode: boolean("advanced_edit_mode").notNull().default(false),
   maxPointsPerChar: integer("max_points_per_char").notNull().default(10),
+  aiGenerationMode: boolean("ai_generation_mode").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -119,6 +120,15 @@ export const chineseCharacters = pgTable("chinese_characters", {
   lesson: smallint("lesson"), // Lesson number for curriculum organization (nullable)
   wordExamples: jsonb("word_examples"), // Array of word usage examples (nullable)
   wordExamplesTraditional: jsonb("word_examples_traditional"), // Traditional form of wordExamples (nullable until translated)
+  // When one simplified form maps to multiple traditional characters (e.g. 发→發/髮),
+  // this stores each traditional reading with its own pinyin and definition.
+  // null = unambiguous 1-to-1 mapping.
+  traditionalMappings: jsonb("traditional_mappings").$type<Array<{
+    char: string;
+    pinyin: string;
+    numberedPinyin: string;
+    definition: string[];
+  }>>(),
 });
 
 export type ChineseCharacter = typeof chineseCharacters.$inferSelect & {
@@ -286,7 +296,6 @@ export const characterReports = pgTable("character_reports", {
 }, (table) => [
   index("idx_character_reports_character").on(table.characterIndex),
   index("idx_character_reports_user").on(table.userId),
-  unique("uq_report_user_char").on(table.userId, table.characterIndex),
   check("chk_report_status", sql`"status" IN ('open', 'resolved')`),
 ]);
 
