@@ -279,12 +279,14 @@ export default function Home() {
               standardModePageSize={settings?.standardModePageSize}
               useAiFeedback={settings?.useAiFeedback ?? false}
               useAiSentences={settings?.useAiSentences ?? false}
+              aiGenerationMode={settings?.aiGenerationMode ?? false}
               anthropicApiKeySet={settings?.anthropicApiKeySet ?? false}
               onLevelChange={handleLevelChange}
               onDailyCharCountChange={handleDailyCharCountChange}
               onStandardModePageSizeChange={(size) => updateSettingsMutation.mutate({ standardModePageSize: size })}
               onUseAiFeedbackChange={(val) => updateSettingsMutation.mutate({ useAiFeedback: val })}
               onUseAiSentencesChange={(val) => updateSettingsMutation.mutate({ useAiSentences: val })}
+              onAiGenerationModeChange={(val) => updateSettingsMutation.mutate({ aiGenerationMode: val })}
               onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
               handwritingCandidates={settings?.handwritingCandidates ?? 8}
               onHandwritingCandidatesChange={(val) => updateSettingsMutation.mutate({ handwritingCandidates: val })}
@@ -454,6 +456,7 @@ export default function Home() {
                         onToggleWriting={() => handleToggleStar(char.index, "writing")}
                         onToggleRadical={() => handleToggleStar(char.index, "radical")}
                         onClick={() => setLocation(`/character/${char.index}`)}
+                        hasTraditionalAmbiguity={isTraditional && (char as any).traditionalMappings?.length > 1}
                       />
                     );
                   })}

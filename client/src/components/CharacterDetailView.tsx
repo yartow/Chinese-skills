@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart, Flag } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart, Flag, Wand2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -47,6 +47,12 @@ interface CharacterDetailViewProps {
     examplesTraditional?: ExampleSentences;
     wordExamples?: WordExamples;
     wordExamplesTraditional?: WordExamples;
+    traditionalMappings?: Array<{
+      char: string;
+      pinyin: string;
+      numberedPinyin: string;
+      definition: string[];
+    }> | null;
   };
   index?: number;
   hskLevel?: number;
@@ -66,6 +72,9 @@ interface CharacterDetailViewProps {
   onPrevious?: () => void;
   onNext?: () => void;
   onReport: (explanation: string) => Promise<void>;
+  aiGenerationMode?: boolean;
+  anthropicApiKeySet?: boolean;
+  onGenerate?: (field: "definition" | "examples" | "radical") => Promise<void>;
 }
 
 export default function CharacterDetailView({
@@ -84,8 +93,20 @@ export default function CharacterDetailView({
   onPrevious,
   onNext,
   onReport,
+  aiGenerationMode,
+  onGenerate,
 }: CharacterDetailViewProps) {
   const [showAllExamples, setShowAllExamples] = useState(false);
+  const [generatingField, setGeneratingField] = useState<string | null>(null);
+
+  async function handleGenerate(field: "definition" | "examples" | "radical") {
+    setGeneratingField(field);
+    try {
+      await onGenerate?.(field);
+    } finally {
+      setGeneratingField(null);
+    }
+  }
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
   const [reportSent, setReportSent] = useState(false);
@@ -221,7 +242,7 @@ export default function CharacterDetailView({
         </div>
 
         <Card className="p-6 space-y-6">
-          {hskLevel !== undefined && (
+          {hskLevel !== undefined && hskLevel > 0 && (
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-2">HSK Level</h3>
               <p className="text-2xl font-semibold" data-testid="text-hsk-level">HSK {hskLevel}</p>
@@ -241,7 +262,22 @@ export default function CharacterDetailView({
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Radical</h3>
+            <div className="flex items-center gap-1 mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Radical</h3>
+              {aiGenerationMode && !displayRadical && (
+                <button
+                  onClick={() => handleGenerate("radical")}
+                  disabled={generatingField === "radical"}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Generate radical with AI"
+                  aria-label="Generate radical with AI"
+                >
+                  {generatingField === "radical"
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Wand2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-4">
               <span className="text-4xl font-chinese" data-testid="text-radical">{displayRadical}</span>
               <span className="text-xl text-muted-foreground" data-testid="text-radical-pinyin">({displayRadicalPinyin})</span>
@@ -249,7 +285,22 @@ export default function CharacterDetailView({
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Definition</h3>
+            <div className="flex items-center gap-1 mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Definition</h3>
+              {aiGenerationMode && character.definition.length === 0 && (
+                <button
+                  onClick={() => handleGenerate("definition")}
+                  disabled={generatingField === "definition"}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Generate definition with AI"
+                  aria-label="Generate definition with AI"
+                >
+                  {generatingField === "definition"
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Wand2 className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
             <ul className="list-disc list-inside space-y-1">
               {character.definition.map((def, index) => (
                 <li key={index} className="text-base" data-testid={`text-definition-${index}`}>
@@ -258,6 +309,23 @@ export default function CharacterDetailView({
               ))}
             </ul>
           </div>
+
+          {isTraditional && character.traditionalMappings && character.traditionalMappings.length > 1 && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Traditional forms</h3>
+              <div className="space-y-2">
+                {character.traditionalMappings.map((m) => (
+                  <div key={m.char} className="flex items-start gap-4 p-3 rounded-lg border bg-card">
+                    <span className="text-4xl font-chinese leading-none shrink-0">{m.char}</span>
+                    <div>
+                      <p className="text-lg font-semibold leading-tight">{m.pinyin}</p>
+                      <p className="text-sm text-muted-foreground">{m.definition.join(" · ")}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card className="p-6">
@@ -299,7 +367,22 @@ export default function CharacterDetailView({
         )}
 
         <Card className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Example Sentences</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">Example Sentences</h3>
+            {aiGenerationMode && activeExamples.length === 0 && (
+              <button
+                onClick={() => handleGenerate("examples")}
+                disabled={generatingField === "examples"}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Generate examples with AI"
+                aria-label="Generate example sentences with AI"
+              >
+                {generatingField === "examples"
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Wand2 className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
           <div className="space-y-4">
             {displayedExamples.map((example, index) => (
               <div key={index} className="space-y-1" data-testid={`example-${index}`}>

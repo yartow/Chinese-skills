@@ -25,6 +25,21 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     // Column already exists or not supported — ignore
   }
 
+  // Allow users to submit multiple reports for the same character (constraint removed).
+  try {
+    await db.execute(sql`ALTER TABLE character_reports DROP CONSTRAINT IF EXISTS uq_report_user_char`);
+  } catch {
+    // Constraint already dropped or table doesn't exist — ignore
+  }
+
+  try {
+    await db.execute(
+      sql`ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS ai_generation_mode boolean NOT NULL DEFAULT false`
+    );
+  } catch {
+    // Column already exists — ignore
+  }
+
   // Ensure the app_config table exists and has a default row.
   try {
     await db.execute(sql`
@@ -197,6 +212,7 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
             wordExamples: sql`excluded.word_examples`,
             wordExamplesTraditional: sql`excluded.word_examples_traditional`,
             lesson: sql`excluded.lesson`,
+            traditionalMappings: sql`excluded.traditional_mappings`,
           },
         });
       updated += batch.length;
