@@ -1,4 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import sharp from "sharp";
+import { patchCharacterInSeed } from "./seedWriter";
+import { getKangxiRadicalNumber } from "./unihan";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import passport from "passport";
@@ -228,6 +231,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateCharactersBatch([update]);
+      // Mirror the change to the seed file so fresh installs also get it.
+      await patchCharacterInSeed(characterIndex, {
+        ...(update.definition && { definition: update.definition }),
+        ...(update.examples && { examples: update.examples }),
+        ...(update.examplesTraditional && { examplesTraditional: update.examplesTraditional }),
+        ...(update.radicalIndex !== undefined && { radicalIndex: update.radicalIndex, radicalIndexTraditional: update.radicalIndexTraditional }),
+      });
+      const updated = await storage.getCharacter(characterIndex);
+      res.json(updated);
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // ─── Radical verification ─────────────────────────────────────────────────
+
+  // Checks the current radical against Claude's knowledge. Returns whether it
+  // is correct, and if not, the suggested replacement (looked up in our radicals
+  // table). Does NOT write to the database — call apply-radical to commit.
+  app.post('/api/characters/:index/verify-radical', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const characterIndex = parseInt(req.params.index);
+      if (isNaN(characterIndex)) return res.status(400).json({ message: 'Invalid character index' });
+
+      const character = await storage.getCharacter(characterIndex);
+      if (!character) return res.status(404).json({ message: 'Character not found' });
+
+      // Determine which character form to look up (prefer traditional — it's unambiguous)
+      const tradChar: string = (character as any).traditional ?? '';
+      const simpChar: string = (character as any).simplified ?? '';
+      const primaryChar = (tradChar && tradChar !== simpChar) ? tradChar : simpChar;
+
+      const correctRadicalNumber = getKangxiRadicalNumber(primaryChar)
+        ?? getKangxiRadicalNumber(simpChar);
+
+      if (correctRadicalNumber == null) {
+        return res.status(422).json({ message: `No Unihan radical data found for ${primaryChar}` });
+      }
+
+      // Fetch the correct radical row from our DB
+      const [correctRadicalRow] = await db.select().from(radicals)
+        .where(eq(radicals.index, correctRadicalNumber)).limit(1);
+
+      if (!correctRadicalRow) {
+        return res.status(422).json({ message: `Radical #${correctRadicalNumber} not found in database` });
+      }
+
+      // Compare with what is currently stored
+      const storedRadicalIndex: number | null = (character as any).radicalIndex ?? null;
+      const isCorrect = storedRadicalIndex === correctRadicalNumber;
+
+      if (isCorrect) {
+        return res.json({
+          correct: true,
+          explanation: `The radical ${correctRadicalRow.traditional} (${correctRadicalRow.pinyin}) is confirmed correct by the Unicode Unihan database (radical #${correctRadicalNumber}).`,
+        });
+      }
+
+      res.json({
+        correct: false,
+        currentRadical: (character as any).radical ?? '',
+        currentPinyin: (character as any).radicalPinyin ?? '',
+        suggestedChar: correctRadicalRow.traditional,
+        suggestedPinyin: correctRadicalRow.pinyin,
+        suggestedRadicalIndex: correctRadicalNumber,
+        inOurDatabase: true,
+        explanation: `According to the Unicode Unihan database, the correct Kangxi radical for ${primaryChar} is #${correctRadicalNumber} (${correctRadicalRow.traditional}, ${correctRadicalRow.pinyin}).`,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  });
+
+  // Applies a verified radical correction to the database AND the seed file.
+  app.post('/api/characters/:index/apply-radical', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const characterIndex = parseInt(req.params.index);
+      if (isNaN(characterIndex)) return res.status(400).json({ message: 'Invalid character index' });
+
+      const { radicalIndex } = req.body;
+      if (typeof radicalIndex !== 'number') return res.status(400).json({ message: 'radicalIndex must be a number' });
+
+      const character = await storage.getCharacter(characterIndex);
+      if (!character) return res.status(404).json({ message: 'Character not found' });
+
+      await storage.updateCharactersBatch([{ index: characterIndex, radicalIndex, radicalIndexTraditional: radicalIndex }]);
+      await patchCharacterInSeed(characterIndex, { radicalIndex, radicalIndexTraditional: radicalIndex });
+
       const updated = await storage.getCharacter(characterIndex);
       res.json(updated);
     } catch (err: any) {
@@ -242,6 +333,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // ─── User profile ─────────────────────────────────────────────────────────
+
+  app.patch('/api/user/profile', isAuthenticated, async (req: any, res, next) => {
+    try {
+      const { firstName, lastName, email } = req.body;
+      if (email !== undefined) {
+        if (typeof email !== 'string' || !email.includes('@')) {
+          return res.status(400).json({ message: 'Invalid email address' });
+        }
+        const existing = await storage.getUserByEmail(email.trim().toLowerCase());
+        if (existing && existing.id !== req.user.id) {
+          return res.status(409).json({ message: 'Email already in use by another account' });
+        }
+      }
+      const user = await storage.updateUser(req.user.id, {
+        ...(firstName !== undefined && { firstName: firstName?.trim() || null }),
+        ...(lastName !== undefined && { lastName: lastName?.trim() || null }),
+        ...(email !== undefined && { email: email.trim().toLowerCase() }),
+      });
+      res.json(user);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/user/avatar', isAuthenticated, upload.single('avatar'), async (req: any, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const resized = await sharp(req.file.buffer)
+        .resize(256, 256, { fit: 'cover', position: 'centre' })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      const dataUrl = `data:image/jpeg;base64,${resized.toString('base64')}`;
+      await storage.updateUser(req.user.id, { profileImageUrl: dataUrl });
+      const user = await storage.getUser(req.user.id);
+      res.json(user);
+    } catch (err) {
+      next(err);
     }
   });
 

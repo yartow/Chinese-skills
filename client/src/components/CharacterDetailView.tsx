@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart, Flag, Wand2, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, PenTool, Grid3x3, Heart, Flag, Wand2, Loader2, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -75,6 +75,19 @@ interface CharacterDetailViewProps {
   aiGenerationMode?: boolean;
   anthropicApiKeySet?: boolean;
   onGenerate?: (field: "definition" | "examples" | "radical") => Promise<void>;
+  onVerifyRadical?: () => Promise<VerifyRadicalResult>;
+  onApplyRadical?: (radicalIndex: number) => Promise<void>;
+}
+
+interface VerifyRadicalResult {
+  correct: boolean;
+  currentRadical?: string;
+  currentPinyin?: string;
+  suggestedChar?: string;
+  suggestedPinyin?: string;
+  suggestedRadicalIndex?: number | null;
+  inOurDatabase?: boolean;
+  explanation?: string | null;
 }
 
 export default function CharacterDetailView({
@@ -95,9 +108,18 @@ export default function CharacterDetailView({
   onReport,
   aiGenerationMode,
   onGenerate,
+  onVerifyRadical,
+  onApplyRadical,
 }: CharacterDetailViewProps) {
   const [showAllExamples, setShowAllExamples] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
+
+  // Radical verification state
+  const [verifyConfirmOpen, setVerifyConfirmOpen] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyRadicalResult | null>(null);
+  const [verifyResultOpen, setVerifyResultOpen] = useState(false);
+  const [applyingRadical, setApplyingRadical] = useState(false);
 
   async function handleGenerate(field: "definition" | "examples" | "radical") {
     setGeneratingField(field);
@@ -105,6 +127,30 @@ export default function CharacterDetailView({
       await onGenerate?.(field);
     } finally {
       setGeneratingField(null);
+    }
+  }
+
+  async function handleVerifyConfirm() {
+    setVerifyConfirmOpen(false);
+    setVerifying(true);
+    try {
+      const result = await onVerifyRadical!();
+      setVerifyResult(result);
+      setVerifyResultOpen(true);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleApplyRadical() {
+    if (!verifyResult?.suggestedRadicalIndex) return;
+    setApplyingRadical(true);
+    try {
+      await onApplyRadical!(verifyResult.suggestedRadicalIndex);
+      setVerifyResultOpen(false);
+      setVerifyResult(null);
+    } finally {
+      setApplyingRadical(false);
     }
   }
   const [reportOpen, setReportOpen] = useState(false);
@@ -281,6 +327,19 @@ export default function CharacterDetailView({
             <div className="flex items-center gap-4">
               <span className="text-4xl font-chinese" data-testid="text-radical">{displayRadical}</span>
               <span className="text-xl text-muted-foreground" data-testid="text-radical-pinyin">({displayRadicalPinyin})</span>
+              {aiGenerationMode && displayRadical && onVerifyRadical && (
+                <button
+                  onClick={() => setVerifyConfirmOpen(true)}
+                  disabled={verifying}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Verify radical with AI"
+                  aria-label="Verify radical with AI"
+                >
+                  {verifying
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <ShieldCheck className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -474,6 +533,92 @@ export default function CharacterDetailView({
                   {reportSubmitting ? "Submitting…" : "Submit report"}
                 </Button>
               </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Radical verify — token-cost confirmation */}
+      <Dialog open={verifyConfirmOpen} onOpenChange={setVerifyConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verify radical with AI?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will ask Claude to look up the correct radical for{" "}
+            <span className="font-chinese text-base font-semibold">{displayChar}</span> and use the official Kangxi definition to determine the correct radical.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={handleVerifyConfirm}>
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Verify
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Radical verify — result */}
+      <Dialog open={verifyResultOpen} onOpenChange={(open) => { if (!open) { setVerifyResultOpen(false); setVerifyResult(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Radical verification result</DialogTitle>
+          </DialogHeader>
+          {verifyResult && (
+            verifyResult.correct ? (
+              <div className="flex items-start gap-3 py-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Radical confirmed correct</p>
+                  {verifyResult.explanation && (
+                    <p className="text-sm text-muted-foreground">{verifyResult.explanation}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <XCircle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Radical may be incorrect</p>
+                    {verifyResult.explanation && (
+                      <p className="text-sm text-muted-foreground">{verifyResult.explanation}</p>
+                    )}
+                  </div>
+                </div>
+                {verifyResult.suggestedChar && (
+                  <div className="rounded-lg border bg-muted/50 p-4 space-y-1">
+                    <p className="text-xs text-muted-foreground">Suggested radical</p>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-4xl font-chinese">{verifyResult.suggestedChar}</span>
+                      {verifyResult.suggestedPinyin && (
+                        <span className="text-lg text-muted-foreground">({verifyResult.suggestedPinyin})</span>
+                      )}
+                    </div>
+                    {!verifyResult.inOurDatabase && (
+                      <p className="text-xs text-amber-600 mt-1">Note: this radical is not in our database.</p>
+                    )}
+                  </div>
+                )}
+                <p className="text-sm">
+                  The correct radical for{" "}
+                  <span className="font-chinese font-semibold">{displayChar}</span> appears to be{" "}
+                  <span className="font-chinese font-semibold">{verifyResult.suggestedChar ?? "unknown"}</span>
+                  {verifyResult.suggestedPinyin ? ` (${verifyResult.suggestedPinyin})` : ""}
+                  . Update the database?
+                </p>
+              </div>
+            )
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setVerifyResultOpen(false); setVerifyResult(null); }}>
+              {verifyResult?.correct ? "Close" : "No, keep current"}
+            </Button>
+            {verifyResult && !verifyResult.correct && verifyResult.inOurDatabase && verifyResult.suggestedRadicalIndex != null && (
+              <Button onClick={handleApplyRadical} disabled={applyingRadical}>
+                {applyingRadical ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Yes, update
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

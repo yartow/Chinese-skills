@@ -83,6 +83,19 @@ export default function CharacterDetail() {
     },
   });
 
+  const verifyRadicalMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/characters/${characterIndex}/verify-radical`).then(r => r.json()),
+  });
+
+  const applyRadicalMutation = useMutation({
+    mutationFn: (radicalIndex: number) =>
+      apiRequest("POST", `/api/characters/${characterIndex}/apply-radical`, { radicalIndex }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/characters", characterIndex] });
+    },
+  });
+
   const handleToggleProgress = (type: "reading" | "writing" | "radical") => {
     // Use functional updater so every rapid click sees the latest local state
     setLocalProgress(prev => {
@@ -157,6 +170,8 @@ export default function CharacterDetail() {
       aiGenerationMode={settings?.aiGenerationMode ?? false}
       anthropicApiKeySet={settings?.anthropicApiKeySet ?? false}
       onGenerate={async (field) => { await generateMutation.mutateAsync(field); }}
+      onVerifyRadical={async () => verifyRadicalMutation.mutateAsync()}
+      onApplyRadical={async (radicalIndex) => { await applyRadicalMutation.mutateAsync(radicalIndex); }}
     />
   );
 }

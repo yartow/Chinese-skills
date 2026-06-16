@@ -24,6 +24,7 @@ import CustomizePage from "./pages/customize";
 import CustomizeMatchPage from "./pages/customize-match";
 import CheckupPage from "./pages/checkup";
 import CheckupCreatePage from "./pages/checkup-create";
+import SettingsPage from "./pages/settings";
 import AppShell from "./components/layout/AppShell";
 import CommandPalette from "./components/CommandPalette";
 import TutorialOverlay from "./components/TutorialOverlay";
@@ -131,6 +132,7 @@ function Router() {
         <Route path="/checkup/:id" component={CheckupPage} />
         <Route path="/customize/match" component={CustomizeMatchPage} />
         <Route path="/customize" component={CustomizePage} />
+        <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
       <TutorialOverlay

@@ -101,6 +101,7 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
   const modesActive = ["/standard", "/words", "/test"].includes(location);
   const moreActive = !modesActive && !["/", "/browse"].includes(location);
   const displayName = (user as any)?.firstName ?? (user as any)?.email?.split("@")[0] ?? "User";
+  const avatarUrl: string | undefined = (user as any)?.profileImageUrl;
 
   return (
     <div className="flex min-h-screen">
@@ -134,11 +135,17 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
               )}
             </button>
           )}
-          <div className="flex justify-center py-2">
-            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
-              <User className="w-4 h-4 text-muted-foreground" />
+          <button
+            className="flex justify-center py-2 w-full"
+            onClick={() => setLocation("/settings")}
+            aria-label="Settings"
+          >
+            <div className="w-7 h-7 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+              {avatarUrl
+                ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                : <User className="w-4 h-4 text-muted-foreground" />}
             </div>
-          </div>
+          </button>
         </div>
       </aside>
 
@@ -211,16 +218,21 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent transition-colors w-full text-left">
-                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {displayName[0]?.toUpperCase()}
-                  </span>
+                <div className="w-7 h-7 rounded-full overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                    : <span className="text-xs font-medium text-muted-foreground">{displayName[0]?.toUpperCase()}</span>}
                 </div>
                 <span className="text-sm text-foreground truncate flex-1">{displayName}</span>
                 <Settings className="w-4 h-4 text-muted-foreground shrink-0" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuItem onClick={() => setLocation("/settings")}>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => window.dispatchEvent(new Event("replayTutorial"))}
               >
@@ -377,6 +389,7 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
               { icon: Bell, label: "Messages", href: "/messages", show: showMessages },
               { icon: Layers, label: "Customize", href: "/customize", show: showCustomize },
               { icon: GraduationCap, label: "Students Roster", href: "/teacher", show: role === "teacher" },
+              { icon: Settings, label: "Settings", href: "/settings", show: true },
             ] as { icon: React.ElementType; label: string; href: string; show: boolean }[])
               .filter((i) => i.show)
               .map(({ icon: Icon, label, href }) => (
