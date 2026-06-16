@@ -16,7 +16,7 @@ export const radicals = pgTable("radicals", {
 
 export type Radical = typeof radicals.$inferSelect;
 
-// Session storage table (required for Replit Auth)
+// Session storage table (required for express-session + connect-pg-simple)
 export const sessions = pgTable(
   "sessions",
   {

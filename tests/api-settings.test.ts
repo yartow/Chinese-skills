@@ -7,7 +7,7 @@
  *   GET  /api/app-config    — must return { autoReloadDatabase }
  *   PATCH /api/app-config   — must validate type, update setting
  *
- * Dependencies (db, storage, replitAuth) are fully mocked so no real database
+ * Dependencies (db, storage, auth) are fully mocked so no real database
  * or network connection is needed.
  */
 
@@ -53,10 +53,10 @@ const { mockStorage, mockDb } = vi.hoisted(() => {
 
 vi.mock("../server/db", () => ({ db: mockDb, pool: {} }));
 vi.mock("../server/storage", () => ({ storage: mockStorage }));
-vi.mock("../server/replitAuth", () => ({
+vi.mock("../server/auth", () => ({
   setupAuth: vi.fn(),
   isAuthenticated: (req: any, _res: any, next: any) => {
-    req.user = { claims: { sub: "test-user-id" } };
+    req.user = { id: "test-user-id", email: "test@example.com" };
     next();
   },
 }));
@@ -98,7 +98,7 @@ describe("GET /api/settings", () => {
 
   it("returns 401 when not authenticated", async () => {
     // Override isAuthenticated temporarily for this one test
-    vi.doMock("../server/replitAuth", () => ({
+    vi.doMock("../server/auth", () => ({
       setupAuth: vi.fn(),
       isAuthenticated: (_req: any, res: any) => res.status(401).json({ message: "Unauthorized" }),
     }));

@@ -60,10 +60,10 @@ vi.mock("../server/db", () => ({
   pool: {},
 }));
 vi.mock("../server/storage", () => ({ storage: mockStorage }));
-vi.mock("../server/replitAuth", () => ({
+vi.mock("../server/auth", () => ({
   setupAuth: vi.fn(),
   isAuthenticated: (req: any, _res: any, next: any) => {
-    req.user = { claims: { sub: "test-user-id" } };
+    req.user = { id: "test-user-id", email: "test@example.com" };
     next();
   },
 }));
