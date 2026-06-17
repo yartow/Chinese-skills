@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import SettingsPanel from "@/components/SettingsPanel";
 import { useAuth } from "@/hooks/useAuth";
+import { compressImageForUpload } from "@/lib/compressImage";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UserSettings } from "@shared/schema";
 
@@ -21,6 +22,8 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarCompressing, setAvatarCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,8 +78,10 @@ export default function SettingsPage() {
       return res.json();
     },
     onSuccess: () => {
+      setAvatarError(null);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     },
+    onError: (err: Error) => setAvatarError(err.message),
   });
 
   const avatarUrl = typedUser?.profileImageUrl;
@@ -102,7 +107,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={avatarMutation.isPending}
+              disabled={avatarMutation.isPending || avatarCompressing}
               className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center hover:opacity-80 transition-opacity group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
               aria-label="Upload profile photo"
             >
@@ -115,7 +120,7 @@ export default function SettingsPage() {
                 <Camera className="w-6 h-6 text-white" />
               </div>
             </button>
-            {avatarMutation.isPending && (
+            {(avatarCompressing || avatarMutation.isPending) && (
               <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
                 <Loader2 className="w-6 h-6 text-white animate-spin" />
               </div>
@@ -123,9 +128,11 @@ export default function SettingsPage() {
           </div>
           <div className="space-y-0.5">
             <p className="text-sm font-medium">Profile photo</p>
-            <p className="text-xs text-muted-foreground">Click to upload. Any image format accepted — resized to 256×256 on the server.</p>
-            {avatarMutation.isError && (
-              <p className="text-xs text-destructive">{(avatarMutation.error as Error).message}</p>
+            <p className="text-xs text-muted-foreground">
+              Click to upload. Photos are compressed in your browser, then saved as 256×256 on the server.
+            </p>
+            {avatarError && (
+              <p className="text-xs text-destructive">{avatarError}</p>
             )}
           </div>
           <input
@@ -133,11 +140,19 @@ export default function SettingsPage() {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                avatarMutation.mutate(file);
-                e.target.value = "";
+              e.target.value = "";
+              if (!file) return;
+              setAvatarError(null);
+              setAvatarCompressing(true);
+              try {
+                const compressed = await compressImageForUpload(file);
+                avatarMutation.mutate(compressed);
+              } catch (err) {
+                setAvatarError((err as Error).message);
+              } finally {
+                setAvatarCompressing(false);
               }
             }}
           />

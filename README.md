@@ -95,7 +95,7 @@ Teachers and students can exchange messages through the Messages tab. The tab is
 | Frontend | React 18 + TypeScript, Vite |
 | Backend | Express.js + TypeScript |
 | Database | PostgreSQL (Neon), Drizzle ORM |
-| Auth | Replit Auth (OpenID Connect) |
+| Auth | Session-based (Passport local + express-session) |
 | UI | Tailwind CSS, Shadcn UI, Lucide icons |
 | Data fetching | TanStack Query v5 |
 | Routing | Wouter |
@@ -178,7 +178,7 @@ Teachers and students can exchange messages through the Messages tab. The tab is
 
 ## scripts/post-merge.sh
 
-This script (`npm install` + `npm run db:push`) is invoked automatically by the Replit task system after a task-agent branch is merged. It is **not** a git hook and is not installed in `.git/hooks/`.
+This optional script runs `npm install` and `npm run db:push`. It is **not** a git hook and is not installed in `.git/hooks/` automatically.
 
 **Safety guard:** The script refuses to run unless `ALLOW_DB_PUSH=true` is set in the environment. This prevents accidental execution in CI or production:
 
@@ -200,7 +200,27 @@ chmod +x .git/hooks/post-merge
 
 ## Getting Started
 
-The app runs on Replit with the `Start application` workflow (`npm run dev`), which starts both the Express server and Vite dev server on the same port.
+### Docker (recommended)
+
+```bash
+cp .env.example .env   # fill in POSTGRES_PASSWORD, SESSION_SECRET, ADMIN_EMAILS
+docker compose build app && docker compose up -d app
+```
+
+The app is available at [http://localhost:5002](http://localhost:5002). Rebuild the image after code changes:
+
+```bash
+docker compose build app && docker compose up -d app
+```
+
+### Local development
+
+```bash
+npm install
+npm run dev
+```
+
+This starts Express and the Vite dev server on the same port (default 5000).
 
 Environment variables required:
 

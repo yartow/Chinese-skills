@@ -4,7 +4,7 @@
 #
 # PURPOSE
 #   Installs dependencies and pushes the Drizzle schema to the database after
-#   a task-agent branch is merged via the Replit task system.  It is NOT
+#   merging schema changes locally. It is NOT installed as a git hook and
 #   installed as a git hook and must never run automatically in CI or
 #   production environments.
 #

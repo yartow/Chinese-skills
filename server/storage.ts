@@ -1,4 +1,3 @@
-// Replit Auth storage implementation - blueprint:javascript_log_in_with_replit
 import {
   users,
   userSettings,

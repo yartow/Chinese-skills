@@ -37,9 +37,7 @@ This is a utility-focused educational application where clarity, efficiency, and
 
 ### Authentication Screen
 - Centered card layout (`max-w-md`)
-- Replit Auth integration with OAuth buttons
-- Clean form fields with `p-4` padding
-- Prominent "Continue with Google" button
+- Email/password login and registration forms
 
 ### Home Screen / Dashboard
 - **Header bar** with app title, level indicator, simplified/traditional toggle switch
