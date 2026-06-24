@@ -470,15 +470,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const page = parseInt(req.query.page as string) || 0;
       const pageSize = parseInt(req.query.pageSize as string) || 20;
-      if (page < 0 || pageSize < 1 || pageSize > 100) {
+      const hasSpecificChars = !!(req.query.specificChars as string);
+      if (page < 0 || pageSize < 1 || (!hasSpecificChars && pageSize > 100)) {
         return res.status(400).json({ message: "Invalid pagination parameters" });
       }
       const filters: any = {};
       if (req.query.hskLevels) {
         const levels = (req.query.hskLevels as string).split(',').map(p => p.trim()).filter(p => p !== '').map(Number).filter(n => !isNaN(n) && n >= 0 && n <= 9);
-        if (levels.length > 0) {
-          filters.hskLevels = levels;
-        }
+        if (levels.length > 0) filters.hskLevels = levels;
       }
       if (req.query.filterReading === 'true') filters.filterReading = true;
       if (req.query.filterWriting === 'true') filters.filterWriting = true;
@@ -486,11 +485,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.lessonId) filters.lessonId = parseInt(req.query.lessonId as string);
       if (req.query.filterCore === 'true') filters.filterCore = true;
       if (req.query.filterOther === 'true') filters.filterOther = true;
+      if (req.query.tagId) filters.tagId = parseInt(req.query.tagId as string);
+      if (hasSpecificChars) {
+        const raw = req.query.specificChars as string;
+        // Split string into individual Unicode code points (handles multi-byte chars)
+        const chars = [...raw].filter(c => c.trim().length > 0);
+        if (chars.length > 0) filters.specificChars = chars;
+      }
       const result = await storage.getFilteredCharacters(userId, page, pageSize, filters);
       res.json(result);
     } catch (error) {
       console.error("Error fetching filtered characters:", error);
       res.status(500).json({ message: "Failed to fetch filtered characters" });
+    }
+  });
+
+  // ─── Character Tags ──────────────────────────────────────────────────────────
+
+  app.get('/api/tags', isAuthenticated, async (req: any, res) => {
+    try {
+      const tags = await storage.getTags(req.user.id);
+      res.json(tags);
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+      res.status(500).json({ message: "Failed to fetch tags" });
+    }
+  });
+
+  app.post('/api/tags', isAuthenticated, async (req: any, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ message: "Tag name is required" });
+      }
+      const tag = await storage.createTag(req.user.id, name.trim());
+      res.json(tag);
+    } catch (error) {
+      console.error("Error creating tag:", error);
+      res.status(500).json({ message: "Failed to create tag" });
+    }
+  });
+
+  app.delete('/api/tags/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteTag(req.user.id, parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      res.status(500).json({ message: "Failed to delete tag" });
+    }
+  });
+
+  app.post('/api/tags/:id/characters', isAuthenticated, async (req: any, res) => {
+    try {
+      const tagId = parseInt(req.params.id);
+      const { characterIndices } = req.body;
+      if (!Array.isArray(characterIndices)) {
+        return res.status(400).json({ message: "characterIndices must be an array" });
+      }
+      await storage.assignTagToCharacters(req.user.id, tagId, characterIndices);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error assigning tag:", error);
+      res.status(500).json({ message: "Failed to assign tag" });
+    }
+  });
+
+  app.delete('/api/tags/:id/characters', isAuthenticated, async (req: any, res) => {
+    try {
+      const tagId = parseInt(req.params.id);
+      const { characterIndices } = req.body;
+      if (!Array.isArray(characterIndices)) {
+        return res.status(400).json({ message: "characterIndices must be an array" });
+      }
+      await storage.removeTagFromCharacters(req.user.id, tagId, characterIndices);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing tag:", error);
+      res.status(500).json({ message: "Failed to remove tag" });
     }
   });
 
@@ -936,7 +1008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/quiz/question', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const levelsParam = (req.query.levels as string) || "1,2,3";
+      const levelsParam = (req.query.levels as string) || "";
       const hskLevels = levelsParam
         .split(",")
         .map(p => p.trim())
@@ -944,7 +1016,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(Number)
         .filter((n) => !isNaN(n) && n >= 0 && n <= 9);
 
-      if (hskLevels.length === 0) {
+      const advLessonId = req.query.lessonId ? parseInt(req.query.lessonId as string) : null;
+      const advTagId = req.query.tagId ? parseInt(req.query.tagId as string) : null;
+      const isAdvanced = !!(advLessonId || advTagId);
+
+      // hskLevels required unless advanced filter provides the character set
+      if (hskLevels.length === 0 && !isAdvanced) {
         return res.status(400).json({ message: "No valid HSK levels provided" });
       }
 
@@ -961,10 +1038,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Sample randomly across the full set (ORDER BY RANDOM()), excluding recently seen
       const POOL_SIZE = 200;
-      let pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE, excludeIndices);
-      // If exclude list emptied the pool, retry without exclusions
-      if (pool.length === 0) {
-        pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+      let pool: Awaited<ReturnType<typeof storage.getRandomCharactersForQuiz>>;
+      if (isAdvanced) {
+        pool = await storage.getRandomCharactersForAdvancedQuiz(userId, hskLevels, advLessonId, advTagId, POOL_SIZE, excludeIndices);
+        if (pool.length === 0) {
+          pool = await storage.getRandomCharactersForAdvancedQuiz(userId, hskLevels, advLessonId, advTagId, POOL_SIZE, []);
+        }
+      } else {
+        pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE, excludeIndices);
+        if (pool.length === 0) {
+          pool = await storage.getRandomCharactersForQuiz(hskLevels, POOL_SIZE);
+        }
       }
 
       if (pool.length === 0) {
@@ -1980,8 +2064,10 @@ Be concise and encouraging.`;
       if (!lesson?.trim()) return res.status(400).json({ message: 'lesson is required' });
       if (!classId) return res.status(400).json({ message: 'classId is required' });
       if (!sourceId) return res.status(400).json({ message: 'sourceId is required' });
-      // Duplicate check: same lesson name within the same class is not allowed
-      const existing = await storage.getLessons(req.user.id);
+      // Duplicate check: same lesson name within the same class is not allowed (include student lessons)
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const studentIds = rels.filter(r => r.teacherId === req.user.id).map(r => r.studentId);
+      const existing = await storage.getLessons(req.user.id, studentIds);
       const isDuplicate = existing.some(l => l.classId === Number(classId) && l.lesson.toLowerCase() === lesson.trim().toLowerCase());
       if (isDuplicate) return res.status(409).json({ message: `Lesson "${lesson.trim()}" already exists in this class` });
       res.json(await storage.createLesson(req.user.id, lesson.trim(), Number(classId), Number(sourceId)));
@@ -1992,8 +2078,10 @@ Be concise and encouraging.`;
     try {
       const { lesson } = req.body;
       if (!lesson?.trim()) return res.status(400).json({ message: 'lesson is required' });
-      // Duplicate check against other lessons in the same class
-      const existing = await storage.getLessons(req.user.id);
+      // Duplicate check against other lessons in the same class (include student lessons)
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const studentIds = rels.filter(r => r.teacherId === req.user.id).map(r => r.studentId);
+      const existing = await storage.getLessons(req.user.id, studentIds);
       const target = existing.find(l => l.id === Number(req.params.id));
       if (!target) return res.status(404).json({ message: 'Not found' });
       const isDuplicate = existing.some(l => l.id !== Number(req.params.id) && l.classId === target.classId && l.lesson.toLowerCase() === lesson.trim().toLowerCase());

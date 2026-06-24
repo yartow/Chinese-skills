@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
+import AdvancedQuizFilterDialog from "./AdvancedQuizFilter";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
-  type QuizQuestion, type WrongAnswer, type QuizScores,
+  type QuizQuestion, type WrongAnswer, type QuizScores, type AdvancedQuizFilter,
 } from "./quizTypes";
 import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
@@ -45,6 +46,8 @@ export default function MultipleChoiceQuiz() {
   const [selectedLevels, setSelectedLevels] = useState<number[]>([1, 2, 3]);
   const [scores, setScores] = useState<QuizScores>({ ...EMPTY_SCORES, byLevel: {} });
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
+  const [advancedFilter, setAdvancedFilter] = useState<AdvancedQuizFilter | null>(null);
+  const [showAdvancedFilterDialog, setShowAdvancedFilterDialog] = useState(false);
 
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
   const [choices, setChoices] = useState<Choice[]>([]);
@@ -57,7 +60,9 @@ export default function MultipleChoiceQuiz() {
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Always reflects the latest selectedLevels so callbacks don't close over stale values
   const selectedLevelsRef = useRef(selectedLevels);
+  const advancedFilterRef = useRef(advancedFilter);
   useEffect(() => { selectedLevelsRef.current = selectedLevels; }, [selectedLevels]);
+  useEffect(() => { advancedFilterRef.current = advancedFilter; }, [advancedFilter]);
 
   // ── Load question + choices together ──
   async function loadQuestion(levels: number[]) {
@@ -68,7 +73,10 @@ export default function MultipleChoiceQuiz() {
     setChoices([]);
     setQuestion(null);
     try {
-      const q = drawStdQuestion(levels, []) ?? await fetchQuestion(levels);
+      const af = advancedFilterRef.current;
+      const q = af
+        ? await fetchQuestion(levels, [], af)
+        : (drawStdQuestion(levels, []) ?? await fetchQuestion(levels));
       if (thisId !== requestIdRef.current) return; // stale — a newer request is active
       const distractors = await fetchChoices(q.characterIndex, q.hskLevel, levels);
       if (thisId !== requestIdRef.current) return;
@@ -220,6 +228,18 @@ export default function MultipleChoiceQuiz() {
           loadQuestion(nextLevels);
         }}
         wrongAnswers={wrongAnswers}
+        advancedFilter={advancedFilter}
+        onOpenAdvancedFilter={() => setShowAdvancedFilterDialog(true)}
+      />
+      <AdvancedQuizFilterDialog
+        open={showAdvancedFilterDialog}
+        onOpenChange={setShowAdvancedFilterDialog}
+        current={advancedFilter}
+        onApply={(filter) => {
+          setAdvancedFilter(filter);
+          advancedFilterRef.current = filter;
+          loadQuestion(selectedLevelsRef.current);
+        }}
       />
 
       {/* Question card */}

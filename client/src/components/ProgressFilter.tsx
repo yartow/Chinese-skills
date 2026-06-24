@@ -1,9 +1,11 @@
+import { useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { BookOpen, PenTool, Grid3x3 } from "lucide-react";
+import { BookOpen, PenTool, Grid3x3, Search, Tag } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ProgressFilterProps {
   filterReading: boolean;
@@ -27,6 +29,16 @@ interface ProgressFilterProps {
   onSelectLesson?: (id: number | null) => void;
   onToggleFilterCore?: () => void;
   onToggleFilterOther?: () => void;
+  // Specific characters filter
+  specificCharsInput?: string;
+  onSpecificCharsInputChange?: (value: string) => void;
+  onSpecificCharsFilter?: () => void;
+  onSpecificCharsClear?: () => void;
+  appliedSpecificChars?: string;
+  // Tag filter
+  tags?: { id: number; name: string }[];
+  selectedTagId?: number | null;
+  onSelectTag?: (id: number | null) => void;
 }
 
 export default function ProgressFilter({
@@ -51,9 +63,67 @@ export default function ProgressFilter({
   onSelectLesson = () => {},
   onToggleFilterCore = () => {},
   onToggleFilterOther = () => {},
+  specificCharsInput = "",
+  onSpecificCharsInputChange = () => {},
+  onSpecificCharsFilter = () => {},
+  onSpecificCharsClear = () => {},
+  appliedSpecificChars = "",
+  tags = [],
+  selectedTagId = null,
+  onSelectTag = () => {},
 }: ProgressFilterProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div className="space-y-4">
+      {/* ── Specific characters ──────────────────────────────────────── */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium flex items-center gap-1.5">
+          <Search className="w-3.5 h-3.5" />
+          Specific characters:
+        </Label>
+        <Textarea
+          ref={textareaRef}
+          placeholder="Paste characters, e.g. 我妳他謝學校生"
+          value={specificCharsInput}
+          onChange={e => onSpecificCharsInputChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSpecificCharsFilter();
+            }
+          }}
+          className="h-20 text-base resize-none font-serif"
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={onSpecificCharsFilter}
+            disabled={!specificCharsInput.trim()}
+          >
+            Filter
+          </Button>
+          {appliedSpecificChars && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onSpecificCharsClear}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+        {appliedSpecificChars && (
+          <p className="text-xs text-muted-foreground">
+            Showing results for: <span className="font-serif">{appliedSpecificChars}</span>
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* ── Mastery filters ──────────────────────────────────────────── */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">Show only not mastered:</Label>
         <div className="space-y-2">
@@ -107,6 +177,7 @@ export default function ProgressFilter({
 
       <Separator />
 
+      {/* ── HSK levels ───────────────────────────────────────────────── */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">Filter by HSK Level:</Label>
         <div className="grid grid-cols-2 gap-2">
@@ -131,6 +202,43 @@ export default function ProgressFilter({
 
       <Separator />
 
+      {/* ── Tag filter ───────────────────────────────────────────────── */}
+      {tags.length > 0 && (
+        <>
+          <div className="space-y-3">
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5" />
+              Filter by Tag:
+            </Label>
+            <Select
+              value={selectedTagId ? String(selectedTagId) : ""}
+              onValueChange={v => onSelectTag(v ? Number(v) : null)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Any tag…" />
+              </SelectTrigger>
+              <SelectContent>
+                {tags.map(t => (
+                  <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTagId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => onSelectTag(null)}
+              >
+                Clear tag filter
+              </Button>
+            )}
+          </div>
+          <Separator />
+        </>
+      )}
+
+      {/* ── Lesson filter ────────────────────────────────────────────── */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">Filter by Lesson:</Label>
 

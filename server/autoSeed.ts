@@ -40,6 +40,38 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     // Column already exists — ignore
   }
 
+  try {
+    await db.execute(
+      sql`ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS hsk_color_mode boolean NOT NULL DEFAULT false`
+    );
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Character tags — user-defined labels for grouping characters
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS character_tags (
+        id serial PRIMARY KEY,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        created_at timestamp NOT NULL DEFAULT now(),
+        UNIQUE (user_id, name)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS character_tag_assignments (
+        id serial PRIMARY KEY,
+        tag_id integer NOT NULL REFERENCES character_tags(id) ON DELETE CASCADE,
+        character_index integer NOT NULL REFERENCES chinese_characters(index) ON DELETE CASCADE,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE (tag_id, character_index)
+      )
+    `);
+  } catch (e) {
+    log(`Warning: could not create character_tags tables (${e})`);
+  }
+
   // Ensure the app_config table exists and has a default row.
   try {
     await db.execute(sql`

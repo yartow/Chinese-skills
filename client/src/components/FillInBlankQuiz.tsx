@@ -3,9 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ChevronRight, BookOpen, SkipForward, Eye } from "lucide-react";
 import QuizShell from "./QuizShell";
+import AdvancedQuizFilterDialog from "./AdvancedQuizFilter";
 import {
   HSK_COLORS, EMPTY_SCORES, getHint, saveProgress, fetchQuestion, prefetchFeedback,
-  type QuizQuestion, type WrongAnswer, type QuizScores,
+  type QuizQuestion, type WrongAnswer, type QuizScores, type AdvancedQuizFilter,
 } from "./quizTypes";
 import { drawStdQuestion, warmUpStdPool } from "../lib/questionPool";
 
@@ -47,13 +48,22 @@ export default function FillInBlankQuiz() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [scores, setScores] = useState<QuizScores>({ ...EMPTY_SCORES, byLevel: {} });
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
+  const [advancedFilter, setAdvancedFilter] = useState<AdvancedQuizFilter | null>(null);
+  const [showAdvancedFilterDialog, setShowAdvancedFilterDialog] = useState(false);
   // Track recently seen character indices to avoid repeats (keep last 50)
   const seenIndices = useRef<number[]>([]);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: question, isLoading, isError, refetch } = useQuery({
-    queryKey: ["quiz-fill", selectedLevels],
-    queryFn: () => drawStdQuestion(selectedLevels, seenIndices.current) ?? fetchQuestion(selectedLevels, seenIndices.current),
+    queryKey: advancedFilter
+      ? ["quiz-fill-advanced", advancedFilter.lessonId, advancedFilter.tagId]
+      : ["quiz-fill", selectedLevels],
+    queryFn: () => {
+      if (advancedFilter) {
+        return fetchQuestion(selectedLevels, seenIndices.current, advancedFilter);
+      }
+      return drawStdQuestion(selectedLevels, seenIndices.current) ?? fetchQuestion(selectedLevels, seenIndices.current);
+    },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 3,
@@ -242,6 +252,19 @@ export default function FillInBlankQuiz() {
         selectedLevels={selectedLevels}
         onToggleLevel={(level) => { toggleLevel(level); setResult(null); setAnswer(""); }}
         wrongAnswers={wrongAnswers}
+        advancedFilter={advancedFilter}
+        onOpenAdvancedFilter={() => setShowAdvancedFilterDialog(true)}
+      />
+      <AdvancedQuizFilterDialog
+        open={showAdvancedFilterDialog}
+        onOpenChange={setShowAdvancedFilterDialog}
+        current={advancedFilter}
+        onApply={(filter) => {
+          setAdvancedFilter(filter);
+          seenIndices.current = [];
+          setAnswer("");
+          setResult(null);
+        }}
       />
 
       <div className="border rounded-xl overflow-hidden bg-card">

@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import StarRating from "./StarRating";
 import { cn } from "@/lib/utils";
+import { hskCardBg } from "@/lib/hskColors";
 
 interface CharacterCardProps {
   character: string;
@@ -20,6 +21,8 @@ interface CharacterCardProps {
   onSelect?: (shiftKey: boolean) => void;
   /** When true, show a small badge indicating multiple traditional forms exist */
   hasTraditionalAmbiguity?: boolean;
+  /** When true, tint the card background by HSK level */
+  hskColorMode?: boolean;
 }
 
 export default function CharacterCard({
@@ -37,11 +40,13 @@ export default function CharacterCard({
   selected,
   onSelect,
   hasTraditionalAmbiguity,
+  hskColorMode,
 }: CharacterCardProps) {
   return (
     <Card
       className={cn(
         "p-6 flex flex-col items-center gap-4 cursor-pointer hover-elevate transition-all relative",
+        hskColorMode && hskCardBg(hskLevel),
         selected && "ring-2 ring-primary ring-offset-1",
         className
       )}

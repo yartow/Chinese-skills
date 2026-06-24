@@ -104,10 +104,24 @@ export async function saveProgress(
   }
 }
 
+export interface AdvancedQuizFilter {
+  lessonId?: number;
+  tagId?: number;
+  description: string;
+}
+
 // Fetch a question from the API; pass excludeIndices to avoid recently-seen repeats
-export async function fetchQuestion(levels: number[], excludeIndices: number[] = []): Promise<QuizQuestion> {
-  const excludeParam = excludeIndices.length > 0 ? `&exclude=${excludeIndices.join(",")}` : "";
-  const res = await fetch(`/api/quiz/question?levels=${levels.join(",")}${excludeParam}`);
+export async function fetchQuestion(
+  levels: number[],
+  excludeIndices: number[] = [],
+  advancedFilter?: AdvancedQuizFilter
+): Promise<QuizQuestion> {
+  const params = new URLSearchParams();
+  if (levels.length > 0) params.set("levels", levels.join(","));
+  if (excludeIndices.length > 0) params.set("exclude", excludeIndices.join(","));
+  if (advancedFilter?.lessonId) params.set("lessonId", String(advancedFilter.lessonId));
+  if (advancedFilter?.tagId) params.set("tagId", String(advancedFilter.tagId));
+  const res = await fetch(`/api/quiz/question?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to load question");
   return res.json();
 }

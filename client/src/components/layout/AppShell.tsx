@@ -100,8 +100,8 @@ export default function AppShell({ children, role, unreadCount, showCustomize, u
   const showMessages = ["teacher", "student"].includes(role);
   const modesActive = ["/standard", "/words", "/test"].includes(location);
   const moreActive = !modesActive && !["/", "/browse"].includes(location);
-  const displayName = (user as any)?.firstName ?? (user as any)?.email?.split("@")[0] ?? "User";
-  const avatarUrl: string | undefined = (user as any)?.profileImageUrl;
+  const displayName = user?.firstName ?? user?.email?.split("@")[0] ?? "User";
+  const avatarUrl: string | undefined = user?.profileImageUrl;
 
   return (
     <div className="flex min-h-screen">

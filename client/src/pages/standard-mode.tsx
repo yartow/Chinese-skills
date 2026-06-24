@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CharacterCard from "@/components/CharacterCard";
 import ProgressFilter from "@/components/ProgressFilter";
-import { ArrowLeft, Filter, ArrowRight, BookOpen, PenTool, Grid3x3, X, Check } from "lucide-react";
+import TagAssignDialog from "@/components/TagAssignDialog";
+import { ArrowLeft, Filter, ArrowRight, BookOpen, PenTool, Grid3x3, X, Check, Tag } from "lucide-react";
 import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { enqueuePost } from "@/lib/offlineQueue";
 import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { cn } from "@/lib/utils";
-import type { UserSettings, ChineseCharacter, CharacterProgress } from "@shared/schema";
+import { HSK_CARD_BG } from "@/lib/hskColors";
+import type { UserSettings, ChineseCharacter, CharacterProgress, CharacterTag } from "@shared/schema";
 
 interface FilteredCharactersResponse {
   characters: ChineseCharacter[];
@@ -60,6 +62,20 @@ export default function StandardMode() {
   const [filterOther, setFilterOther] = useState(() =>
     new URLSearchParams(window.location.search).get('filterOther') === 'true'
   );
+  // Specific characters filter — input (live) vs applied (sent to server on "Filter" click)
+  const [specificCharsInput, setSpecificCharsInput] = useState(() =>
+    new URLSearchParams(window.location.search).get('specificChars') ?? ''
+  );
+  const [appliedSpecificChars, setAppliedSpecificChars] = useState(() =>
+    new URLSearchParams(window.location.search).get('specificChars') ?? ''
+  );
+  // Tag filter
+  const [selectedTagId, setSelectedTagId] = useState<number | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('tagId');
+    return v ? parseInt(v) : null;
+  });
+  const [showTagDialog, setShowTagDialog] = useState(false);
+
   const [showFilters, setShowFilters] = useState(false);
   const [jumpInput, setJumpInput] = useState("");
   const [jumpFocused, setJumpFocused] = useState(false);
@@ -75,10 +91,12 @@ export default function StandardMode() {
   const { data: sources = [] } = useQuery<{ id: number; name: string }[]>({ queryKey: ["/api/sources"] });
   const { data: allClasses = [] } = useQuery<{ id: number; name: string; sourceId: number }[]>({ queryKey: ["/api/classes"] });
   const { data: allLessons = [] } = useQuery<{ id: number; lesson: string; classId: number }[]>({ queryKey: ["/api/lessons"] });
+  const { data: tags = [] } = useQuery<CharacterTag[]>({ queryKey: ["/api/tags"] });
 
   const pageSize = settings?.standardModePageSize ?? 20;
   const isTraditional = settings?.preferTraditional ?? false;
   const advancedEditMode = settings?.advancedEditMode ?? false;
+  const hskColorMode = settings?.hskColorMode ?? false;
 
   // ─── Batch selection state ───────────────────────────────────────────────
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -101,6 +119,8 @@ export default function StandardMode() {
     if (selectedLessonId) params.set('lessonId', String(selectedLessonId));
     if (filterCore) params.set('filterCore', 'true');
     if (filterOther) params.set('filterOther', 'true');
+    if (appliedSpecificChars) params.set('specificChars', appliedSpecificChars);
+    if (selectedTagId) params.set('tagId', String(selectedTagId));
 
     const queryString = params.toString();
     const newPath = queryString ? `/standard?${queryString}` : '/standard';
@@ -109,7 +129,7 @@ export default function StandardMode() {
     if (currentPath !== newPath) {
       setLocation(newPath, { replace: true });
     }
-  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedSourceId, selectedClassId, selectedLessonId, filterCore, filterOther]);
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedSourceId, selectedClassId, selectedLessonId, filterCore, filterOther, appliedSpecificChars, selectedTagId]);
 
   // Reset to first page when filters change — but not on the initial render,
   // because the filters were already restored from the URL.
@@ -119,13 +139,13 @@ export default function StandardMode() {
       return;
     }
     setCurrentPage(0);
-  }, [filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther]);
+  }, [filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther, appliedSpecificChars, selectedTagId]);
 
   // Clear selection when navigating to a different page or changing filters
   useEffect(() => {
     setSelectedIndices(new Set());
     lastClickedPos.current = null;
-  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther]);
+  }, [currentPage, filterReading, filterWriting, filterRadical, selectedHskLevels, selectedLessonId, filterCore, filterOther, appliedSpecificChars, selectedTagId]);
 
   const { data, isLoading } = useQuery<FilteredCharactersResponse>({
     queryKey: [
@@ -139,10 +159,11 @@ export default function StandardMode() {
       selectedLessonId,
       filterCore,
       filterOther,
+      appliedSpecificChars,
+      selectedTagId,
     ],
     queryFn: async ({ queryKey }) => {
-      // Destructure fresh values from queryKey instead of closing over stale component state
-      const [_, page, size, hskLevels, reading, writing, radical, lessonId, core, other] = queryKey;
+      const [_, page, size, hskLevels, reading, writing, radical, lessonId, core, other, specificChars, tagId] = queryKey;
 
       const queryParams = new URLSearchParams({
         page: String(page),
@@ -158,6 +179,10 @@ export default function StandardMode() {
       if (lessonId) queryParams.set('lessonId', String(lessonId));
       if (core) queryParams.set('filterCore', 'true');
       if (other) queryParams.set('filterOther', 'true');
+      if (specificChars && typeof specificChars === 'string' && specificChars.trim()) {
+        queryParams.set('specificChars', specificChars.trim());
+      }
+      if (tagId) queryParams.set('tagId', String(tagId));
 
       const res = await authenticatedFetch(`/api/characters/filtered?${queryParams.toString()}`);
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -315,8 +340,6 @@ export default function StandardMode() {
         }),
       });
       queryClient.invalidateQueries({ predicate: q =>
-        q.queryKey[0] === '/api/progress/batch' ||
-        q.queryKey[0] === '/api/progress/range' ||
         q.queryKey[0] === '/api/progress/stats' ||
         (q.queryKey[0] === '/api/progress' && typeof q.queryKey[1] === 'number')
       });
@@ -360,9 +383,11 @@ export default function StandardMode() {
     if (!id) { setFilterCore(false); setFilterOther(false); }
   };
 
-  const totalPages = Math.ceil(totalCharacters / pageSize);
-  const hasNext = currentPage < totalPages - 1;
-  const hasPrevious = currentPage > 0;
+  // When specificChars filter is active, server returns all results without pagination
+  const isSpecificCharsMode = !!appliedSpecificChars;
+  const totalPages = isSpecificCharsMode ? 1 : Math.ceil(totalCharacters / pageSize);
+  const hasNext = !isSpecificCharsMode && currentPage < totalPages - 1;
+  const hasPrevious = !isSpecificCharsMode && currentPage > 0;
 
   const handleJumpToIndex = () => {
     const targetIndex = parseInt(jumpInput, 10);
@@ -442,6 +467,14 @@ export default function StandardMode() {
                 onSelectLesson={handleSelectLesson}
                 onToggleFilterCore={() => setFilterCore(v => !v)}
                 onToggleFilterOther={() => setFilterOther(v => !v)}
+                specificCharsInput={specificCharsInput}
+                onSpecificCharsInputChange={setSpecificCharsInput}
+                onSpecificCharsFilter={() => setAppliedSpecificChars(specificCharsInput)}
+                onSpecificCharsClear={() => { setSpecificCharsInput(''); setAppliedSpecificChars(''); }}
+                appliedSpecificChars={appliedSpecificChars}
+                tags={tags}
+                selectedTagId={selectedTagId}
+                onSelectTag={setSelectedTagId}
               />
             </Card>
           </div>
@@ -526,7 +559,7 @@ export default function StandardMode() {
             {advancedEditMode && selectedIndices.size > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-sm">
                 <span className="font-medium text-sm">{selectedIndices.size} selected</span>
-                <div className="flex gap-1.5 ml-1">
+                <div className="flex gap-1.5 ml-1 flex-wrap">
                   <Button
                     variant={batchAllOn.reading ? "default" : "outline"}
                     size="sm"
@@ -554,6 +587,15 @@ export default function StandardMode() {
                     <Grid3x3 className="w-3.5 h-3.5" />
                     Radical
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTagDialog(true)}
+                    className="gap-1 h-7 px-2 text-xs"
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Tag
+                  </Button>
                 </div>
                 <Button
                   variant="ghost"
@@ -566,6 +608,23 @@ export default function StandardMode() {
                 </Button>
               </div>
             )}
+            <TagAssignDialog
+              open={showTagDialog}
+              onOpenChange={setShowTagDialog}
+              selectedIndices={Array.from(selectedIndices)}
+            />
+
+            {hskColorMode && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="font-medium mr-0.5">HSK:</span>
+                {([1,2,3,4,5,6,7,8,9] as const).map(lvl => (
+                  <span key={lvl} className={cn("px-2 py-0.5 rounded-full border border-black/10 font-medium", HSK_CARD_BG[lvl])}>
+                    {lvl}
+                  </span>
+                ))}
+                <span className="ml-1 text-muted-foreground/60 italic">easy → hard</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {characters.map((char, charPos) => {
@@ -576,6 +635,7 @@ export default function StandardMode() {
                     character={isTraditional ? char.traditional : char.simplified}
                     index={char.index}
                     hskLevel={char.hskLevel}
+                    hskColorMode={hskColorMode}
                     reading={progress?.reading ?? false}
                     writing={progress?.writing ?? false}
                     radical={progress?.radical ?? false}
@@ -621,7 +681,7 @@ export default function StandardMode() {
           </div>
 
           <div className="hidden lg:block lg:col-span-1">
-            <Card className="p-6 sticky top-6">
+            <Card className="p-6 sticky top-6 overflow-y-auto max-h-[calc(100vh-3rem)]">
               <h2 className="text-lg font-semibold mb-4">Filters</h2>
               <ProgressFilter
                 filterReading={filterReading}
@@ -645,6 +705,14 @@ export default function StandardMode() {
                 onSelectLesson={handleSelectLesson}
                 onToggleFilterCore={() => setFilterCore(v => !v)}
                 onToggleFilterOther={() => setFilterOther(v => !v)}
+                specificCharsInput={specificCharsInput}
+                onSpecificCharsInputChange={setSpecificCharsInput}
+                onSpecificCharsFilter={() => setAppliedSpecificChars(specificCharsInput)}
+                onSpecificCharsClear={() => { setSpecificCharsInput(''); setAppliedSpecificChars(''); }}
+                appliedSpecificChars={appliedSpecificChars}
+                tags={tags}
+                selectedTagId={selectedTagId}
+                onSelectTag={setSelectedTagId}
               />
             </Card>
           </div>
