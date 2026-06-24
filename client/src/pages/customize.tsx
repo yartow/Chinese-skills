@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest } from "@/lib/queryClient";
 import { Check, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type FormState = "hidden" | "open" | "success";
 
-interface Source { id: number; name: string; createdAt: string; }
-interface CustomClass { id: number; name: string; sourceId: number; sourceName: string; createdAt: string; }
-interface Lesson { id: number; lesson: string; classId: number; sourceId: number; className: string; sourceName: string; createdAt: string; }
+interface Source { id: number; userId: string; name: string; createdAt: string; }
+interface CustomClass { id: number; userId: string; name: string; sourceId: number; sourceName: string; createdAt: string; }
+interface Lesson { id: number; userId: string; lesson: string; classId: number; sourceId: number; className: string; sourceName: string; createdAt: string; }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString();
@@ -121,6 +122,7 @@ function EditRow({ value, onSave, onDelete, onCancel, saving, deleting, error }:
 export default function CustomizePage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // ─── Sources ───────────────────────────────────────────────────────────────
   const [sourceForm, setSourceForm] = useState<FormState>("hidden");
@@ -259,32 +261,39 @@ export default function CustomizePage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedSources(sources).map(s => (
-                  <tr key={s.id} className="border-t">
-                    {editingSourceId === s.id ? (
-                      <td colSpan={3} className="px-4 py-1">
-                        <EditRow
-                          value={s.name}
-                          onSave={name => updateSourceMutation.mutate({ id: s.id, name })}
-                          onDelete={() => deleteSourceMutation.mutate(s.id)}
-                          onCancel={() => setEditingSourceId(null)}
-                          saving={updateSourceMutation.isPending}
-                          deleting={deleteSourceMutation.isPending}
-                        />
-                      </td>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2">{s.name}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{formatDate(s.createdAt)}</td>
-                        <td className="px-4 py-2 text-right">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingSourceId(s.id)}>
-                            <Pencil className="w-3.5 h-3.5 mr-1" />Edit
-                          </Button>
+                {sortedSources(sources).map(s => {
+                  const isOwn = s.userId === (user as any)?.id;
+                  return (
+                    <tr key={s.id} className="border-t">
+                      {editingSourceId === s.id ? (
+                        <td colSpan={3} className="px-4 py-1">
+                          <EditRow
+                            value={s.name}
+                            onSave={name => updateSourceMutation.mutate({ id: s.id, name })}
+                            onDelete={() => deleteSourceMutation.mutate(s.id)}
+                            onCancel={() => setEditingSourceId(null)}
+                            saving={updateSourceMutation.isPending}
+                            deleting={deleteSourceMutation.isPending}
+                          />
                         </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                      ) : (
+                        <>
+                          <td className="px-4 py-2">{s.name}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{formatDate(s.createdAt)}</td>
+                          <td className="px-4 py-2 text-right">
+                            {isOwn ? (
+                              <Button size="sm" variant="ghost" onClick={() => setEditingSourceId(s.id)}>
+                                <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground px-2">Student</span>
+                            )}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -344,33 +353,40 @@ export default function CustomizePage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedClasses(classes).map(c => (
-                  <tr key={c.id} className="border-t">
-                    {editingClassId === c.id ? (
-                      <td colSpan={4} className="px-4 py-1">
-                        <EditRow
-                          value={c.name}
-                          onSave={name => updateClassMutation.mutate({ id: c.id, name })}
-                          onDelete={() => deleteClassMutation.mutate(c.id)}
-                          onCancel={() => setEditingClassId(null)}
-                          saving={updateClassMutation.isPending}
-                          deleting={deleteClassMutation.isPending}
-                        />
-                      </td>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2">{c.name}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{c.sourceName}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{formatDate(c.createdAt)}</td>
-                        <td className="px-4 py-2 text-right">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingClassId(c.id)}>
-                            <Pencil className="w-3.5 h-3.5 mr-1" />Edit
-                          </Button>
+                {sortedClasses(classes).map(c => {
+                  const isOwn = c.userId === (user as any)?.id;
+                  return (
+                    <tr key={c.id} className="border-t">
+                      {editingClassId === c.id ? (
+                        <td colSpan={4} className="px-4 py-1">
+                          <EditRow
+                            value={c.name}
+                            onSave={name => updateClassMutation.mutate({ id: c.id, name })}
+                            onDelete={() => deleteClassMutation.mutate(c.id)}
+                            onCancel={() => setEditingClassId(null)}
+                            saving={updateClassMutation.isPending}
+                            deleting={deleteClassMutation.isPending}
+                          />
                         </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
+                      ) : (
+                        <>
+                          <td className="px-4 py-2">{c.name}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{c.sourceName}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{formatDate(c.createdAt)}</td>
+                          <td className="px-4 py-2 text-right">
+                            {isOwn ? (
+                              <Button size="sm" variant="ghost" onClick={() => setEditingClassId(c.id)}>
+                                <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground px-2">Student</span>
+                            )}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -443,7 +459,9 @@ export default function CustomizePage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedLessons(lessons).map(l => (
+                {sortedLessons(lessons).map(l => {
+                  const isOwn = l.userId === (user as any)?.id;
+                  return (
                   <tr key={l.id} className="border-t">
                     {editingLessonId === l.id ? (
                       <td colSpan={5} className="px-4 py-1">
@@ -464,14 +482,19 @@ export default function CustomizePage() {
                         <td className="px-4 py-2 text-muted-foreground">{l.sourceName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{formatDate(l.createdAt)}</td>
                         <td className="px-4 py-2 text-right">
-                          <Button size="sm" variant="ghost" onClick={() => { setEditingLessonId(l.id); setEditLessonError(""); }}>
-                            <Pencil className="w-3.5 h-3.5 mr-1" />Edit
-                          </Button>
+                          {isOwn ? (
+                            <Button size="sm" variant="ghost" onClick={() => { setEditingLessonId(l.id); setEditLessonError(""); }}>
+                              <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground px-2">Student</span>
+                          )}
                         </td>
                       </>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

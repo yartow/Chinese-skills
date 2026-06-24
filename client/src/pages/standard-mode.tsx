@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,7 @@ export default function StandardMode() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+    placeholderData: keepPreviousData,
   });
 
   const characters = data?.characters ?? [];
@@ -193,9 +194,11 @@ export default function StandardMode() {
       enqueuePost(variables);
     },
     onSettled: () => {
+      // Only invalidate stats and individual character queries — NOT the batch/range
+      // display queries. Those are kept accurate via optimistic setQueryData updates,
+      // and refetching them here races with a second click's optimistic update,
+      // causing the "click one, nothing happens; click another, previous one toggles" bug.
       queryClient.invalidateQueries({ predicate: (query) =>
-        query.queryKey[0] === "/api/progress/batch" ||
-        query.queryKey[0] === "/api/progress/range" ||
         query.queryKey[0] === "/api/progress/stats" ||
         (query.queryKey[0] === "/api/progress" && typeof query.queryKey[1] === "number")
       });
