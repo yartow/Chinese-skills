@@ -153,15 +153,15 @@ export interface IStorage {
   getWordBatchProgress(userId: string, wordIds: number[]): Promise<WordProgress[]>;
 
   // Customize feature
-  getSources(userId: string): Promise<Source[]>;
+  getSources(userId: string, extraUserIds?: string[]): Promise<Source[]>;
   createSource(userId: string, name: string): Promise<Source>;
   updateSource(id: number, userId: string, name: string): Promise<Source | undefined>;
   deleteSource(id: number, userId: string): Promise<void>;
-  getClasses(userId: string): Promise<(CustomClass & { sourceName: string })[]>;
+  getClasses(userId: string, extraUserIds?: string[]): Promise<(CustomClass & { sourceName: string })[]>;
   createClass(userId: string, name: string, sourceId: number): Promise<CustomClass>;
   updateClass(id: number, userId: string, name: string): Promise<CustomClass | undefined>;
   deleteClass(id: number, userId: string): Promise<void>;
-  getLessons(userId: string): Promise<(Lesson & { className: string; sourceName: string })[]>;
+  getLessons(userId: string, extraUserIds?: string[]): Promise<(Lesson & { className: string; sourceName: string })[]>;
   createLesson(userId: string, lesson: string, classId: number, sourceId: number): Promise<Lesson>;
   updateLesson(id: number, userId: string, lesson: string): Promise<Lesson | undefined>;
   deleteLesson(id: number, userId: string): Promise<void>;
@@ -1138,8 +1138,10 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Customize feature ──────────────────────────────────────────────────────
 
-  async getSources(userId: string): Promise<Source[]> {
-    return db.select().from(sources).where(eq(sources.userId, userId)).orderBy(sources.createdAt);
+  async getSources(userId: string, extraUserIds: string[] = []): Promise<Source[]> {
+    const allIds = [userId, ...extraUserIds];
+    const condition = allIds.length === 1 ? eq(sources.userId, userId) : inArray(sources.userId, allIds);
+    return db.select().from(sources).where(condition).orderBy(sources.createdAt);
   }
 
   async createSource(userId: string, name: string): Promise<Source> {
@@ -1147,12 +1149,14 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getClasses(userId: string): Promise<(CustomClass & { sourceName: string })[]> {
+  async getClasses(userId: string, extraUserIds: string[] = []): Promise<(CustomClass & { sourceName: string })[]> {
+    const allIds = [userId, ...extraUserIds];
+    const condition = allIds.length === 1 ? eq(customClasses.userId, userId) : inArray(customClasses.userId, allIds);
     const rows = await db
       .select({ cls: customClasses, sourceName: sources.name })
       .from(customClasses)
       .innerJoin(sources, eq(customClasses.sourceId, sources.id))
-      .where(eq(customClasses.userId, userId))
+      .where(condition)
       .orderBy(customClasses.createdAt);
     return rows.map(r => ({ ...r.cls, sourceName: r.sourceName }));
   }
@@ -1162,13 +1166,15 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getLessons(userId: string): Promise<(Lesson & { className: string; sourceName: string })[]> {
+  async getLessons(userId: string, extraUserIds: string[] = []): Promise<(Lesson & { className: string; sourceName: string })[]> {
+    const allIds = [userId, ...extraUserIds];
+    const condition = allIds.length === 1 ? eq(lessons.userId, userId) : inArray(lessons.userId, allIds);
     const rows = await db
       .select({ lesson: lessons, className: customClasses.name, sourceName: sources.name })
       .from(lessons)
       .innerJoin(customClasses, eq(lessons.classId, customClasses.id))
       .innerJoin(sources, eq(lessons.sourceId, sources.id))
-      .where(eq(lessons.userId, userId))
+      .where(condition)
       .orderBy(lessons.createdAt);
     return rows.map(r => ({ ...r.lesson, className: r.className, sourceName: r.sourceName }));
   }

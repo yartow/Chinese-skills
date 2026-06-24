@@ -1901,7 +1901,9 @@ Be concise and encouraging.`;
 
   app.get('/api/sources', isAuthenticated, async (req: any, res, next) => {
     try {
-      res.json(await storage.getSources(req.user.id));
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const studentIds = rels.filter(r => r.teacherId === req.user.id).map(r => r.studentId);
+      res.json(await storage.getSources(req.user.id, studentIds));
     } catch (err) { next(err); }
   });
 
@@ -1932,7 +1934,9 @@ Be concise and encouraging.`;
 
   app.get('/api/classes', isAuthenticated, async (req: any, res, next) => {
     try {
-      res.json(await storage.getClasses(req.user.id));
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const studentIds = rels.filter(r => r.teacherId === req.user.id).map(r => r.studentId);
+      res.json(await storage.getClasses(req.user.id, studentIds));
     } catch (err) { next(err); }
   });
 
@@ -1964,7 +1968,9 @@ Be concise and encouraging.`;
 
   app.get('/api/lessons', isAuthenticated, async (req: any, res, next) => {
     try {
-      res.json(await storage.getLessons(req.user.id));
+      const rels = await storage.getRelationshipsForUser(req.user.id);
+      const studentIds = rels.filter(r => r.teacherId === req.user.id).map(r => r.studentId);
+      res.json(await storage.getLessons(req.user.id, studentIds));
     } catch (err) { next(err); }
   });
 

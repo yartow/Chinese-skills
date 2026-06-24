@@ -55,6 +55,13 @@ The app container has **no volume mounts** for source files (only `postgres_data
 - Covers: avatar upload (server resizes to 256×256 JPEG via `sharp`, stores as base64), first/last name, email, all app settings including AI generation toggle.
 - Avatar endpoint: `POST /api/user/avatar` (multer → sharp → base64 in `profileImageUrl`).
 - Profile endpoint: `PATCH /api/user/profile` (firstName, lastName, email with uniqueness check).
+- **Client-side pre-compression:** `client/src/lib/compressImage.ts` resizes to max 512×512 and re-encodes as JPEG (85% quality) in the browser before the multipart upload. Do not add another compression step — the server's `sharp` resize to 256×256 is the second and final pass.
+
+## Customize feature — teacher visibility
+
+- `GET /api/sources`, `GET /api/classes`, `GET /api/lessons` return the caller's own items **plus** items owned by any approved students (when the caller is a teacher). This is handled in the route layer by fetching `getRelationshipsForUser` and passing student IDs as `extraUserIds` to the storage methods.
+- Write operations (POST/PATCH/DELETE) remain scoped to `req.user.id` — teachers cannot create, rename, or delete student-owned items. The storage methods enforce this by filtering on `userId`.
+- The frontend (`client/src/pages/customize.tsx`) compares each row's `userId` against the logged-in user's id; student-owned rows show a "Student" label instead of the Edit button.
 
 ## Component locations
 
