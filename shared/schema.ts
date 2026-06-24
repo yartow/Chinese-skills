@@ -68,6 +68,7 @@ export const userSettings = pgTable("user_settings", {
   advancedEditMode: boolean("advanced_edit_mode").notNull().default(false),
   maxPointsPerChar: integer("max_points_per_char").notNull().default(10),
   aiGenerationMode: boolean("ai_generation_mode").notNull().default(false),
+  hskColorMode: boolean("hsk_color_mode").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -378,3 +379,30 @@ export const customMatching = pgTable("custom_matching", {
 ]);
 
 export type CustomMatching = typeof customMatching.$inferSelect;
+
+// ─── Character tags ───────────────────────────────────────────────────────────
+
+export const characterTags = pgTable("character_tags", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("idx_tags_user").on(t.userId),
+  unique("uq_user_tag_name").on(t.userId, t.name),
+]);
+
+export type CharacterTag = typeof characterTags.$inferSelect;
+
+export const characterTagAssignments = pgTable("character_tag_assignments", {
+  id: serial("id").primaryKey(),
+  tagId: integer("tag_id").notNull().references(() => characterTags.id, { onDelete: "cascade" }),
+  characterIndex: integer("character_index").notNull().references(() => chineseCharacters.index, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+}, (t) => [
+  uniqueIndex("uq_tag_char_assignment").on(t.tagId, t.characterIndex),
+  index("idx_tag_assignments_tag").on(t.tagId),
+  index("idx_tag_assignments_user").on(t.userId),
+]);
+
+export type CharacterTagAssignment = typeof characterTagAssignments.$inferSelect;

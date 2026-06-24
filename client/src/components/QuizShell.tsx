@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, X, Copy, Check } from "lucide-react";
+import { ClipboardList, X, Copy, Check, SlidersHorizontal } from "lucide-react";
 import {
   ALL_LEVELS, HSK_COLORS, HSK_BG_SOLID,
-  type QuizScores, type WrongAnswer,
+  type QuizScores, type WrongAnswer, type AdvancedQuizFilter,
 } from "./quizTypes";
 
 interface Props {
@@ -11,9 +11,11 @@ interface Props {
   selectedLevels: number[];
   onToggleLevel: (level: number) => void;
   wrongAnswers: WrongAnswer[];
+  advancedFilter?: AdvancedQuizFilter | null;
+  onOpenAdvancedFilter?: () => void;
 }
 
-export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrongAnswers }: Props) {
+export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrongAnswers, advancedFilter, onOpenAdvancedFilter }: Props) {
   const [showWrong, setShowWrong] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -55,8 +57,8 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
 
       {/* ── Level selector + per-level accuracy ── */}
       <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          {ALL_LEVELS.map((level) => {
+        <div className="flex flex-wrap gap-2 items-center">
+          {!advancedFilter && ALL_LEVELS.map((level) => {
             const ls = scores.byLevel[level];
             const lvPct = ls && ls.total > 0
               ? Math.round((ls.correct / ls.total) * 100)
@@ -79,10 +81,29 @@ export default function QuizShell({ scores, selectedLevels, onToggleLevel, wrong
               </button>
             );
           })}
+
+          {/* Advanced filter badge */}
+          {advancedFilter && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border bg-primary/10 text-primary border-primary/30">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              {advancedFilter.description}
+            </span>
+          )}
+
+          {/* Advanced selection button */}
+          {onOpenAdvancedFilter && (
+            <button
+              onClick={onOpenAdvancedFilter}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Advanced selection
+            </button>
+          )}
         </div>
 
-        {/* Per-level accuracy bars — only for selected levels with attempts */}
-        {selectedLevels.some(l => scores.byLevel[l]?.total > 0) && (
+        {/* Per-level accuracy bars — only for selected levels with attempts, when not in advanced mode */}
+        {!advancedFilter && selectedLevels.some(l => scores.byLevel[l]?.total > 0) && (
           <div className="space-y-1.5">
             {selectedLevels.map((level) => {
               const ls = scores.byLevel[level];

@@ -19,6 +19,8 @@ import {
   customClasses,
   lessons,
   customMatching,
+  characterTags,
+  characterTagAssignments,
   type Message,
   type Checkup,
   type CheckupItem,
@@ -37,6 +39,7 @@ import {
   type Source,
   type CustomClass,
   type Lesson,
+  type CharacterTag,
   progressHistory,
 } from "@shared/schema";
 import { db } from "./db";
@@ -55,6 +58,8 @@ export interface CharacterFilters {
   lessonId?: number;
   filterCore?: boolean;
   filterOther?: boolean;
+  specificChars?: string[];
+  tagId?: number;
 }
 
 export interface FilteredCharactersResult {
@@ -170,6 +175,12 @@ export interface IStorage {
   getRelationshipsForUser(userId: string): Promise<{ id: number; teacherId: string; studentId: string; teacherName: string; studentName: string }[]>;
   createCustomMatchings(teacherStudentId: number | null, userId: string, entries: { characterIndex: number; lessonId: number }[], core: boolean): Promise<{ matched: number }>;
   linkPersonalMatchesToRelationship(teacherId: string, teacherStudentId: number): Promise<void>;
+  getTags(userId: string): Promise<CharacterTag[]>;
+  createTag(userId: string, name: string): Promise<CharacterTag>;
+  deleteTag(userId: string, tagId: number): Promise<void>;
+  assignTagToCharacters(userId: string, tagId: number, characterIndices: number[]): Promise<void>;
+  removeTagFromCharacters(userId: string, tagId: number, characterIndices: number[]): Promise<void>;
+  getRandomCharactersForAdvancedQuiz(userId: string, hskLevels: number[], lessonId: number | null, tagId: number | null, count: number, excludeIndices?: number[]): Promise<ChineseCharacter[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -594,6 +605,30 @@ export class DatabaseStorage implements IStorage {
       conditions.push(inArray(chineseCharacters.hskLevel, filters.hskLevels));
     }
 
+    // Specific characters filter — match by simplified or traditional form
+    if (filters.specificChars && filters.specificChars.length > 0) {
+      conditions.push(
+        or(
+          inArray(chineseCharacters.simplified, filters.specificChars),
+          inArray(chineseCharacters.traditional, filters.specificChars)
+        )
+      );
+    }
+
+    // Tag filter — restrict to characters that have this tag assigned
+    if (filters.tagId) {
+      const taggedRows = await db
+        .select({ characterIndex: characterTagAssignments.characterIndex })
+        .from(characterTagAssignments)
+        .where(and(
+          eq(characterTagAssignments.tagId, filters.tagId),
+          eq(characterTagAssignments.userId, userId)
+        ));
+      const taggedIndices = taggedRows.map(r => r.characterIndex);
+      if (taggedIndices.length === 0) return { characters: [], total: 0 };
+      conditions.push(inArray(chineseCharacters.index, taggedIndices));
+    }
+
     // Lesson filter — restrict to characters matched to the selected lesson in custom_matching.
     // Uses a two-step approach: first resolve the allowed character indices, then filter.
     if (filters.lessonId) {
@@ -680,16 +715,22 @@ export class DatabaseStorage implements IStorage {
       query = query.where(and(...allConditions));
     }
     
-    // Get total count
+    // Get all matching rows (used as count and, for specificChars, as result)
     const countResult = await query;
     const total = countResult.length;
-    
+
+    // When filtering by specific characters, return all results without pagination
+    if (filters.specificChars && filters.specificChars.length > 0) {
+      const allChars = await query.orderBy(chineseCharacters.index);
+      return { characters: allChars as ChineseCharacter[], total };
+    }
+
     // Get paginated results
     const characters = await query
       .orderBy(chineseCharacters.index)
       .limit(pageSize)
       .offset(offset);
-    
+
     return {
       characters: characters as ChineseCharacter[],
       total
@@ -1140,8 +1181,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSources(userId: string, extraUserIds: string[] = []): Promise<Source[]> {
     const allIds = [userId, ...extraUserIds];
-    const condition = allIds.length === 1 ? eq(sources.userId, userId) : inArray(sources.userId, allIds);
-    return db.select().from(sources).where(condition).orderBy(sources.createdAt);
+    return db.select().from(sources).where(inArray(sources.userId, allIds)).orderBy(sources.createdAt);
   }
 
   async createSource(userId: string, name: string): Promise<Source> {
@@ -1151,12 +1191,11 @@ export class DatabaseStorage implements IStorage {
 
   async getClasses(userId: string, extraUserIds: string[] = []): Promise<(CustomClass & { sourceName: string })[]> {
     const allIds = [userId, ...extraUserIds];
-    const condition = allIds.length === 1 ? eq(customClasses.userId, userId) : inArray(customClasses.userId, allIds);
     const rows = await db
       .select({ cls: customClasses, sourceName: sources.name })
       .from(customClasses)
       .innerJoin(sources, eq(customClasses.sourceId, sources.id))
-      .where(condition)
+      .where(inArray(customClasses.userId, allIds))
       .orderBy(customClasses.createdAt);
     return rows.map(r => ({ ...r.cls, sourceName: r.sourceName }));
   }
@@ -1168,13 +1207,12 @@ export class DatabaseStorage implements IStorage {
 
   async getLessons(userId: string, extraUserIds: string[] = []): Promise<(Lesson & { className: string; sourceName: string })[]> {
     const allIds = [userId, ...extraUserIds];
-    const condition = allIds.length === 1 ? eq(lessons.userId, userId) : inArray(lessons.userId, allIds);
     const rows = await db
       .select({ lesson: lessons, className: customClasses.name, sourceName: sources.name })
       .from(lessons)
       .innerJoin(customClasses, eq(lessons.classId, customClasses.id))
       .innerJoin(sources, eq(lessons.sourceId, sources.id))
-      .where(condition)
+      .where(inArray(lessons.userId, allIds))
       .orderBy(lessons.createdAt);
     return rows.map(r => ({ ...r.lesson, className: r.className, sourceName: r.sourceName }));
   }
@@ -1284,6 +1322,123 @@ export class DatabaseStorage implements IStorage {
       .update(customMatching)
       .set({ teacherStudentId })
       .where(and(eq(customMatching.userId, teacherId), isNull(customMatching.teacherStudentId)));
+  }
+
+  async getTags(userId: string): Promise<CharacterTag[]> {
+    return db
+      .select()
+      .from(characterTags)
+      .where(eq(characterTags.userId, userId))
+      .orderBy(characterTags.name);
+  }
+
+  async createTag(userId: string, name: string): Promise<CharacterTag> {
+    const [tag] = await db
+      .insert(characterTags)
+      .values({ userId, name })
+      .onConflictDoNothing()
+      .returning();
+    if (!tag) {
+      const [existing] = await db
+        .select()
+        .from(characterTags)
+        .where(and(eq(characterTags.userId, userId), eq(characterTags.name, name)));
+      return existing;
+    }
+    return tag;
+  }
+
+  async deleteTag(userId: string, tagId: number): Promise<void> {
+    await db
+      .delete(characterTags)
+      .where(and(eq(characterTags.id, tagId), eq(characterTags.userId, userId)));
+  }
+
+  async assignTagToCharacters(userId: string, tagId: number, characterIndices: number[]): Promise<void> {
+    if (characterIndices.length === 0) return;
+    const [tag] = await db
+      .select({ id: characterTags.id })
+      .from(characterTags)
+      .where(and(eq(characterTags.id, tagId), eq(characterTags.userId, userId)));
+    if (!tag) return;
+    await db
+      .insert(characterTagAssignments)
+      .values(characterIndices.map(idx => ({ tagId, characterIndex: idx, userId })))
+      .onConflictDoNothing();
+  }
+
+  async removeTagFromCharacters(userId: string, tagId: number, characterIndices: number[]): Promise<void> {
+    if (characterIndices.length === 0) return;
+    await db
+      .delete(characterTagAssignments)
+      .where(and(
+        eq(characterTagAssignments.tagId, tagId),
+        eq(characterTagAssignments.userId, userId),
+        inArray(characterTagAssignments.characterIndex, characterIndices)
+      ));
+  }
+
+  async getRandomCharactersForAdvancedQuiz(
+    userId: string,
+    hskLevels: number[],
+    lessonId: number | null,
+    tagId: number | null,
+    count: number,
+    excludeIndices: number[] = []
+  ): Promise<ChineseCharacter[]> {
+    const conditions: any[] = [];
+
+    if (hskLevels.length > 0) {
+      conditions.push(inArray(chineseCharacters.hskLevel, hskLevels));
+    }
+
+    if (excludeIndices.length > 0) {
+      conditions.push(notInArray(chineseCharacters.index, excludeIndices));
+    }
+
+    if (lessonId) {
+      const relRows = await db.select({ id: teacherStudents.id })
+        .from(teacherStudents)
+        .where(or(eq(teacherStudents.teacherId, userId), eq(teacherStudents.studentId, userId)));
+      const relIds = relRows.map(r => r.id);
+      const accessCondition = relIds.length > 0
+        ? or(eq(customMatching.userId, userId), inArray(customMatching.teacherStudentId, relIds))
+        : eq(customMatching.userId, userId);
+      const matchRows = await db
+        .select({ characterIndex: customMatching.characterIndex })
+        .from(customMatching)
+        .where(and(eq(customMatching.lessonId, lessonId), accessCondition));
+      const lessonIndices = matchRows.map(r => r.characterIndex);
+      if (lessonIndices.length === 0) return [];
+      conditions.push(inArray(chineseCharacters.index, lessonIndices));
+    }
+
+    if (tagId) {
+      const taggedRows = await db
+        .select({ characterIndex: characterTagAssignments.characterIndex })
+        .from(characterTagAssignments)
+        .where(and(
+          eq(characterTagAssignments.tagId, tagId),
+          eq(characterTagAssignments.userId, userId)
+        ));
+      const taggedIndices = taggedRows.map(r => r.characterIndex);
+      if (taggedIndices.length === 0) return [];
+      conditions.push(inArray(chineseCharacters.index, taggedIndices));
+    }
+
+    let query = db
+      .select(this.characterSelectFields())
+      .from(chineseCharacters)
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
+      .$dynamic();
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const results = await query.orderBy(sql`RANDOM()`).limit(count);
+    return results as ChineseCharacter[];
   }
 }
 

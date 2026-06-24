@@ -16,6 +16,7 @@ interface SettingsPanelProps {
   aiGenerationMode?: boolean;
   anthropicApiKeySet?: boolean;
   advancedEditMode?: boolean;
+  hskColorMode?: boolean;
   onLevelChange: (level: number) => void;
   onDailyCharCountChange: (count: number) => void;
   onStandardModePageSizeChange?: (size: number) => void;
@@ -26,6 +27,7 @@ interface SettingsPanelProps {
   onAiGenerationModeChange?: (value: boolean) => void;
   onAnthropicApiKeyChange?: (key: string) => void;
   onAdvancedEditModeChange?: (value: boolean) => void;
+  onHskColorModeChange?: (value: boolean) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
   onAutoReloadDatabaseChange?: (value: boolean) => void;
   maxPointsPerChar?: number;
@@ -42,6 +44,7 @@ export default function SettingsPanel({
   anthropicApiKeySet = false,
   handwritingCandidates = 8,
   advancedEditMode = false,
+  hskColorMode = false,
   autoReloadDatabase = true,
   onLevelChange,
   onDailyCharCountChange,
@@ -52,6 +55,7 @@ export default function SettingsPanel({
   onAnthropicApiKeyChange,
   onHandwritingCandidatesChange,
   onAdvancedEditModeChange,
+  onHskColorModeChange,
   onAutoReloadDatabaseChange,
   maxPointsPerChar = 10,
   onMaxPointsPerCharChange,
@@ -313,6 +317,23 @@ export default function SettingsPanel({
             checked={advancedEditMode}
             onCheckedChange={onAdvancedEditModeChange}
             data-testid="toggle-advanced-edit-mode"
+          />
+        </div>
+      )}
+
+      {onHskColorModeChange && (
+        <div className="flex items-start justify-between gap-4 py-1">
+          <div className="space-y-0.5">
+            <Label htmlFor="hsk-color-mode-toggle" className="text-sm">HSK color mode</Label>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+              Color-code character cards in Standard Mode by HSK difficulty level — green for easy levels, through yellow and orange, to red for the hardest.
+            </p>
+          </div>
+          <Switch
+            id="hsk-color-mode-toggle"
+            checked={hskColorMode}
+            onCheckedChange={onHskColorModeChange}
+            data-testid="toggle-hsk-color-mode"
           />
         </div>
       )}

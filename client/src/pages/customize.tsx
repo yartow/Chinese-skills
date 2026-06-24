@@ -262,7 +262,7 @@ export default function CustomizePage() {
               </thead>
               <tbody>
                 {sortedSources(sources).map(s => {
-                  const isOwn = s.userId === (user as any)?.id;
+                  const isOwn = !user || s.userId === user.id;
                   return (
                     <tr key={s.id} className="border-t">
                       {editingSourceId === s.id ? (
@@ -354,7 +354,7 @@ export default function CustomizePage() {
               </thead>
               <tbody>
                 {sortedClasses(classes).map(c => {
-                  const isOwn = c.userId === (user as any)?.id;
+                  const isOwn = !user || c.userId === user.id;
                   return (
                     <tr key={c.id} className="border-t">
                       {editingClassId === c.id ? (
@@ -460,7 +460,7 @@ export default function CustomizePage() {
               </thead>
               <tbody>
                 {sortedLessons(lessons).map(l => {
-                  const isOwn = l.userId === (user as any)?.id;
+                  const isOwn = !user || l.userId === user.id;
                   return (
                   <tr key={l.id} className="border-t">
                     {editingLessonId === l.id ? (

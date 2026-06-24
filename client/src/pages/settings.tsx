@@ -216,6 +216,7 @@ export default function SettingsPage() {
           anthropicApiKeySet={settings?.anthropicApiKeySet ?? false}
           handwritingCandidates={settings?.handwritingCandidates ?? 8}
           advancedEditMode={settings?.advancedEditMode ?? false}
+          hskColorMode={settings?.hskColorMode ?? false}
           maxPointsPerChar={settings?.maxPointsPerChar ?? 10}
           autoReloadDatabase={appConfig?.autoReloadDatabase ?? true}
           onLevelChange={(level) => updateSettingsMutation.mutate({ currentLevel: level })}
@@ -227,6 +228,7 @@ export default function SettingsPage() {
           onAnthropicApiKeyChange={(key) => updateSettingsMutation.mutate({ anthropicApiKey: key })}
           onHandwritingCandidatesChange={(val) => updateSettingsMutation.mutate({ handwritingCandidates: val })}
           onAdvancedEditModeChange={(val) => updateSettingsMutation.mutate({ advancedEditMode: val })}
+          onHskColorModeChange={(val) => updateSettingsMutation.mutate({ hskColorMode: val })}
           onMaxPointsPerCharChange={(val) => updateSettingsMutation.mutate({ maxPointsPerChar: val })}
           {...(isAdmin && {
             onAutoReloadDatabaseChange: (val) => updateAppConfigMutation.mutate({ autoReloadDatabase: val }),
