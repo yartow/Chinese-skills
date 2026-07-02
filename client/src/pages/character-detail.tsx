@@ -86,6 +86,9 @@ export default function CharacterDetail() {
   const verifyRadicalMutation = useMutation({
     mutationFn: () =>
       apiRequest("POST", `/api/characters/${characterIndex}/verify-radical`).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/characters", characterIndex] });
+    },
   });
 
   const applyRadicalMutation = useMutation({
