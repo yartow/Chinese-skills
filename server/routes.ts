@@ -52,6 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) return res.status(401).json({ message: info?.message ?? 'Invalid credentials' });
       req.login(user, (err) => {
         if (err) return next(err);
+        (req.session as any).loginTime = Date.now();
         res.json(user);
       });
     })(req, res, next);
@@ -74,6 +75,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.upsertUser({ email, passwordHash });
       req.login(user, (err) => {
         if (err) return next(err);
+        (req.session as any).loginTime = Date.now();
         res.status(201).json(user);
       });
     } catch (err) {

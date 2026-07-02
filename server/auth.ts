@@ -6,6 +6,12 @@ import connectPg from 'connect-pg-simple';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
 
+// Rolling sessions renew on every request and never expire on their own for an
+// active user. This absolute cap forces re-authentication after this much time
+// has passed since login, regardless of activity — independent of the cookie's
+// rolling maxAge.
+const ABSOLUTE_SESSION_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+
 export function getSession() {
   const PgSession = connectPg(session);
   return session({
@@ -61,8 +67,18 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = (req, res, next) => {
-  if (req.isAuthenticated()) return next();
-  res.status(401).json({ message: 'Unauthorized' });
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const loginTime: number | undefined = (req.session as any).loginTime;
+  if (loginTime && Date.now() - loginTime > ABSOLUTE_SESSION_MAX_AGE_MS) {
+    return req.session.destroy(() => {
+      res.status(401).json({ message: 'Session expired, please log in again' });
+    });
+  }
+
+  next();
 };
 
 export { bcrypt };
