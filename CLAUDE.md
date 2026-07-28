@@ -20,7 +20,7 @@ The app container has **no volume mounts** for source files (only `postgres_data
 - **Backend:** Express + TypeScript (`server/routes.ts`, `server/storage.ts`)
 - **ORM:** Drizzle ORM + PostgreSQL 16; schema in `shared/schema.ts`
 - **Auth:** Session-based (`express-session` + `connect-pg-simple`); `isAuthenticated` middleware on all API routes
-- **AI:** Anthropic SDK (`@anthropic-ai/sdk`); users store their own API key in `userSettings.anthropicApiKey`; always use model `claude-haiku-4-5-20251001`
+- **AI:** Anthropic SDK (`@anthropic-ai/sdk`); users store their own API key in `userSettings.anthropicApiKey`; always use model `claude-sonnet-***` by default.
 
 ## Key data conventions
 
