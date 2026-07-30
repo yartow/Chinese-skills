@@ -1,0 +1,13 @@
+[Unit]
+Description=Prevent host sleep/suspend while Docker workloads run
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /home/andrewyong/Documents/GitHub/chinese-skills/scripts/keep-awake.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -305,6 +305,50 @@ The app is available at [http://localhost:5002](http://localhost:5002). Rebuild 
 docker compose build app && docker compose up -d app
 ```
 
+### Keeping the host awake (self-hosted / always-on deployments)
+
+If you're running the Docker stack on a machine that's meant to stay up
+continuously (e.g. a home server), the host's own power management can
+suspend it after a period of inactivity. Suspend-to-RAM freezes the entire
+kernel, including the network stack — the box won't just have a blank
+screen, it becomes completely unreachable (SSH included) until someone
+physically wakes it.
+
+This repo ships two layers of protection against that:
+
+1. **`/etc/systemd/logind.conf.d/no-sleep.conf`** (host-level, not in this
+   repo) — disables `systemd-logind`'s idle-triggered suspend by setting
+   `IdleAction=ignore`. This is the primary fix and should be created once
+   per host:
+   ```ini
+   [Login]
+   IdleAction=ignore
+   IdleActionSec=0
+   HandleSuspendKey=ignore
+   HandleLidSwitch=ignore
+   HandleLidSwitchExternalPower=ignore
+   ```
+
+2. **`scripts/keep-awake.sh`** + **`scripts/keep-awake.service`** — an
+   explicit `systemd-inhibit --mode=block` lock, installed as a systemd
+   service tied to `docker.service`. Unlike (1), a `block`-mode inhibitor
+   also stops an *explicit* `systemctl suspend` (or a GUI "Suspend" button)
+   from succeeding while it's held, not just idle-triggered suspend.
+
+   Install it (the unit file's `ExecStart` path is specific to this host —
+   update it first if you clone this repo somewhere else):
+   ```bash
+   sudo chmod +x scripts/keep-awake.sh
+   sudo cp scripts/keep-awake.service /etc/systemd/system/keep-awake.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now keep-awake.service
+   ```
+
+   Verify the lock is held:
+   ```bash
+   systemd-inhibit --list | grep docker-keep-awake
+   ```
+
 ### Local development
 
 ```bash
