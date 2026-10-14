@@ -135,6 +135,7 @@ export interface IStorage {
 
   // Chinese characters operations
   getCharacter(index: number): Promise<ChineseCharacter | undefined>;
+  getCharacterByForm(char: string): Promise<ChineseCharacter | undefined>;
   getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]>;
   getAllCharacters(): Promise<ChineseCharacter[]>;
   getAllCharactersRaw(): Promise<typeof chineseCharacters.$inferSelect[]>;
@@ -190,7 +191,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await db.select().from(users)
+      .where(sql`lower(${users.email}) = ${email.trim().toLowerCase()}`);
     return user;
   }
 
@@ -495,6 +497,18 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
       .where(eq(chineseCharacters.index, index));
     return result;
+  }
+
+  // Looks a character up by its simplified or traditional form.
+  async getCharacterByForm(char: string): Promise<ChineseCharacter | undefined> {
+    const [result] = await db
+      .select(this.characterSelectFields())
+      .from(chineseCharacters)
+      .leftJoin(radicalsSimp, eq(chineseCharacters.radicalIndex, radicalsSimp.index))
+      .leftJoin(radicalsTrad, eq(chineseCharacters.radicalIndexTraditional, radicalsTrad.index))
+      .where(or(eq(chineseCharacters.simplified, char), eq(chineseCharacters.traditional, char)))
+      .limit(1);
+    return result as ChineseCharacter | undefined;
   }
 
   async getCharacters(startIndex: number, count: number): Promise<ChineseCharacter[]> {
@@ -1022,7 +1036,8 @@ export class DatabaseStorage implements IStorage {
   async submitCheckupDrawings(checkupId: number, drawings: { id: number; drawing: string }[]): Promise<void> {
     await db.transaction(async (tx) => {
       for (const { id, drawing } of drawings) {
-        await tx.update(checkupItems).set({ drawing }).where(eq(checkupItems.id, id));
+        await tx.update(checkupItems).set({ drawing })
+          .where(and(eq(checkupItems.id, id), eq(checkupItems.checkupId, checkupId)));
       }
       await tx.update(checkups).set({ status: 'submitted', submittedAt: new Date() })
         .where(eq(checkups.id, checkupId));
@@ -1033,7 +1048,7 @@ export class DatabaseStorage implements IStorage {
     await db.transaction(async (tx) => {
       for (const { id, pointsAwarded, feedback } of scores) {
         await tx.update(checkupItems).set({ pointsAwarded, feedback: feedback ?? null })
-          .where(eq(checkupItems.id, id));
+          .where(and(eq(checkupItems.id, id), eq(checkupItems.checkupId, checkupId)));
       }
       await tx.update(checkups).set({ status: 'scored', scoredAt: new Date() })
         .where(eq(checkups.id, checkupId));

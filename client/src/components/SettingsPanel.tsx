@@ -30,6 +30,7 @@ interface SettingsPanelProps {
   onHskColorModeChange?: (value: boolean) => void;
   onHandwritingCandidatesChange?: (count: number) => void;
   onAutoReloadDatabaseChange?: (value: boolean) => void;
+  isAdmin?: boolean;
   maxPointsPerChar?: number;
   onMaxPointsPerCharChange?: (value: number) => void;
 }
@@ -46,6 +47,7 @@ export default function SettingsPanel({
   advancedEditMode = false,
   hskColorMode = false,
   autoReloadDatabase = true,
+  isAdmin = false,
   onLevelChange,
   onDailyCharCountChange,
   onStandardModePageSizeChange,
@@ -486,6 +488,7 @@ export default function SettingsPanel({
         </Button>
       </div>
 
+      {isAdmin && (
       <div className="space-y-3 pt-2 border-t">
         <Label className="text-sm font-semibold">Admin</Label>
 
@@ -572,6 +575,7 @@ export default function SettingsPanel({
           </Button>
         </div>
       </div>
+      )}
 
       <Dialog open={reportsOpen} onOpenChange={setReportsOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

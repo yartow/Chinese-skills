@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 
-function seedChecksum(...filePaths: string[]): string {
+export function seedChecksum(...filePaths: string[]): string {
   const hash = crypto.createHash("md5");
   for (const p of filePaths) {
     if (fs.existsSync(p)) hash.update(fs.readFileSync(p));
@@ -46,6 +46,17 @@ export async function ensureDataSeeded(log: (msg: string) => void) {
     );
   } catch {
     // Column already exists — ignore
+  }
+
+  // Remove placeholder feedback ("字 (zì): word") that was cached when a user had no API key.
+  // Real AI feedback is two sentences, so it always contains sentence punctuation.
+  try {
+    await db.execute(sql`
+      DELETE FROM quiz_feedback_cache
+      WHERE feedback LIKE character || ' (%): %' AND feedback !~ '[.。!?]'
+    `);
+  } catch {
+    // Table doesn't exist yet — ignore
   }
 
   // Character tags — user-defined labels for grouping characters

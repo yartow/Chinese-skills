@@ -15,7 +15,7 @@ type UserSettingsResponse = Omit<UserSettings, "anthropicApiKey"> & { anthropicA
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const typedUser = user as { id?: string; firstName?: string; lastName?: string; email?: string; profileImageUrl?: string; role?: string } | null | undefined;
+  const typedUser = user as { id?: string; firstName?: string; lastName?: string; email?: string; profileImageUrl?: string; role?: string; isAdmin?: boolean } | null | undefined;
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -86,7 +86,7 @@ export default function SettingsPage() {
 
   const avatarUrl = typedUser?.profileImageUrl;
   const displayInitial = (typedUser?.firstName ?? typedUser?.email ?? "U")[0]?.toUpperCase();
-  const isAdmin = typedUser?.role === "admin";
+  const isAdmin = typedUser?.isAdmin === true;
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -230,6 +230,7 @@ export default function SettingsPage() {
           onAdvancedEditModeChange={(val) => updateSettingsMutation.mutate({ advancedEditMode: val })}
           onHskColorModeChange={(val) => updateSettingsMutation.mutate({ hskColorMode: val })}
           onMaxPointsPerCharChange={(val) => updateSettingsMutation.mutate({ maxPointsPerChar: val })}
+          isAdmin={isAdmin}
           {...(isAdmin && {
             onAutoReloadDatabaseChange: (val) => updateAppConfigMutation.mutate({ autoReloadDatabase: val }),
           })}

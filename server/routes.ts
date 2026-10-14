@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { patchCharacterInSeed } from "./seedWriter";
+import { patchCharacterInSeed, patchCharactersInSeed } from "./seedWriter";
 import { getKangxiRadicalNumber } from "./unihan";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
@@ -8,7 +8,7 @@ import passport from "passport";
 import bcrypt from "bcryptjs";
 import { storage, type CharacterUpdate } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
-import { insertUserSettingsSchema, insertCharacterProgressSchema, radicals } from "@shared/schema";
+import { insertUserSettingsSchema, insertCharacterProgressSchema, radicals, type User, type PublicUser } from "@shared/schema";
 import { db } from "./db";
 import { sql, eq, or } from "drizzle-orm";
 import { z } from "zod";
@@ -22,13 +22,50 @@ function getSentencePinyin(sentence: string): string {
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-// Returns an Anthropic client using the user's stored API key if set,
-// falling back to the server ANTHROPIC_API_KEY environment variable.
-async function getAnthropicForUser(userId: string): Promise<Anthropic | null> {
-  const userSettings = await storage.getUserSettings(userId);
-  const apiKey = userSettings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+const AI_MODEL = "claude-sonnet-5-5";
+
+// Highest valid character index accepted by per-character routes.
+const MAX_CHARACTER_INDEX = 100000;
+
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? 'admin@andrew-yong.com')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+function isAdminUser(user: { email?: string | null } | null | undefined): boolean {
+  return ADMIN_EMAILS.has((user?.email ?? '').toLowerCase());
+}
+
+// Never send the password hash to clients.
+function toPublicUser(user: User): PublicUser {
+  const { passwordHash, ...rest } = user;
+  return { ...rest, isAdmin: isAdminUser(user) };
+}
+
+// Returns an Anthropic client using the user's stored API key if set.
+// The server ANTHROPIC_API_KEY is only used for admins, so other users can't spend it.
+async function getAnthropicForUser(user: { id: string; email?: string | null }): Promise<Anthropic | null> {
+  const userSettings = await storage.getUserSettings(user.id);
+  const apiKey = userSettings?.anthropicApiKey || (isAdminUser(user) ? process.env.ANTHROPIC_API_KEY : undefined);
   if (!apiKey) return null;
   return new Anthropic({ apiKey });
+}
+
+// Parses a JSON reply from the model, tolerating a ```json fence around it.
+function parseJsonReply(text: string): unknown {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  return JSON.parse(stripped);
+}
+
+// Kangxi radical number for a character, from the Unihan database.
+// Prefers the traditional form (unambiguous), then the simplified form.
+function unihanRadicalFor(character: { traditional?: string | null; simplified?: string | null }): { char: string; radical: number | null } {
+  const trad = character.traditional ?? '';
+  const simp = character.simplified ?? '';
+  const primary = (trad && trad !== simp) ? trad : simp;
+  return { char: primary, radical: getKangxiRadicalNumber(primary) ?? getKangxiRadicalNumber(simp) };
 }
 
 // Columns exported to Excel — all actual chinese_characters table columns (in order)
@@ -53,17 +90,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.login(user, (err) => {
         if (err) return next(err);
         (req.session as any).loginTime = Date.now();
-        res.json(user);
+        res.json(toPublicUser(user));
       });
     })(req, res, next);
   });
 
   app.post('/api/register', async (req, res, next) => {
     try {
-      const { email, password } = req.body;
-      if (!email || !password) {
+      const { email: rawEmail, password } = req.body;
+      if (!rawEmail || typeof rawEmail !== 'string' || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
       }
+      const email = rawEmail.trim().toLowerCase();
       if (password.length < 8) {
         return res.status(400).json({ message: 'Password must be at least 8 characters' });
       }
@@ -76,7 +114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.login(user, (err) => {
         if (err) return next(err);
         (req.session as any).loginTime = Date.now();
-        res.status(201).json(user);
+        res.status(201).json(toPublicUser(user));
       });
     } catch (err) {
       next(err);
@@ -90,16 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  const ADMIN_EMAILS = new Set(
-    (process.env.ADMIN_EMAILS ?? 'admin@andrew-yong.com')
-      .split(',')
-      .map(e => e.trim().toLowerCase())
-      .filter(Boolean)
-  );
-
   function isAdmin(req: any, res: any, next: any) {
     if (!req.isAuthenticated()) return res.status(401).json({ message: 'Unauthorized' });
-    if (!ADMIN_EMAILS.has((req.user.email ?? '').toLowerCase())) {
+    if (!isAdminUser(req.user)) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     next();
@@ -185,43 +216,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const character = await storage.getCharacter(characterIndex);
       if (!character) return res.status(404).json({ message: 'Character not found' });
 
-      const anthropic = await getAnthropicForUser(req.user.id);
+      // Shared data: AI may only fill gaps, never replace existing content.
+      const hasExamples = Array.isArray(character.examples) && character.examples.length > 0;
+      const hasExamplesTrad = Array.isArray(character.examplesTraditional) && character.examplesTraditional.length > 0;
+      const alreadyFilled =
+        (field === 'definition' && Array.isArray(character.definition) && character.definition.length > 0) ||
+        (field === 'examples' && hasExamples && hasExamplesTrad) ||
+        (field === 'radical' && (character as any).radicalIndex != null);
+      if (alreadyFilled) return res.status(409).json({ message: `This character already has ${field}` });
+
+      const anthropic = await getAnthropicForUser(req.user);
       if (!anthropic) return res.status(503).json({ message: 'No Anthropic API key configured. Add one in Settings.' });
 
       const update: CharacterUpdate = { index: characterIndex };
+      const badFormat = () => res.status(502).json({ message: 'AI returned an unexpected format. Please try again.' });
+      const isExampleList = (v: unknown): v is { chinese: string; english: string }[] =>
+        Array.isArray(v) && v.length > 0 && v.every((e) => e && typeof e.chinese === 'string' && typeof e.english === 'string');
 
       if (field === 'definition') {
         const prompt = `You are a Chinese language educator creating content for a language learning app.\nThe character "${character.simplified}" (traditional: "${character.traditional}", pinyin: ${character.pinyin}) is missing its English definition.\nGenerate 3–5 concise English definitions or meanings as a JSON array of strings.\nFocus on the most common usages a learner would encounter.\nReturn ONLY a valid JSON array, for example: ["to go", "to walk", "to leave"]\nNo other text, no markdown.`;
         const msg = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: AI_MODEL,
           max_tokens: 200,
           messages: [{ role: 'user', content: prompt }],
         });
-        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '[]';
-        update.definition = JSON.parse(text);
+        const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]';
+        let parsed: unknown;
+        try { parsed = parseJsonReply(text); } catch { return badFormat(); }
+        if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((d) => typeof d === 'string' && d.trim())) return badFormat();
+        update.definition = parsed.map((d: string) => d.trim());
       } else if (field === 'examples') {
         const defs = Array.isArray(character.definition) && character.definition.length
           ? character.definition.join(', ') : '';
         const prompt = `You are a Chinese language educator. Generate 3 example sentences for this character.\nSimplified: "${character.simplified}", Traditional: "${character.traditional}", Pinyin: ${character.pinyin}${defs ? `, Meaning: ${defs}` : ''}.\nReturn ONLY a JSON object with two arrays (no markdown):\n{\n  "examples": [{"chinese":"simplified sentence","english":"translation"}, ...],\n  "examplesTraditional": [{"chinese":"traditional sentence","english":"translation"}, ...]\n}\nMake sentences natural and educational for Chinese learners.`;
         const msg = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: AI_MODEL,
           max_tokens: 800,
           messages: [{ role: 'user', content: prompt }],
         });
-        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}';
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed.examples)) update.examples = parsed.examples;
-        if (Array.isArray(parsed.examplesTraditional)) update.examplesTraditional = parsed.examplesTraditional;
+        const text = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
+        let parsed: any;
+        try { parsed = parseJsonReply(text); } catch { return badFormat(); }
+        if (!parsed || typeof parsed !== 'object') return badFormat();
+        if (!hasExamples && isExampleList(parsed.examples)) update.examples = parsed.examples;
+        if (!hasExamplesTrad && isExampleList(parsed.examplesTraditional)) update.examplesTraditional = parsed.examplesTraditional;
+        if (update.examples === undefined && update.examplesTraditional === undefined) return badFormat();
       } else if (field === 'radical') {
         const prompt = `Identify the Kangxi radical (部首) of the Chinese character "${character.simplified}".\nReturn ONLY a JSON object (no markdown): {"radical":"<the radical character>","pinyin":"<pinyin with tone mark>"}\nExample: {"radical":"木","pinyin":"mù"}`;
         const msg = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: AI_MODEL,
           max_tokens: 50,
           messages: [{ role: 'user', content: prompt }],
         });
-        const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}';
-        const parsed = JSON.parse(text);
-        if (parsed.radical) {
+        const text = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
+        let parsed: any;
+        try { parsed = parseJsonReply(text); } catch { return badFormat(); }
+        if (parsed && typeof parsed.radical === 'string' && parsed.radical) {
           const found = await db.select().from(radicals).where(
             or(eq(radicals.traditional, parsed.radical), eq(radicals.simplified, parsed.radical))
           ).limit(1);
@@ -230,16 +280,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             update.radicalIndexTraditional = found[0].index;
           }
         }
+        if (update.radicalIndex === undefined) {
+          return res.status(422).json({ message: 'Could not determine a matching radical' });
+        }
       }
 
       await storage.updateCharactersBatch([update]);
       // Mirror the change to the seed file so fresh installs also get it.
-      await patchCharacterInSeed(characterIndex, {
-        ...(update.definition && { definition: update.definition }),
-        ...(update.examples && { examples: update.examples }),
-        ...(update.examplesTraditional && { examplesTraditional: update.examplesTraditional }),
-        ...(update.radicalIndex !== undefined && { radicalIndex: update.radicalIndex, radicalIndexTraditional: update.radicalIndexTraditional }),
-      });
+      const { index: _index, ...patch } = update;
+      await patchCharacterInSeed(characterIndex, patch);
       const updated = await storage.getCharacter(characterIndex);
       res.json(updated);
     } catch (err: any) {
@@ -260,13 +309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const character = await storage.getCharacter(characterIndex);
       if (!character) return res.status(404).json({ message: 'Character not found' });
 
-      // Determine which character form to look up (prefer traditional — it's unambiguous)
-      const tradChar: string = (character as any).traditional ?? '';
-      const simpChar: string = (character as any).simplified ?? '';
-      const primaryChar = (tradChar && tradChar !== simpChar) ? tradChar : simpChar;
-
-      const correctRadicalNumber = getKangxiRadicalNumber(primaryChar)
-        ?? getKangxiRadicalNumber(simpChar);
+      const { char: primaryChar, radical: correctRadicalNumber } = unihanRadicalFor(character as any);
 
       if (correctRadicalNumber == null) {
         return res.status(422).json({ message: `No Unihan radical data found for ${primaryChar}` });
@@ -313,10 +356,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(characterIndex)) return res.status(400).json({ message: 'Invalid character index' });
 
       const { radicalIndex } = req.body;
-      if (typeof radicalIndex !== 'number') return res.status(400).json({ message: 'radicalIndex must be a number' });
+      if (!Number.isInteger(radicalIndex)) return res.status(400).json({ message: 'radicalIndex must be an integer' });
 
       const character = await storage.getCharacter(characterIndex);
       if (!character) return res.status(404).json({ message: 'Character not found' });
+
+      // Shared data: only accept the correction the Unihan lookup would suggest.
+      const { radical: expectedRadical } = unihanRadicalFor(character as any);
+      if (expectedRadical == null || radicalIndex !== expectedRadical) {
+        return res.status(422).json({ message: 'radicalIndex does not match the Unihan radical for this character' });
+      }
 
       await storage.updateCharactersBatch([{ index: characterIndex, radicalIndex, radicalIndexTraditional: radicalIndex }]);
       await patchCharacterInSeed(characterIndex, { radicalIndex, radicalIndexTraditional: radicalIndex });
@@ -331,7 +380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.id);
-      res.json(user);
+      res.json(user ? toPublicUser(user) : user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -357,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...(lastName !== undefined && { lastName: lastName?.trim() || null }),
         ...(email !== undefined && { email: email.trim().toLowerCase() }),
       });
-      res.json(user);
+      res.json(toPublicUser(user));
     } catch (err) {
       next(err);
     }
@@ -373,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dataUrl = `data:image/jpeg;base64,${resized.toString('base64')}`;
       await storage.updateUser(req.user.id, { profileImageUrl: dataUrl });
       const user = await storage.getUser(req.user.id);
-      res.json(user);
+      res.json(user ? toPublicUser(user) : user);
     } catch (err) {
       next(err);
     }
@@ -405,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const settingsData = insertUserSettingsSchema.parse({ userId, ...req.body });
+      const settingsData = insertUserSettingsSchema.parse({ ...req.body, userId });
       const settings = await storage.upsertUserSettings(settingsData);
       const { anthropicApiKey, ...safeSettings } = settings;
       res.json({ ...safeSettings, anthropicApiKeySet: !!anthropicApiKey });
@@ -431,7 +480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/app-config', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/app-config', isAdmin, async (req: any, res) => {
     try {
       const { autoReloadDatabase } = req.body;
       if (typeof autoReloadDatabase !== "boolean") {
@@ -714,7 +763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const characterIndex = parseInt(req.params.characterIndex);
-      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= 3000) {
+      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= MAX_CHARACTER_INDEX) {
         return res.status(400).json({ message: "Invalid character index" });
       }
       const progress = await storage.getCharacterProgress(userId, characterIndex);
@@ -756,10 +805,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Single-skill save used by the quizzes (and their offline retry queue).
+  // Declared after /api/progress/batch so "batch" is not read as a character index.
+  app.patch('/api/progress/:characterIndex', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const characterIndex = parseInt(req.params.characterIndex);
+      if (isNaN(characterIndex) || characterIndex < 0 || characterIndex >= MAX_CHARACTER_INDEX) {
+        return res.status(400).json({ message: "Invalid character index" });
+      }
+      const { reading, writing } = req.body ?? {};
+      if (reading !== true && writing !== true) {
+        return res.status(400).json({ message: "Body must set reading or writing to true" });
+      }
+      const existing = await storage.getCharacterProgress(userId, characterIndex);
+      const progress = await storage.upsertCharacterProgress({
+        userId,
+        characterIndex,
+        reading: reading === true ? true : existing?.reading ?? false,
+        writing: writing === true ? true : existing?.writing ?? false,
+        radical: existing?.radical ?? false,
+      });
+      res.json(progress);
+    } catch (error) {
+      console.error("Error saving progress:", error);
+      res.status(500).json({ message: "Failed to save progress" });
+    }
+  });
+
   app.post('/api/progress', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const progressData = insertCharacterProgressSchema.parse({ userId, ...req.body });
+      const progressData = insertCharacterProgressSchema.parse({ ...req.body, userId });
       const progress = await storage.upsertCharacterProgress(progressData);
       res.json(progress);
     } catch (error) {
@@ -773,7 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Export all characters as Excel (full chinese_characters table, ordered by index)
-  app.get('/api/admin/characters/export', isAuthenticated, async (_req, res) => {
+  app.get('/api/admin/characters/export', isAdmin, async (_req, res) => {
     try {
       const characters = await storage.getAllCharactersRaw();
 
@@ -814,7 +891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Import characters from Excel (updates writable fields matched by index)
-  app.post('/api/admin/characters/import', isAuthenticated, upload.single("file"), async (req, res) => {
+  app.post('/api/admin/characters/import', isAdmin, upload.single("file"), async (req, res) => {
     try {
       const file = (req as Express.Request & { file?: Express.Multer.File }).file;
       if (!file) {
@@ -851,7 +928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const row of rows) {
         const rawIdx = row["index"];
         const idx = typeof rawIdx === "number" ? rawIdx : parseInt(String(rawIdx ?? ""));
-        if (isNaN(idx) || idx < 0 || idx >= 3000) {
+        if (isNaN(idx) || idx < 0 || idx >= MAX_CHARACTER_INDEX) {
           skippedCount++;
           continue;
         }
@@ -988,6 +1065,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedCount = await storage.updateCharactersBatch(updates);
+      // Keep the seed file (and its checksum) in step so a restart doesn't undo the import.
+      await patchCharactersInSeed(updates.map(({ index, ...patch }) => ({ index, patch })));
 
       res.json({
         message: `Successfully updated ${updatedCount} characters`,
@@ -1072,7 +1151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           try {
             const generated = await generateExampleSentence(
-              req.user.id,
+              req.user,
               chosen.simplified, chosen.traditional, chosen.pinyin,
               chosen.definition, chosen.hskLevel
             );
@@ -1232,11 +1311,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper: build the character-in-context explanation prompt (result-independent)
   async function generateExampleSentence(
-    userId: string,
+    user: { id: string; email?: string | null },
     character: string, traditional: string, pinyin: string,
     definition: string | string[], hskLevel: number
   ): Promise<{ sentence: string; blanked: string; translation: string }> {
-    const client = await getAnthropicForUser(userId);
+    const client = await getAnthropicForUser(user);
     if (!client) throw new Error("No Anthropic API key configured");
     const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
     const prompt = `Create one example sentence in Mandarin Chinese for an HSK ${hskLevel} student.
@@ -1254,24 +1333,29 @@ Reply with JSON only, no extra text:
 {"sentence": "...", "translation": "..."}`;
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: AI_MODEL,
       max_tokens: 150,
       messages: [{ role: "user", content: prompt }],
     });
-    const parsed = JSON.parse((response.content[0] as { text: string }).text.trim());
+    const parsed = parseJsonReply((response.content[0] as { text: string }).text) as { sentence?: unknown; translation?: unknown };
+    if (typeof parsed?.sentence !== "string" || typeof parsed?.translation !== "string") {
+      throw new Error("Unexpected AI response format");
+    }
     const blanked = parsed.sentence.replace(character, "＿");
     return { sentence: parsed.sentence, blanked, translation: parsed.translation };
   }
 
+  // Returns the feedback text and whether it came from the model. Fallback text
+  // (no API key) must never be stored in the shared feedback cache.
   async function generateCharacterFeedback(
-    userId: string,
+    user: { id: string; email?: string | null },
     character: string, pinyin: string, definition: string | string[],
     blanked: string, translation: string, hskLevel: number
-  ): Promise<string> {
-    const client = await getAnthropicForUser(userId);
+  ): Promise<{ text: string; fromAi: boolean }> {
+    const client = await getAnthropicForUser(user);
     if (!client) {
       const defStr = Array.isArray(definition) ? definition[0] : definition;
-      return `${character} (${pinyin}): ${defStr}`;
+      return { text: `${character} (${pinyin}): ${defStr}`, fromAi: false };
     }
     const defStr = Array.isArray(definition) ? definition.join(" | ") : definition;
     const prompt = `A student is studying HSK ${hskLevel}. In this fill-in-the-blank:
@@ -1286,11 +1370,11 @@ Write 2 sentences for a language learner:
 Be concise and encouraging.`;
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: AI_MODEL,
       max_tokens: 150,
       messages: [{ role: "user", content: prompt }],
     });
-    return (response.content[0] as { text: string }).text.trim();
+    return { text: (response.content[0] as { text: string }).text.trim(), fromAi: true };
   }
 
   // POST /api/quiz/recognize-handwriting
@@ -1298,11 +1382,11 @@ Be concise and encouraging.`;
     try {
       const { image } = req.body;
       if (!image) return res.status(400).json({ message: 'image is required' });
-      const client = await getAnthropicForUser(req.user.id);
+      const client = await getAnthropicForUser(req.user);
       if (!client) return res.status(402).json({ message: 'No Anthropic API key configured' });
       const base64 = image.replace(/^data:image\/\w+;base64,/, '');
       const response = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: AI_MODEL,
         max_tokens: 10,
         messages: [{
           role: 'user',
@@ -1317,6 +1401,10 @@ Be concise and encouraging.`;
     } catch (err) { next(err); }
   });
 
+  // Validates the client-supplied sentence used as part of the feedback cache key.
+  const isValidBlanked = (v: unknown): v is string =>
+    typeof v === "string" && v.length <= 300 && v.includes("＿");
+
   // POST /api/quiz/prefetch
   // Pre-generates and caches feedback for a question when it loads.
   // Fire-and-forget from the client — no need to await the response.
@@ -1324,16 +1412,21 @@ Be concise and encouraging.`;
     // Respond immediately so the client doesn't wait
     res.status(202).json({ queued: true });
     try {
-      const { character, blanked, translation, definition, pinyin, hskLevel } = req.body;
-      if (!character || !blanked) return;
+      const { character, blanked, translation, hskLevel } = req.body;
+      if (typeof character !== "string" || !isValidBlanked(blanked)) return;
 
       // Skip if already cached
       const existing = await storage.getFeedbackCache(blanked, character);
       if (existing) return;
 
-      const userId = req.user.id;
-      const feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
-      await storage.setFeedbackCache(blanked, character, feedback);
+      // Use our own data for the prompt, not text supplied by the client
+      const row = await storage.getCharacterByForm(character);
+      if (!row) return;
+
+      const { text, fromAi } = await generateCharacterFeedback(
+        req.user, character, row.pinyin, row.definition, blanked, translation, hskLevel
+      );
+      if (fromAi) await storage.setFeedbackCache(blanked, character, text);
     } catch (err) {
       console.error("Prefetch error (non-fatal):", err);
     }
@@ -1345,11 +1438,16 @@ Be concise and encouraging.`;
   // If the user has useAiFeedback=true in settings, always generates fresh feedback.
   app.post('/api/quiz/check', isAuthenticated, async (req: any, res) => {
     try {
-      const { character, answer, blanked, translation, definition, pinyin, hskLevel } = req.body;
+      const { character, answer, blanked, translation, hskLevel } = req.body;
 
-      if (!character || !answer) {
+      if (typeof character !== "string" || !character || typeof answer !== "string" || !answer) {
         return res.status(400).json({ message: "Missing required fields" });
       }
+      if (!isValidBlanked(blanked)) {
+        return res.status(400).json({ message: "Invalid blanked sentence" });
+      }
+      const row = await storage.getCharacterByForm(character);
+      if (!row) return res.status(404).json({ message: "Character not found" });
 
       const isCorrect = answer.trim() === character;
       const fullSentence = blanked.replace("＿", character);
@@ -1359,23 +1457,16 @@ Be concise and encouraging.`;
       const userSettingsRow = await storage.getUserSettings(userId);
       const useAiFeedback = userSettingsRow?.useAiFeedback ?? false;
 
-      let feedback: string;
+      const generate = () => generateCharacterFeedback(
+        req.user, character, row.pinyin, row.definition, blanked, translation, hskLevel
+      );
 
-      if (!useAiFeedback) {
-        // Try cache first
-        const cached = await storage.getFeedbackCache(blanked, character);
-        if (cached) {
-          feedback = cached;
-        } else {
-          // Generate and cache for next time
-          feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
-          storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
-        }
-      } else {
-        // Always generate fresh
-        feedback = await generateCharacterFeedback(userId, character, pinyin, definition, blanked, translation, hskLevel);
-        // Still cache so other users benefit
-        storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
+      let feedback: string | null = useAiFeedback ? null : await storage.getFeedbackCache(blanked, character);
+      if (feedback === null) {
+        // Generate fresh; only real AI output is cached for other users
+        const generated = await generate();
+        feedback = generated.text;
+        if (generated.fromAi) storage.setFeedbackCache(blanked, character, feedback).catch(() => {});
       }
 
       res.json({
@@ -1522,13 +1613,11 @@ Be concise and encouraging.`;
 
       // If no cached example, generate one via Claude
       if (!example) {
-        const userSettings = await storage.getUserSettings(userId);
-        const apiKey = userSettings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-        if (apiKey) {
+        const anthropic = await getAnthropicForUser(req.user);
+        if (anthropic) {
           try {
-            const anthropic = new Anthropic({ apiKey });
             const response = await anthropic.messages.create({
-              model: "claude-haiku-4-5-20251001",
+              model: AI_MODEL,
               max_tokens: 200,
               messages: [{
                 role: "user",
@@ -1622,13 +1711,13 @@ Be concise and encouraging.`;
       const isCorrect = trimmed === storedWord.word || (!!storedWord.traditional && trimmed === storedWord.traditional);
       const correctWord = storedWord.word;
 
-      const anthropic = await getAnthropicForUser(userId);
+      const anthropic = await getAnthropicForUser(req.user);
       if (!anthropic) {
         return res.json({ correct: isCorrect, feedback: isCorrect ? "Correct!" : `The answer is "${correctWord}" (${pinyin}).` });
       }
 
       const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: AI_MODEL,
         max_tokens: 300,
         messages: [{
           role: "user",
@@ -1692,14 +1781,12 @@ Be concise and encouraging.`;
         return res.status(403).json({ message: 'That student is not in your list' });
       }
       // Look up pinyin for each character
+      if (characters.some((c: unknown) => typeof c !== 'string' || !c)) {
+        return res.status(400).json({ message: 'characters must be non-empty strings' });
+      }
       const items = await Promise.all(characters.map(async (char: string) => {
-        const rows = await db.execute(sql`
-          SELECT pinyin, numbered_pinyin FROM chinese_characters
-          WHERE simplified = ${char} OR traditional = ${char}
-          LIMIT 1
-        `);
-        const row = (rows as any).rows?.[0] ?? (rows as any)[0];
-        return { character: char, pinyin: row?.pinyin ?? null, numberedPinyin: row?.numbered_pinyin ?? null };
+        const row = await storage.getCharacterByForm(char);
+        return { character: char, pinyin: row?.pinyin ?? null, numberedPinyin: (row as any)?.numberedPinyin ?? null };
       }));
       const checkup = await storage.createCheckup(
         req.user.id, studentId, items,
@@ -1747,6 +1834,10 @@ Be concise and encouraging.`;
       if (checkup.status !== 'pending') return res.status(400).json({ message: 'Already submitted' });
       const { drawings } = req.body; // [{id, drawing}]
       if (!Array.isArray(drawings)) return res.status(400).json({ message: 'drawings[] required' });
+      const itemIds = new Set<number>(checkup.items.map((i: any) => i.id));
+      const validDrawings = drawings.every((d: any) =>
+        d && Number.isInteger(d.id) && itemIds.has(d.id) && typeof d.drawing === 'string');
+      if (!validDrawings) return res.status(400).json({ message: 'drawings must reference items of this check-up' });
       await storage.submitCheckupDrawings(id, drawings);
       // Notify teacher
       const student = await storage.getUser(req.user.id);
@@ -1768,9 +1859,17 @@ Be concise and encouraging.`;
       if (checkup.status !== 'submitted') return res.status(400).json({ message: 'Not submitted yet' });
       const { scores } = req.body; // [{id, pointsAwarded, feedback?}]
       if (!Array.isArray(scores)) return res.status(400).json({ message: 'scores[] required' });
+      const itemIds = new Set<number>(checkup.items.map((i: any) => i.id));
+      const validScores = scores.every((x: any) =>
+        x && Number.isInteger(x.id) && itemIds.has(x.id) &&
+        Number.isInteger(x.pointsAwarded) && x.pointsAwarded >= 0 && x.pointsAwarded <= checkup.maxPointsPerChar &&
+        (x.feedback === undefined || x.feedback === null || typeof x.feedback === 'string'));
+      if (!validScores) {
+        return res.status(400).json({ message: `scores must reference items of this check-up with whole points from 0 to ${checkup.maxPointsPerChar}` });
+      }
       await storage.scoreCheckup(id, scores);
       // Notify student
-      const totalPoints = scores.reduce((s: number, x: any) => s + (x.pointsAwarded ?? 0), 0);
+      const totalPoints = scores.reduce((s: number, x: any) => s + x.pointsAwarded, 0);
       const maxPoints = checkup.items.length * checkup.maxPointsPerChar;
       await storage.sendMessage(
         req.user.id, checkup.studentId,
@@ -2108,7 +2207,7 @@ Be concise and encouraging.`;
         return res.status(400).json({ message: 'role must be teacher, student, or solo' });
       await storage.setUserRole(req.user.id, role);
       const user = await storage.getUser(req.user.id);
-      res.json(user);
+      res.json(user ? toPublicUser(user) : user);
     } catch (err) { next(err); }
   });
 
@@ -2161,6 +2260,11 @@ Be concise and encouraging.`;
       const { matched } = await storage.createCustomMatchings(resolvedRelId, req.user.id, entries, Boolean(core));
       res.json({ matched, notFound });
     } catch (err) { next(err); }
+  });
+
+  // Unknown API paths must 404 as JSON; otherwise the SPA catch-all answers them with index.html (200).
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ message: 'Not found' });
   });
 
   const httpServer = createServer(app);

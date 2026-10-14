@@ -41,6 +41,8 @@ export const users = pgTable("users", {
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+// Shape returned by the API: never includes the password hash.
+export type PublicUser = Omit<User, "passwordHash"> & { isAdmin: boolean };
 
 // App-level configuration — single row (id = 1), not per-user
 export const appConfig = pgTable("app_config", {
